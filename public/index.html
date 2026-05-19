@@ -1,0 +1,3114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Second Brain</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+:root { color-scheme: light; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fb; color: #1a1a2e; font-size: 13px; line-height: 1.5; }
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* Top Bar */
+.topbar { background: #1a1a2e; color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }
+.topbar h1 { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.search-wrap { flex: 1; min-width: 200px; max-width: 380px; position: relative; }
+.search-wrap input { width: 100%; padding: 6px 10px 6px 28px; border-radius: 5px; border: none; background: rgba(255,255,255,0.12); color: #fff; font-size: 12px; outline: none; }
+.search-wrap input::placeholder { color: rgba(255,255,255,0.5); }
+.search-wrap input:focus { background: rgba(255,255,255,0.2); }
+.search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.5); font-size: 12px; }
+.vip-bar { display: flex; gap: 4px; }
+.vip-btn { padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.vip-btn:hover, .vip-btn.active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+
+/* Search dropdown */
+.search-results { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); margin-top: 4px; max-height: 300px; overflow-y: auto; display: none; z-index: 200; }
+.search-results.visible { display: block; }
+.sr-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; }
+.sr-item:hover { background: #f5f7ff; }
+.sr-avatar { width: 28px; height: 28px; border-radius: 50%; background: #e8eaf6; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #3f51b5; font-size: 11px; flex-shrink: 0; }
+.sr-info { flex: 1; min-width: 0; }
+.sr-name { font-weight: 600; font-size: 12px; }
+.sr-meta { font-size: 10px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-source { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: #e8f5e9; color: #2e7d32; }
+
+/* Tabs */
+.tabs { display: flex; background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 16px; position: sticky; top: 42px; z-index: 90; overflow-x: auto; }
+.tab { padding: 8px 14px; font-size: 11px; font-weight: 500; color: #666; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.tab:hover { color: #333; }
+.tab.active { color: #3f51b5; border-bottom-color: #3f51b5; }
+.tab .badge { background: #ef5350; color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 6px; margin-left: 3px; }
+
+/* Main */
+.main { flex: 1; padding: 12px 16px; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* Cards */
+.card { background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 10px; overflow: hidden; }
+.card-header { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; }
+.card-header h3 { font-size: 12px; font-weight: 600; flex: 1; }
+.card-body { padding: 0; }
+
+/* Grid */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+@media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+/* Section headers */
+.section-header { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 6px; }
+.section-header:first-child { margin-top: 0; }
+
+/* Items */
+.item { padding: 8px 14px; border-bottom: 1px solid #f5f5f5; cursor: pointer; transition: background 0.1s; display: block; text-decoration: none; color: inherit; }
+.item:hover { background: #f8f9ff; }
+.item:last-child { border-bottom: none; }
+.item-row { display: flex; align-items: flex-start; gap: 8px; }
+.item-icon { width: 26px; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; }
+.item-icon.cal { background: #e3f2fd; color: #1565c0; }
+.item-icon.mail { background: #fce4ec; color: #c62828; }
+.item-icon.meet { background: #e8f5e9; color: #2e7d32; }
+.item-icon.crm { background: #fff3e0; color: #e65100; }
+.item-icon.drive { background: #f3e5f5; color: #7b1fa2; }
+.item-icon.granola { background: #e0f2f1; color: #00695c; }
+.item-icon.deal { background: #e8eaf6; color: #283593; }
+.item-icon.asset { background: #fff8e1; color: #f57f17; }
+.item-icon.team { background: #e0f7fa; color: #00838f; }
+.item-content { flex: 1; min-width: 0; }
+.item-title { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-sub { font-size: 10px; color: #888; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-snippet { font-size: 11px; color: #666; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.item-time { font-size: 10px; color: #999; white-space: nowrap; flex-shrink: 0; }
+.item-actions { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.action-link { font-size: 10px; color: #3f51b5; text-decoration: none; padding: 2px 6px; border-radius: 3px; background: #e8eaf6; cursor: pointer; }
+.action-link:hover { background: #c5cae9; }
+.action-link.green { background: #e8f5e9; color: #2e7d32; }
+.action-link.orange { background: #fff3e0; color: #e65100; }
+
+/* Contact 360 hero */
+.contact-hero { display: flex; align-items: center; gap: 14px; padding: 16px; background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 100%); color: #fff; border-radius: 6px; margin-bottom: 12px; }
+.contact-avatar { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+.contact-info h2 { font-size: 16px; font-weight: 700; }
+.contact-info .subtitle { font-size: 11px; opacity: 0.7; margin-top: 1px; }
+.contact-links { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.contact-link { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.15); color: #fff; text-decoration: none; }
+.contact-link:hover { background: rgba(255,255,255,0.25); }
+
+/* Stats */
+.stats-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.stat-card { flex: 1; min-width: 80px; background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; padding: 10px 12px; text-align: center; }
+.stat-num { font-size: 20px; font-weight: 700; color: #1a1a2e; }
+.stat-label { font-size: 10px; color: #888; margin-top: 1px; }
+
+/* Pipeline stages */
+.stage-bar { display: flex; gap: 4px; margin-bottom: 12px; }
+.stage-pill { flex: 1; text-align: center; padding: 8px 4px; border-radius: 6px; background: #fff; border: 1px solid #e5e7eb; }
+.stage-pill .num { font-size: 16px; font-weight: 700; }
+.stage-pill .lbl { font-size: 9px; color: #888; margin-top: 2px; }
+.stage-pill.s1 { border-color: #bbdefb; background: #e3f2fd; }
+.stage-pill.s2 { border-color: #c8e6c9; background: #e8f5e9; }
+.stage-pill.s3 { border-color: #fff9c4; background: #fffde7; }
+.stage-pill.s4 { border-color: #ffccbc; background: #fbe9e7; }
+.stage-pill.closed { border-color: #c5cae9; background: #e8eaf6; }
+
+/* Brand toggle */
+.brand-toggle { padding: 5px 14px; border-radius: 5px; border: 1px solid #e5e7eb; background: #fff; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.brand-toggle:hover { border-color: #3f51b5; background: #f5f7ff; }
+.brand-toggle.active { background: #3f51b5; color: #fff; border-color: #3f51b5; }
+.brand-toggle[data-brand="vorro"].active { background: #2e7d32; border-color: #2e7d32; }
+.brand-toggle[data-brand="combined"].active { background: #1a1a2e; border-color: #1a1a2e; }
+
+/* Meeting context */
+.meeting-context { border-top: 1px solid #f0f0f0; background: #fafbfc; }
+.meeting-context .section-header { font-size: 10px; margin: 8px 0 4px; }
+.mtg-email-item { padding: 3px 0; display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.mtg-email-icon { width: 18px; height: 18px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; }
+.mtg-transcript-box { font-size: 11px; color: #333; line-height: 1.5; max-height: 120px; overflow-y: auto; background: #f0f2f5; padding: 8px; border-radius: 4px; margin: 4px 0; }
+.thread-context { border-top: 1px solid #e5e7eb; background: #fafbfc; padding: 10px 12px; }
+.thread-context .section-header { font-size: 10px; margin: 8px 0 4px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+.thread-notes-box { font-size: 11px; color: #333; line-height: 1.6; background: #f0f2f5; padding: 10px; border-radius: 5px; margin: 4px 0; max-height: 160px; overflow-y: auto; }
+.thread-draft-box { font-size: 12px; color: #1a1a2e; line-height: 1.6; background: #fff; border: 1px solid #c5cae9; padding: 12px; border-radius: 5px; margin: 6px 0; white-space: pre-wrap; position: relative; }
+.thread-draft-box .draft-actions { display: flex; gap: 6px; margin-top: 8px; }
+.thread-draft-box .draft-btn { padding: 4px 10px; border-radius: 4px; border: 1px solid #c5cae9; background: #fff; font-size: 11px; cursor: pointer; transition: all 0.15s; }
+.thread-draft-box .draft-btn:hover { background: #e8eaf6; }
+.thread-draft-box .draft-btn.primary { background: #3f51b5; color: #fff; border-color: #3f51b5; }
+.thread-draft-box .draft-btn.primary:hover { background: #303f9f; }
+.thread-msg-item { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 11px; }
+.thread-msg-item:last-child { border-bottom: none; }
+.thread-msg-from { font-weight: 600; color: #1a1a2e; }
+.thread-msg-date { font-size: 10px; color: #999; margin-left: 6px; }
+.thread-msg-body { color: #444; margin-top: 2px; max-height: 80px; overflow-y: auto; }
+.deal-editable { cursor: pointer; border-bottom: 1px dashed #999; display: inline; }
+.deal-editable:hover { color: #3f51b5; border-bottom-color: #3f51b5; }
+.deal-editable.readonly { cursor: default; border-bottom: none; }
+.deal-editable.readonly:hover { color: inherit; }
+.deal-select { font-size: 11px; padding: 2px 4px; border: 1px solid #c5cae9; border-radius: 3px; background: #fff; color: #333; max-width: 160px; }
+.deal-save-ok { color: #4caf50; font-size: 10px; margin-left: 4px; display: inline; }
+.deal-save-err { color: #ef5350; font-size: 10px; margin-left: 4px; display: inline; }
+.notes-link { flex-shrink: 0; font-size: 11px; padding: 2px 6px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
+.notes-link.active { background: #e8eaf6; color: #3f51b5; }
+.notes-link.active:hover { background: #c5cae9; }
+.notes-link.greyed { background: #f5f5f5; color: #bbb; cursor: default; }
+.notes-content { background: #f8f9fb; border-top: 1px solid #f0f0f0; padding: 8px 12px; font-size: 11px; line-height: 1.6; max-height: 200px; overflow-y: auto; }
+
+/* Team cards */
+.team-card { background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; padding: 14px; text-align: center; }
+.team-avatar { width: 40px; height: 40px; border-radius: 50%; background: #e0f7fa; color: #00838f; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-weight: 700; font-size: 14px; }
+.team-name { font-weight: 600; font-size: 13px; }
+.team-role { font-size: 10px; color: #888; margin-top: 2px; }
+.team-stats { display: flex; justify-content: center; gap: 12px; margin-top: 8px; }
+.team-stat { text-align: center; }
+.team-stat .n { font-size: 14px; font-weight: 700; }
+.team-stat .l { font-size: 9px; color: #888; }
+
+/* Scroll */
+.scroll-panel { max-height: 380px; overflow-y: auto; }
+.scroll-panel::-webkit-scrollbar { width: 3px; }
+.scroll-panel::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+/* Loading */
+.loading { text-align: center; padding: 20px; color: #999; }
+.loading .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #e5e7eb; border-top-color: #3f51b5; border-radius: 50%; animation: spin 0.6s linear infinite; margin-bottom: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state { text-align: center; padding: 24px; color: #999; font-size: 12px; }
+
+/* Chart container */
+.chart-wrap { padding: 12px; height: 200px; }
+
+/* ── Copilot ── */
+.copilot-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 900px) { .copilot-layout { grid-template-columns: 1fr; } }
+.copilot-meeting-bar { background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 100%); color: #fff; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+.copilot-meeting-bar .cmb-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.copilot-meeting-bar .cmb-info { flex: 1; }
+.copilot-meeting-bar .cmb-title { font-size: 14px; font-weight: 700; }
+.copilot-meeting-bar .cmb-meta { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+.copilot-meeting-bar .cmb-actions { display: flex; gap: 6px; }
+.copilot-meeting-bar .cmb-btn { padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: #fff; font-size: 11px; cursor: pointer; }
+.copilot-meeting-bar .cmb-btn:hover { background: rgba(255,255,255,0.15); }
+.copilot-audio-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; }
+.copilot-audio-bar .listen-btn { padding: 6px 14px; border-radius: 5px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.copilot-audio-bar .listen-btn.idle { background: #4caf50; color: #fff; }
+.copilot-audio-bar .listen-btn.active { background: #ef5350; color: #fff; animation: pulse-red 1.5s infinite; }
+@keyframes pulse-red { 0%,100%{box-shadow:0 0 0 0 rgba(239,83,80,0.4)} 50%{box-shadow:0 0 0 8px rgba(239,83,80,0)} }
+.copilot-audio-bar .listen-status { font-size: 11px; color: #888; flex: 1; }
+.copilot-audio-bar .listen-dot { width: 8px; height: 8px; border-radius: 50%; }
+.copilot-audio-bar .listen-dot.off { background: #ccc; }
+.copilot-audio-bar .listen-dot.on { background: #4caf50; animation: pulse-green 1s infinite; }
+@keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.copilot-transcript { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; min-height: 200px; max-height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.7; }
+.copilot-transcript .ct-line { padding: 4px 0; border-bottom: 1px solid #f5f5f5; }
+.copilot-transcript .ct-line .ct-time { font-size: 9px; color: #999; margin-right: 6px; }
+.copilot-transcript .ct-interim { color: #999; font-style: italic; padding: 4px 0; }
+.copilot-input-wrap { margin-top: 8px; }
+.copilot-input-wrap textarea { width: 100%; min-height: 50px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 5px; font-size: 12px; font-family: inherit; resize: vertical; outline: none; }
+.copilot-input-wrap textarea:focus { border-color: #3f51b5; }
+.copilot-input-wrap .ci-hint { font-size: 10px; color: #999; margin-top: 2px; }
+.copilot-actions-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.copilot-action-btn { padding: 10px 8px; border-radius: 6px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; text-align: center; transition: all 0.15s; }
+.copilot-action-btn:hover { border-color: #3f51b5; background: #f5f7ff; }
+.copilot-action-btn.active { border-color: #3f51b5; background: #e8eaf6; }
+.copilot-action-btn .cab-icon { font-size: 18px; margin-bottom: 2px; }
+.copilot-action-btn .cab-label { font-size: 11px; font-weight: 600; color: #333; }
+.copilot-action-btn .cab-hint { font-size: 9px; color: #888; margin-top: 1px; }
+.copilot-action-btn.explain { border-left: 3px solid #2196f3; }
+.copilot-action-btn.rebuttal { border-left: 3px solid #ff9800; }
+.copilot-action-btn.tone { border-left: 3px solid #9c27b0; }
+.copilot-action-btn.advise { border-left: 3px solid #4caf50; }
+.copilot-response { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; min-height: 100px; overflow: hidden; }
+.copilot-response .cr-header { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.copilot-response .cr-body { padding: 12px; font-size: 12px; line-height: 1.7; color: #333; max-height: 300px; overflow-y: auto; }
+.copilot-response .cr-body.loading { text-align: center; color: #999; padding: 24px; }
+.copilot-tone-bar { display: flex; gap: 4px; margin-bottom: 8px; }
+.copilot-tone-pill { padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.tone-positive { background: #e8f5e9; color: #2e7d32; }
+.tone-neutral { background: #fff3e0; color: #e65100; }
+.tone-negative { background: #fce4ec; color: #c62828; }
+.tone-curious { background: #e3f2fd; color: #1565c0; }
+.copilot-context-panel { margin-top: 10px; }
+.copilot-ctx-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; }
+.copilot-ctx-card .ccc-title { font-size: 10px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.copilot-ctx-card .ccc-body { font-size: 11px; color: #333; line-height: 1.5; }
+.copilot-auto-rebuttal { background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; padding: 10px 12px; margin-top: 8px; animation: slideIn 0.3s ease; }
+.copilot-auto-rebuttal .car-tag { font-size: 9px; font-weight: 700; color: #f57f17; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.copilot-auto-rebuttal .car-body { font-size: 12px; color: #333; line-height: 1.6; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Legal Assets ── */
+.legal-type-card { background: #fff; border: 2px solid #e5e7eb; border-radius: 8px; padding: 14px 10px; text-align: center; cursor: pointer; transition: all 0.15s; }
+.legal-type-card:hover { border-color: #e91e63; background: #fce4ec; }
+.legal-type-card.selected { border-color: #e91e63; background: #fce4ec; box-shadow: 0 2px 8px rgba(233,30,99,0.15); }
+.legal-type-card .ltc-icon { font-size: 24px; margin-bottom: 4px; }
+.legal-type-card .ltc-title { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.legal-type-card .ltc-desc { font-size: 10px; color: #888; margin-top: 2px; }
+@media (max-width: 700px) { #legalTypeGrid { grid-template-columns: repeat(3, 1fr) !important; } }
+
+/* ── Productivity ── */
+.prod-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.prod-header h2 { font-size: 14px; font-weight: 700; flex: 1; }
+.prod-header .prod-btn { padding: 5px 12px; border-radius: 5px; border: 1px solid #e5e7eb; background: #fff; font-size: 11px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+.prod-header .prod-btn:hover { border-color: #3f51b5; background: #f5f7ff; }
+.prod-header .prod-btn.primary { background: #3f51b5; color: #fff; border-color: #3f51b5; }
+.prod-header .prod-btn.primary:hover { background: #303f9f; }
+.prod-tabs { display: flex; gap: 2px; background: #f0f0f0; border-radius: 6px; padding: 2px; margin-bottom: 12px; }
+.prod-tab { flex: 1; padding: 6px 10px; border-radius: 4px; border: none; background: transparent; font-size: 11px; font-weight: 500; color: #666; cursor: pointer; text-align: center; transition: all 0.15s; }
+.prod-tab.active { background: #fff; color: #3f51b5; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; min-height: 400px; }
+@media (max-width: 900px) { .kanban { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .kanban { grid-template-columns: 1fr; } }
+.kanban-col { background: #f5f6f8; border-radius: 6px; padding: 8px; min-height: 300px; }
+.kanban-col-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin-bottom: 6px; }
+.kanban-col-header .kch-dot { width: 8px; height: 8px; border-radius: 50%; }
+.kanban-col-header .kch-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #555; flex: 1; }
+.kanban-col-header .kch-count { font-size: 10px; color: #999; background: #e5e7eb; padding: 1px 6px; border-radius: 8px; }
+.kanban-col.active .kch-dot { background: #4caf50; }
+.kanban-col.waiting .kch-dot { background: #ff9800; }
+.kanban-col.someday .kch-dot { background: #9c27b0; }
+.kanban-col.done .kch-dot { background: #2196f3; }
+.kanban-card { background: #fff; border-radius: 5px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid #e5e7eb; cursor: pointer; transition: all 0.15s; position: relative; }
+.kanban-card:hover { border-color: #3f51b5; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+.kanban-card .kc-title { font-size: 12px; font-weight: 600; color: #333; margin-bottom: 3px; }
+.kanban-card .kc-context { font-size: 10px; color: #888; line-height: 1.4; }
+.kanban-card .kc-meta { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; align-items: center; }
+.kanban-card .kc-tag { font-size: 9px; padding: 1px 5px; border-radius: 3px; }
+.kc-tag.person { background: #e3f2fd; color: #1565c0; }
+.kc-tag.due { background: #fce4ec; color: #c62828; }
+.kc-tag.due.overdue { background: #ef5350; color: #fff; }
+.kc-tag.since { background: #f3e5f5; color: #7b1fa2; }
+.kanban-card .kc-actions { position: absolute; top: 4px; right: 4px; display: none; gap: 2px; }
+.kanban-card:hover .kc-actions { display: flex; }
+.kc-actions button { width: 20px; height: 20px; border-radius: 3px; border: none; background: #f5f5f5; cursor: pointer; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+.kc-actions button:hover { background: #e0e0e0; }
+.kanban-add { padding: 6px; text-align: center; }
+.kanban-add button { width: 100%; padding: 6px; border-radius: 4px; border: 1px dashed #ccc; background: transparent; color: #999; font-size: 11px; cursor: pointer; }
+.kanban-add button:hover { border-color: #3f51b5; color: #3f51b5; }
+.prod-add-form { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-bottom: 12px; display: none; }
+.prod-add-form.visible { display: block; }
+.prod-add-form input, .prod-add-form select, .prod-add-form textarea { width: 100%; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 12px; margin-bottom: 6px; font-family: inherit; }
+.prod-add-form .paf-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.prod-add-form .paf-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+/* Memory panel */
+.memory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 900px) { .memory-grid { grid-template-columns: 1fr; } }
+.memory-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; }
+.memory-card h4 { font-size: 11px; font-weight: 700; color: #3f51b5; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.memory-card h4 .mc-icon { font-size: 14px; }
+.memory-entry { padding: 4px 0; border-bottom: 1px solid #f5f5f5; font-size: 11px; display: flex; gap: 6px; }
+.memory-entry:last-child { border-bottom: none; }
+.memory-entry .me-key { font-weight: 600; color: #333; min-width: 80px; }
+.memory-entry .me-val { color: #666; flex: 1; }
+.memory-empty { text-align: center; padding: 16px; color: #999; font-size: 11px; }
+.glossary-item { padding: 6px 0; border-bottom: 1px solid #f5f5f5; }
+.glossary-item:last-child { border-bottom: none; }
+.glossary-item .gi-term { font-weight: 700; font-size: 12px; color: #1a1a2e; }
+.glossary-item .gi-def { font-size: 11px; color: #666; margin-top: 1px; }
+
+/* Automation status */
+.auto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.auto-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 5px; padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
+.auto-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.auto-dot.ok { background: #4caf50; }
+.auto-dot.warn { background: #ff9800; }
+.auto-dot.fail { background: #ef5350; }
+.auto-dot.off { background: #bbb; }
+.auto-info { flex: 1; min-width: 0; }
+.auto-name { font-size: 11px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.auto-schedule { font-size: 9px; color: #999; }
+.auto-last { font-size: 9px; color: #4caf50; }
+.auto-last.stale { color: #ff9800; }
+.auto-last.old { color: #ef5350; }
+
+/* Stale thread alerts */
+.stale-banner { background: #fff3e0; border: 1px solid #ffe0b2; border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; }
+.stale-banner .sb-title { font-size: 11px; font-weight: 700; color: #e65100; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.stale-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11px; border-bottom: 1px solid #fff3e0; }
+.stale-item:last-child { border-bottom: none; }
+.stale-days { color: #e65100; font-weight: 700; font-size: 10px; background: #ffe0b2; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+
+/* Asset generated tag */
+.asset-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.asset-tag.generated { background: #e8f5e9; color: #2e7d32; }
+.asset-tag.pending { background: #fff3e0; color: #e65100; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Second Brain</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v4.0 | init...</span>
+    <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="margin-left:auto;padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer">Debug</button>
+    <button onclick="fetch('/auth/logout',{method:'POST'}).then(()=>location.reload())" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">Logout</button>
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input id="searchInput" type="text" placeholder="Search contacts, threads, deals..." autocomplete="off">
+      <div id="searchResults" class="search-results"></div>
+    </div>
+    <div class="vip-bar">
+      <button class="vip-btn" onclick="loadContact('Ambarish Gupta','ambarish@basisvectors.com')">Ambarish</button>
+      <button class="vip-btn" onclick="loadContact('Andrew Baker','abaker@vorro.net')">Andrew</button>
+      <button class="vip-btn" onclick="loadContact('Scott Sirdevan','ssirdevan@vorro.net')">Scott</button>
+      <button class="vip-btn" onclick="loadContact('Bill Mastin','bmastin@cadienttalent.com')">Bill</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-view="dashboard" onclick="switchView('dashboard')">Today</div>
+    <div class="tab" data-view="contact360" onclick="switchView('contact360')">Contact 360</div>
+    <div class="tab" data-view="pipeline" onclick="switchView('pipeline')">Pipeline</div>
+    <div class="tab" data-view="team" onclick="switchView('team')">Team</div>
+    <div class="tab" data-view="meetings" onclick="switchView('meetings')">Meetings</div>
+    <div class="tab" data-view="intelligence" onclick="switchView('intelligence')">Intelligence</div>
+    <div class="tab" data-view="copilot" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">Copilot</div>
+    <div class="tab" data-view="productivity" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
+    <div class="tab" data-view="legal" onclick="switchView('legal')" style="color:#e91e63;font-weight:600">Legal Assets</div>
+  </div>
+  <div id="debugPanel" style="display:none;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:10px;padding:8px 12px;max-height:200px;overflow-y:auto;border-bottom:2px solid #4caf50">
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><strong style="color:#4caf50">Debug Log v4.0</strong><button onclick="navigator.clipboard.writeText(document.getElementById('debugLog').textContent)" style="font-size:9px;background:#333;color:#0f0;border:1px solid #0f0;padding:1px 4px;cursor:pointer">Copy</button></div>
+    <div id="debugLog"></div>
+  </div>
+  <div class="main">
+
+    <!-- TODAY -->
+    <div id="view-dashboard" class="view active">
+      <div id="statsBar" class="stats-bar">
+        <div class="stat-card"><div class="stat-num" id="statEvents">-</div><div class="stat-label">Events Today</div></div>
+        <div class="stat-card"><div class="stat-num" id="statThreads">-</div><div class="stat-label">VIP Threads</div></div>
+        <div class="stat-card"><div class="stat-num" id="statDrafts">-</div><div class="stat-label">Drafts</div></div>
+        <div class="stat-card"><div class="stat-num" id="statDeals">-</div><div class="stat-label">Open Deals</div></div>
+        <div class="stat-card"><div class="stat-num" id="statPipeline">-</div><div class="stat-label">Pipeline $</div></div>
+      </div>
+      <div id="staleAlerts" style="display:none"></div>
+      <div class="section-header" style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="document.getElementById('autoStatusPanel').style.display=document.getElementById('autoStatusPanel').style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=document.getElementById('autoStatusPanel').style.display==='none'?'+':'-'">Automation Status <span class="toggle-arrow" style="font-size:14px;color:#999">-</span></div>
+      <div id="autoStatusPanel"><div class="card" style="margin-bottom:10px"><div class="card-body" style="padding:10px" id="automationStatus"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div></div>
+      <div class="grid-2">
+        <div>
+          <div class="section-header">Today's Calendar</div>
+          <div class="card"><div class="card-body scroll-panel" id="todayCalendar"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+          <div class="section-header">Priority Email Threads</div>
+          <div class="card"><div class="card-body scroll-panel" id="priorityThreads"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+        </div>
+        <div>
+          <div class="section-header">Gmail Drafts</div>
+          <div class="card"><div class="card-body scroll-panel" id="draftsList"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+          <div class="section-header">Late-Stage Deals (S4+)</div>
+          <div class="card"><div class="card-body scroll-panel" id="closingDeals"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTACT 360 -->
+    <div id="view-contact360" class="view">
+      <div id="contactPlaceholder" class="empty-state">Click a VIP button or search for a contact.</div>
+      <div id="contactContent" style="display:none">
+        <div id="contactHero"></div>
+        <div class="grid-2">
+          <div>
+            <div class="section-header">Email Threads</div>
+            <div class="card"><div class="card-body scroll-panel" id="contactEmails"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+            <div class="section-header">Deals</div>
+            <div class="card"><div class="card-body" id="contactDeals"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+          </div>
+          <div>
+            <div class="section-header">CRM Record</div>
+            <div class="card"><div class="card-body" id="contactCRM"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+            <div class="section-header">Meeting History</div>
+            <div class="card"><div class="card-body scroll-panel" id="contactMeetings"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+          </div>
+        </div>
+        <div class="section-header">Sales Assets</div>
+        <div class="card"><div class="card-body" id="contactAssets"></div></div>
+        <div class="section-header">Shared Files</div>
+        <div class="card"><div class="card-body scroll-panel" id="contactFiles"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+        <div class="section-header">AI Briefing</div>
+        <div class="card"><div class="card-body" id="contactBriefing"><div class="loading"><div class="spinner"></div><br>Generating...</div></div></div>
+      </div>
+    </div>
+
+    <!-- PIPELINE -->
+    <div id="view-pipeline" class="view">
+      <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+        <button class="brand-toggle active" data-brand="cadient" onclick="switchPipelineBrand('cadient')">Cadient</button>
+        <button class="brand-toggle" data-brand="vorro" onclick="switchPipelineBrand('vorro')">Vorro</button>
+        <button class="brand-toggle" data-brand="combined" onclick="switchPipelineBrand('combined')">Combined</button>
+        <span style="margin-left:8px;color:#ccc">|</span>
+        <select id="stageFilter" onchange="applyStageFilter()" style="font-size:11px;padding:3px 6px;border:1px solid #ddd;border-radius:4px;background:#fff;color:#333;cursor:pointer">
+          <option value="">All Stages</option>
+        </select>
+        <span id="pipelineSummary" style="margin-left:auto;font-size:11px;color:#888"></span>
+      </div>
+      <div id="pipelineStages" class="stage-bar"></div>
+      <div class="grid-2">
+        <div>
+          <div class="section-header">Pipeline by Stage</div>
+          <div class="card"><div class="chart-wrap"><canvas id="pipelineChart"></canvas></div></div>
+        </div>
+        <div>
+          <div class="section-header">Pipeline by Owner</div>
+          <div class="card"><div class="chart-wrap"><canvas id="ownerChart"></canvas></div></div>
+        </div>
+      </div>
+      <div class="section-header">All Deals</div>
+      <div class="card"><div class="card-body scroll-panel" id="allDeals"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+    </div>
+
+    <!-- TEAM -->
+    <div id="view-team" class="view">
+      <div class="section-header">BDR Team Activity</div>
+      <div id="teamGrid" class="grid-4"></div>
+      <div class="section-header" style="margin-top:16px">Recent Team Threads</div>
+      <div class="card"><div class="card-body scroll-panel" id="teamThreads"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+    </div>
+
+    <!-- MEETINGS -->
+    <div id="view-meetings" class="view">
+      <div class="section-header">This Week</div>
+      <div class="card"><div class="card-body scroll-panel" id="weekMeetings"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+      <div class="section-header">Last 30 Days</div>
+      <div class="card"><div class="card-body scroll-panel" id="monthMeetings"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+    </div>
+
+    <!-- INTELLIGENCE -->
+    <div id="view-intelligence" class="view">
+      <div class="section-header">Weekly Summary</div>
+      <div class="card"><div class="card-body" id="intelligenceContent"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+      <div class="section-header">Decisions Made</div>
+      <div class="card"><div class="card-body" id="decisionsContent"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+      <div class="section-header">Open Action Items</div>
+      <div class="card"><div class="card-body" id="actionsContent"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+    </div>
+
+    <!-- COPILOT -->
+    <div id="view-copilot" class="view">
+      <div id="copilotMeetingBar" class="copilot-meeting-bar">
+        <div class="cmb-icon">&#127897;</div>
+        <div class="cmb-info"><div class="cmb-title" id="copilotMeetingTitle">No Active Meeting</div><div class="cmb-meta" id="copilotMeetingMeta">Open your calendar meeting and start listening</div></div>
+        <div class="cmb-actions">
+          <button class="cmb-btn" onclick="refreshCopilotMeeting()">Refresh</button>
+          <button class="cmb-btn" onclick="clearCopilotSession()">Clear Session</button>
+        </div>
+      </div>
+
+      <div class="copilot-layout">
+        <div>
+          <div class="copilot-audio-bar">
+            <button id="btnListen" class="listen-btn idle" onclick="toggleListening()">Start Listening</button>
+            <span id="listenStatus" class="listen-status">Idle - Click to start</span>
+            <div id="listenDot" class="listen-dot off"></div>
+          </div>
+          <div class="section-header">Live Transcript</div>
+          <div id="copilotTranscript" class="copilot-transcript">
+            <div class="empty-state">Type or paste meeting conversation below to get real-time AI analysis, rebuttals, and coaching.</div>
+          </div>
+          <div class="copilot-input-wrap">
+            <textarea id="copilotManualInput" placeholder="Type what you hear or paste meeting notes here..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addManualTranscript()}"></textarea>
+            <div class="ci-hint">Press Enter to add to transcript. Shift+Enter for new line.</div>
+          </div>
+          <div id="copilotAutoRebuttal"></div>
+        </div>
+
+        <div>
+          <div class="copilot-actions-bar">
+            <div class="copilot-action-btn explain" onclick="copilotAction('explain')">
+              <div class="cab-icon">&#128161;</div>
+              <div class="cab-label">Explain</div>
+              <div class="cab-hint">Break down what was said</div>
+            </div>
+            <div class="copilot-action-btn rebuttal" onclick="copilotAction('rebuttal')">
+              <div class="cab-icon">&#9889;</div>
+              <div class="cab-label">Rebuttal</div>
+              <div class="cab-hint">Counter-argument with data</div>
+            </div>
+            <div class="copilot-action-btn tone" onclick="copilotAction('tone')">
+              <div class="cab-icon">&#127912;</div>
+              <div class="cab-label">Tone</div>
+              <div class="cab-hint">Emotional analysis</div>
+            </div>
+            <div class="copilot-action-btn advise" onclick="copilotAction('advise')">
+              <div class="cab-icon">&#128172;</div>
+              <div class="cab-label">Advise</div>
+              <div class="cab-hint">What to say next</div>
+            </div>
+          </div>
+
+          <div id="copilotResponse" class="copilot-response">
+            <div class="cr-header">&#129302; AI Response</div>
+            <div class="cr-body" id="copilotResponseBody"><div class="empty-state">Click an action button after adding transcript content</div></div>
+          </div>
+
+          <div class="copilot-context-panel" id="copilotContextPanel">
+            <div class="section-header">Meeting Context</div>
+            <div id="copilotContextCards"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTIVITY -->
+    <div id="view-productivity" class="view">
+      <div class="prod-header">
+        <h2>Productivity Hub</h2>
+        <button class="prod-btn" onclick="prodSyncTasks()">Sync External Tasks</button>
+        <button class="prod-btn" onclick="prodScanActivity()">Scan Activity</button>
+        <button class="prod-btn primary" onclick="toggleAddTask()">+ Add Task</button>
+      </div>
+
+      <div id="prodAddForm" class="prod-add-form">
+        <input id="prodTaskTitle" type="text" placeholder="Task title (bold, actionable)" onkeydown="if(event.key==='Enter')addProdTask()">
+        <div class="paf-row">
+          <input id="prodTaskPerson" type="text" placeholder="For whom (optional)">
+          <input id="prodTaskDue" type="date" placeholder="Due date">
+          <select id="prodTaskColumn"><option value="active">Active</option><option value="waiting">Waiting On</option><option value="someday">Someday</option></select>
+        </div>
+        <textarea id="prodTaskContext" rows="2" placeholder="Context, notes, links..."></textarea>
+        <div class="paf-actions">
+          <button class="prod-btn" onclick="toggleAddTask()">Cancel</button>
+          <button class="prod-btn primary" onclick="addProdTask()">Add Task</button>
+        </div>
+      </div>
+
+      <div class="prod-tabs">
+        <button class="prod-tab active" onclick="switchProdView('board',this)">Board</button>
+        <button class="prod-tab" onclick="switchProdView('memory',this)">Memory</button>
+        <button class="prod-tab" onclick="switchProdView('glossary',this)">Glossary</button>
+      </div>
+
+      <!-- Board view -->
+      <div id="prodBoardView">
+        <div class="kanban">
+          <div class="kanban-col active" id="colActive">
+            <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Active</div><div class="kch-count" id="cntActive">0</div></div>
+            <div id="cardsActive"></div>
+            <div class="kanban-add"><button onclick="quickAddTask('active')">+ Add</button></div>
+          </div>
+          <div class="kanban-col waiting" id="colWaiting">
+            <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Waiting On</div><div class="kch-count" id="cntWaiting">0</div></div>
+            <div id="cardsWaiting"></div>
+            <div class="kanban-add"><button onclick="quickAddTask('waiting')">+ Add</button></div>
+          </div>
+          <div class="kanban-col someday" id="colSomeday">
+            <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Someday</div><div class="kch-count" id="cntSomeday">0</div></div>
+            <div id="cardsSomeday"></div>
+            <div class="kanban-add"><button onclick="quickAddTask('someday')">+ Add</button></div>
+          </div>
+          <div class="kanban-col done" id="colDone">
+            <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Done</div><div class="kch-count" id="cntDone">0</div></div>
+            <div id="cardsDone"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Memory view -->
+      <div id="prodMemoryView" style="display:none">
+        <div class="memory-grid">
+          <div class="memory-card">
+            <h4><span class="mc-icon">&#128101;</span> Key People</h4>
+            <div id="memPeople"><div class="memory-empty">Loading memory...</div></div>
+          </div>
+          <div class="memory-card">
+            <h4><span class="mc-icon">&#128188;</span> Active Projects</h4>
+            <div id="memProjects"><div class="memory-empty">Loading projects...</div></div>
+          </div>
+          <div class="memory-card">
+            <h4><span class="mc-icon">&#128736;</span> Preferences</h4>
+            <div id="memPrefs"><div class="memory-empty">Loading preferences...</div></div>
+          </div>
+          <div class="memory-card">
+            <h4><span class="mc-icon">&#127919;</span> Recent Decisions</h4>
+            <div id="memDecisions"><div class="memory-empty">Loading decisions...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Glossary view -->
+      <div id="prodGlossaryView" style="display:none">
+        <div class="search-wrap" style="max-width:100%;margin-bottom:12px">
+          <span class="search-icon">&#128269;</span>
+          <input id="glossarySearch" type="text" placeholder="Search terms, acronyms, nicknames..." style="background:#fff;color:#333;border:1px solid #e5e7eb" oninput="filterGlossary(this.value)">
+        </div>
+        <div id="glossaryList" class="card"><div class="card-body scroll-panel" id="glossaryItems" style="padding:12px"><div class="memory-empty">Loading glossary...</div></div></div>
+      </div>
+    </div>
+
+    <!-- LEGAL ASSETS -->
+    <div id="view-legal" class="view">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <h2 style="font-size:16px;font-weight:700;flex:1">Legal Asset Generator</h2>
+        <button class="prod-btn" onclick="legalSearchExamples()" id="btnSearchExamples">Search My Emails for Examples</button>
+      </div>
+
+      <div class="section-header">1. Select Document Type</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px" id="legalTypeGrid">
+        <div class="legal-type-card" data-type="nda" onclick="selectLegalType('nda')">
+          <div class="ltc-icon">&#128274;</div>
+          <div class="ltc-title">NDA</div>
+          <div class="ltc-desc">Non-Disclosure Agreement</div>
+        </div>
+        <div class="legal-type-card" data-type="msa" onclick="selectLegalType('msa')">
+          <div class="ltc-icon">&#128220;</div>
+          <div class="ltc-title">MSA</div>
+          <div class="ltc-desc">Master Service Agreement</div>
+        </div>
+        <div class="legal-type-card" data-type="sow" onclick="selectLegalType('sow')">
+          <div class="ltc-icon">&#128196;</div>
+          <div class="ltc-title">SOW</div>
+          <div class="ltc-desc">Statement of Work</div>
+        </div>
+        <div class="legal-type-card" data-type="amendment" onclick="selectLegalType('amendment')">
+          <div class="ltc-icon">&#9998;</div>
+          <div class="ltc-title">Amendment</div>
+          <div class="ltc-desc">Contract Amendment</div>
+        </div>
+        <div class="legal-type-card" data-type="proposal" onclick="selectLegalType('proposal')">
+          <div class="ltc-icon">&#128200;</div>
+          <div class="ltc-title">Proposal</div>
+          <div class="ltc-desc">Business Proposal</div>
+        </div>
+      </div>
+
+      <div id="legalFormPanel" style="display:none">
+        <div class="section-header">2. Select Client</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div>
+            <div style="position:relative">
+              <input type="text" id="legalClientSearch" placeholder="Search CRM contacts or type company name..." style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:5px;font-size:12px;font-family:inherit" oninput="legalSearchClient(this.value)" autocomplete="off">
+              <div id="legalClientResults" style="position:absolute;top:100%;left:0;right:0;background:#fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.15);margin-top:4px;max-height:200px;overflow-y:auto;display:none;z-index:200"></div>
+            </div>
+          </div>
+          <div>
+            <select id="legalBrand" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:5px;font-size:12px;font-family:inherit" onchange="updateLegalFields()">
+              <option value="cadient">Cadient Talent</option>
+              <option value="vorro">Vorro Healthcare</option>
+              <option value="bvc">Basis Vectors Capital</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-header">3. Fill Document Fields</div>
+        <div id="legalFieldsPanel" class="card" style="margin-bottom:14px">
+          <div class="card-body" style="padding:14px">
+            <div id="legalFields" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+          </div>
+        </div>
+
+        <div class="section-header">4. Additional Terms (Optional)</div>
+        <div style="margin-bottom:14px">
+          <textarea id="legalCustomTerms" rows="3" placeholder="Add custom clauses, special terms, or specific requirements..." style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:5px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <button class="prod-btn primary" onclick="generateLegalDoc('docx')" style="background:#e91e63;border-color:#e91e63;color:#fff;flex:1">Generate .docx</button>
+          <button class="prod-btn primary" onclick="generateLegalDoc('pdf')" style="background:#9c27b0;border-color:#9c27b0;color:#fff;flex:1">Generate .pdf</button>
+          <button class="prod-btn primary" onclick="generateLegalDoc('both')" style="background:#3f51b5;border-color:#3f51b5;color:#fff;flex:1">Generate Both</button>
+        </div>
+
+        <div id="legalExamplesPanel" style="display:none">
+          <div class="section-header">Email Examples Found</div>
+          <div class="card"><div class="card-body scroll-panel" id="legalExamples" style="padding:0"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── MCP IDs ──
+const GMAIL='mcp__9561144e-87f0-4ebc-b6ce-79cb22df9c27';
+const CAL='mcp__3df8d99f-29e6-4b72-aff5-d20c243cd8cc';
+const GRAN='mcp__71e0cfca-ad84-47ab-9d34-6b8b20c1f749';
+const ZOHO='mcp__ebef5225-9c03-4cba-9a7a-d6093b72e70d';
+const DRIVE='mcp__30527659-94cd-40e2-94f3-2d183a4d50bb';
+// ── Telemetry: logs stored in-memory + flushed to Gmail draft for remote debugging ──
+const _logLines=[];
+let _dbgEl=null;
+let _logDraftId=null;
+let _flushTimer=null;
+function dbg(msg,level){
+  const ts=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const color=level==='err'?'#f44336':level==='ok'?'#4caf50':'#aaa';
+  const tag=level==='err'?'ERR':level==='ok'?'OK ':'   ';
+  _logLines.push(`[${ts}] ${tag} ${msg}`);
+  const line=`<div style="color:${color}">[${ts}] ${msg}</div>`;
+  if(!_dbgEl)_dbgEl=document.getElementById('debugLog');
+  if(_dbgEl){_dbgEl.innerHTML+=line;_dbgEl.parentElement.scrollTop=9999;}
+  console.log(`[SB-DBG] ${msg}`);
+  // Auto-flush on errors or every 30 lines
+  if(level==='err'||_logLines.length%30===0)scheduleFlush();
+}
+function scheduleFlush(){if(!_flushTimer)_flushTimer=setTimeout(flushLogs,3000);}
+async function flushLogs(){
+  _flushTimer=null;
+  if(_logLines.length===0)return;
+  try{
+    const now=new Date();
+    const subj='[SB-TELEMETRY] '+now.toISOString().slice(0,16).replace('T',' ');
+    const errCount=_logLines.filter(l=>l.includes(' ERR ')).length;
+    const okCount=_logLines.filter(l=>l.includes(' OK  ')).length;
+    const summary='Second Brain v4.0 Telemetry\nTime: '+now.toLocaleString()+'\nCalls: '+_callCount+' | OK: '+okCount+' | Errors: '+errCount+'\nTabs: '+tabReport()+'\n'+'='.repeat(60)+'\n\n'+_logLines.join('\n');
+    await call(GMAIL+'__create_draft',{subject:subj,body:summary,to:['manish696@gmail.com']});
+  }catch(e){console.warn('Telemetry flush failed:',e);}
+}
+let _callCount=0;
+const _tabStatus={dashboard:'pending',contact360:'n/a',pipeline:'pending',team:'pending',meetings:'pending',intelligence:'pending',copilot:'pending',productivity:'pending',legal:'static'};
+function tabReport(){return Object.entries(_tabStatus).map(([k,v])=>`${k}:${v}`).join(' | ');}
+
+async function call(t,a){
+  const id=++_callCount;
+  const shortName=t.split('__').pop();
+  dbg(`#${id} CALL ${shortName}...`);
+  try{
+    const res=await fetch('/api/proxy',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({tool:t,args:a||{}})});
+    if(!res.ok){const txt=await res.text();throw new Error('HTTP '+res.status+': '+txt);}
+    const r=await res.json();
+    const shape=r?Object.keys(r).slice(0,6).join(','):'null';
+    dbg(`#${id} OK ${shortName} -> [${shape}]`,'ok');
+    return r;
+  }catch(e){
+    dbg(`#${id} FAIL ${shortName}: ${e.message}`,'err');
+    throw e;
+  }
+}
+window.onerror=function(msg,src,line,col,err){dbg(`GLOBAL ERROR L${line}: ${msg}`,'err');console.error('Global:',msg,line,err);return false;};
+window.addEventListener('unhandledrejection',e=>{dbg(`UNHANDLED REJECT: ${e.reason?.message||e.reason}`,'err');console.error('Unhandled promise:',e.reason);});
+
+// ── Asset Library ──
+const ASSET_LIB = {
+  cem: {
+    grocery:{name:'Hiring Journey - Grocery',id:'1SSQSCc55KsiYZoO_WTqsSrpeQjXrHXwS'},
+    healthcare:{name:'Hiring Journey - Healthcare',id:'11IVZ1Pj3BgY9FOtl1a2XgLjGii8fslz9'},
+    automotive:{name:'Hiring Journey - Generic',id:'1dVpO0fSPI3G-ZR5vsPqEv0JZ7z1kvvbM'},
+    manufacturing:{name:'Hiring Journey - Manufacturing',id:'1JN49IUxb5ak7nTTMAB5rqhuN5SND9SXy'},
+    logistics:{name:'Hiring Journey - Logistics',id:'1xjXu9hSUTZnVemgZYqiPKpyP1tDCtzfV'},
+    hospitality:{name:'Hiring Journey - Hospitality',id:'1CMw-UQ1q6KvGC4sqGIjmzcPNCKiu7GXg'},
+    food_beverage:{name:'Hiring Journey - Food & Beverage',id:'1_4B2DrjdFPj4NVeUS7Zrjv9ivmsmIx0N'},
+    delivery:{name:'Hiring Journey - Delivery',id:'12QvuVwJ_FjTRWZ3P39dAy-xAKA-RgeEM'},
+    financial:{name:'Hiring Journey - Financial',id:'1qfUFyqKAX3-gxJCwItpgANRqr8sXj81S'},
+    DEFAULT:{name:'Hiring Journey - Generic',id:'1dVpO0fSPI3G-ZR5vsPqEv0JZ7z1kvvbM'}
+  },
+  onePagers: {
+    EXEC:{name:'SmartSuite + CEM',id:'170l_zc3Y8tUbNatai4ldMZXqAdg0eat-'},
+    DIRECTOR:{name:'SmartSuite + CEM',id:'170l_zc3Y8tUbNatai4ldMZXqAdg0eat-'},
+    TA_SOURCING:{name:'SmartSource',id:'1ZY5OiGSX4ZM-D3ZJsY2SBShktAR5YO_g'},
+    RECRUITER:{name:'SmartScreen',id:'1Gx_gawGmxobqKLkigngqx3vqq_O9QcLK'},
+    OPERATIONS:{name:'SmartScreen',id:'1Gx_gawGmxobqKLkigngqx3vqq_O9QcLK'},
+    HR_MGR:{name:'SmartHire',id:'1i7zB35EBSZFTMkb2BIapeiVLXEWq11PH'},
+    DEFAULT:{name:'SmartSuite (full)',id:'1nZLAN0E1IloIHfYVVuFYHSLVYo40Erib'}
+  },
+  videos: {
+    EXEC:{name:'SmartSuite Explainer',id:'18kV5WPL8nyackgynuPXNRZIaMpQZPJEF'},
+    TA_SOURCING:{name:'SmartMatch Promo',id:'1DQqqpyefqW8mDcl6LZ3rM81GQrhaG0I9'},
+    RECRUITER:{name:'SmartScreen Promo',id:'1J_FjkeaGAtACRHDMib1677zhb6blssNr'},
+    HR_MGR:{name:'SmartSuite Overview',id:'1kSGx0qWC9grkTZ2IFtJ9fpQMlz3eI863'},
+    DEFAULT:{name:'SmartSuite Overview',id:'1kSGx0qWC9grkTZ2IFtJ9fpQMlz3eI863'}
+  },
+  caseStudies: {
+    grocery:{name:'Mini Case Study',id:'1PpXwvv1sM6ljI-XdepjlsaVL0XXikwtu'},
+    automotive:{name:'Mini Case Study',id:'1PpXwvv1sM6ljI-XdepjlsaVL0XXikwtu'},
+    healthcare:{name:'Mini Proof Point',id:'13JLKPTiQvy0h14hHbmucTp4a71_H-tjG'},
+    DEFAULT:{name:'Mini Proof Point',id:'13JLKPTiQvy0h14hHbmucTp4a71_H-tjG'}
+  }
+};
+
+// ── Team Members ──
+const TEAM = [
+  {name:'Anjali Garg',email:'anjali.garg@cadienttalent.com',company:'Cadient',role:'Talent Acquisition Lead'},
+  {name:'Anshu Bisht',email:'anshu.bisht@cadienttalent.com',company:'Cadient',role:'Talent Acquisition Lead'},
+  {name:'Kashif Sultan',email:'kashif@cadienttalent.com',company:'Cadient',role:'Talent Acquisition Lead'},
+  {name:'Toiba Paul',email:'tpaul@vorro.net',company:'Vorro',role:'Healthcare Integration Lead'}
+];
+
+// ── Helpers ──
+function gmailUrl(id){return `https://mail.google.com/mail/u/0/#inbox/${id}`}
+function draftUrl(id){return `https://mail.google.com/mail/u/0/#drafts?compose=${id}`}
+function driveUrl(id){return `https://drive.google.com/file/d/${id}/view`}
+function zohoUrl(mod,id){return `https://crm.zoho.com/crm/org20083390694/tab/${mod}/${id}`}
+function fmt(iso){if(!iso)return '';return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})}
+function fmtDate(iso){if(!iso)return '';return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+function fmtFull(iso){if(!iso)return '';return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
+function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function truncate(s,n){return s&&s.length>n?s.slice(0,n)+'...':(s||'')}
+function fmtMoney(n){if(!n)return '$0';if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return '$'+(n/1e3).toFixed(0)+'K';return '$'+n}
+
+function renderMarkdown(text){
+  if(!text)return '';
+  let s=typeof text==='string'?text:JSON.stringify(text);
+  s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/\[\[(\d+)\]\]\((https?:\/\/[^\)]+)\)/g,'<a href="$2" target="_blank" class="action-link">[$1]</a>');
+  s=s.replace(/^### (.+)$/gm,'<h4 style="font-size:12px;font-weight:600;margin:10px 0 4px;color:#333">$1</h4>');
+  s=s.replace(/^## (.+)$/gm,'<h3 style="font-size:13px;font-weight:700;margin:12px 0 6px;color:#1a1a2e">$1</h3>');
+  s=s.replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #e5e7eb;margin:10px 0">');
+  s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/^- (.+)$/gm,'<div style="padding:1px 0 1px 14px;position:relative"><span style="position:absolute;left:3px;color:#999">&#8226;</span>$1</div>');
+  s=s.replace(/\n\n/g,'<div style="height:6px"></div>');
+  s=s.replace(/\n/g,'<br>');
+  return s;
+}
+
+function classifyTitle(title){
+  if(!title)return 'DEFAULT';
+  const t=title.toLowerCase();
+  if(/\b(vp|svp|evp|chro|cpo|chief people|president)\b/.test(t))return 'EXEC';
+  if(/\b(director|exec director|head of)\b/.test(t))return 'DIRECTOR';
+  if(/\b(talent acquisition|sourcing|head of talent)\b/.test(t))return 'TA_SOURCING';
+  if(/\b(recruiter|recruiting|coordinator|specialist)\b/.test(t))return 'RECRUITER';
+  if(/\b(operations|store manager|gm|district manager)\b/.test(t))return 'OPERATIONS';
+  if(/\b(hr manager|hr generalist|human resources manager)\b/.test(t))return 'HR_MGR';
+  return 'DEFAULT';
+}
+
+function detectIndustry(company){
+  if(!company)return 'DEFAULT';
+  const c=company.toLowerCase();
+  if(/grocery|food|wegman|safeway|kroger|publix|aldi/.test(c))return 'grocery';
+  if(/hospital|health|medical|nursing|clinic|pharma/.test(c))return 'healthcare';
+  if(/auto|tire|car|vehicle|motor/.test(c))return 'automotive';
+  if(/manufactur|factory|industrial/.test(c))return 'manufacturing';
+  if(/logistic|warehouse|shipping|freight/.test(c))return 'logistics';
+  if(/hotel|resort|hospitality/.test(c))return 'hospitality';
+  if(/restaurant|beverage|cafe|bar/.test(c))return 'food_beverage';
+  if(/delivery|courier|last.?mile/.test(c))return 'delivery';
+  if(/bank|financ|insurance|invest/.test(c))return 'financial';
+  return 'DEFAULT';
+}
+
+function detectBrand(title,company){
+  const t=(title||'').toLowerCase();
+  const c=(company||'').toLowerCase();
+  if(/integration|interop|hl7|fhir|edi|ehr|epic|cerner|claims|medicaid/.test(t+' '+c))return 'vorro';
+  if(/hr|talent|recruit|hiring|staffing|workforce/.test(t+' '+c))return 'cadient';
+  return 'cadient';
+}
+
+// ── View Switching ──
+function switchView(v){
+  dbg('switchView('+v+')');
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  const viewEl=document.getElementById('view-'+v);
+  if(!viewEl){dbg('ERROR: view-'+v+' element not found!','err');return;}
+  viewEl.classList.add('active');
+  const tabEl=document.querySelector(`.tab[data-view="${v}"]`);
+  if(tabEl)tabEl.classList.add('active');
+  const safeLoad=(fn,name)=>{
+    dbg('Loading '+name+'...');
+    _tabStatus[v]='loading';
+    return fn().then(()=>{dbg(name+' loaded OK','ok');_tabStatus[v]='ok';scheduleFlush();}).catch(e=>{
+      dbg(name+' FAILED: '+e.message,'err');
+      _tabStatus[v]='FAIL:'+e.message.slice(0,60);
+      scheduleFlush();
+      console.error(name+' error:',e);
+      const el=document.getElementById('view-'+v);
+      if(el)el.innerHTML=`<div class="empty-state" style="color:#c62828;padding:24px">Failed to load ${name}: ${e.message||'Unknown error'}. <a href="#" onclick="window['_${v}Loaded']=false;switchView('${v}');return false" style="color:#3f51b5">Retry</a></div>`;
+    });
+  };
+  if(v==='pipeline'&&!window._pipeLoaded)safeLoad(loadPipeline,'Pipeline');
+  if(v==='team'&&!window._teamLoaded)safeLoad(loadTeam,'Team');
+  if(v==='meetings'&&!window._meetLoaded)safeLoad(loadMeetingsView,'Meetings');
+  if(v==='intelligence'&&!window._intelLoaded)safeLoad(loadIntelligence,'Intelligence');
+  if(v==='copilot'&&!window._copilotLoaded)safeLoad(loadCopilot,'Copilot');
+  if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
+  // Legal tab is static — no data load needed on switch
+}
+
+// ══════════════════════════════════════
+// ── DASHBOARD ──
+// ══════════════════════════════════════
+async function loadDashboard(){
+  dbg('loadDashboard() started');
+  try{
+  const now=new Date();
+  const sod=new Date(now.getFullYear(),now.getMonth(),now.getDate()).toISOString();
+  const eod=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59).toISOString();
+  const fri=new Date(now);fri.setDate(fri.getDate()+(5-fri.getDay()+7)%7);
+  const friStr=fri.toISOString().slice(0,10);
+  const todayStr=now.toISOString().slice(0,10);
+
+  // Fire automation status + stale thread checks in parallel with main dashboard data
+  loadAutomationStatus().catch(e=>dbg('AutoStatus failed: '+e.message,'err'));
+  loadStaleThreads().catch(e=>dbg('StaleThreads failed: '+e.message,'err'));
+
+  const [calR,ambR,billR,andrewR,scottR,draftsR,dealsR,closingR]=await Promise.allSettled([
+    call(`${CAL}__list_events`,{startTime:sod,endTime:eod,timeZone:'America/New_York',orderBy:'startTime'}),
+    call(`${GMAIL}__search_threads`,{query:'from:ambarish@basisvectors.com OR to:ambarish@basisvectors.com newer_than:14d',pageSize:8}),
+    call(`${GMAIL}__search_threads`,{query:'from:bmastin@cadienttalent.com OR to:bmastin@cadienttalent.com newer_than:14d',pageSize:8}),
+    call(`${GMAIL}__search_threads`,{query:'from:abaker@vorro.net OR to:abaker@vorro.net newer_than:14d',pageSize:8}),
+    call(`${GMAIL}__search_threads`,{query:'from:ssirdevan@vorro.net OR to:ssirdevan@vorro.net newer_than:14d',pageSize:8}),
+    call(`${GMAIL}__list_drafts`,{pageSize:30}),
+    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200"}}),
+    loadVorroPipelineCache()
+  ]);
+
+  dbg('Dashboard 8 calls settled: '+[calR,ambR,billR,andrewR,scottR,draftsR,dealsR,closingR].map((r,i)=>['cal','amb','bill','andr','scott','drafts','deals','closing'][i]+':'+r.status).join(' '));
+
+  // Null-safe stat setter
+  const setStat=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;else dbg('WARN: #'+id+' not in DOM','err');};
+
+  // Calendar
+  const events=calR.status==='fulfilled'?(calR.value?.events||[]):[];
+  setStat('statEvents',events.length);
+  renderCalendar(events);
+
+  // VIP threads
+  const allThreads=[];const seen=new Set();
+  [['Ambarish',ambR],['Bill',billR],['Andrew',andrewR],['Scott',scottR]].forEach(([vip,res])=>{
+    if(res.status==='fulfilled'&&res.value?.threads){
+      res.value.threads.forEach(t=>{if(!seen.has(t.id)){seen.add(t.id);t._vip=vip;allThreads.push(t)}});
+    }
+  });
+  allThreads.sort((a,b)=>(b.messages?.[b.messages.length-1]?.date||'').localeCompare(a.messages?.[a.messages.length-1]?.date||''));
+  setStat('statThreads',allThreads.length);
+  renderThreads(allThreads);
+
+  // Drafts
+  const drafts=draftsR.status==='fulfilled'?(draftsR.value?.drafts||[]):[];
+  setStat('statDrafts',drafts.length);
+  renderDrafts(drafts);
+
+  // Deals
+  const deals=dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[];
+  const totalPipeline=deals.reduce((s,d)=>s+(d.Amount||0),0);
+  setStat('statDeals',deals.length);
+  setStat('statPipeline',fmtMoney(totalPipeline));
+
+  // Late-stage deals: Vorro S4/S5/S6 from cache + Cadient late stages from deals query
+  const vorroRaw=closingR.status==='fulfilled'?(closingR.value||[]):[];
+  const vorroLate=vorroRaw.filter(d=>/^S[4-6]/i.test(d.Stage||'')).map(d=>({...d,_brand:'vorro'}));
+  const cadientLate=deals.filter(d=>/In Progress|Delivered|Proposal|Negotiat|Contract/i.test(d.Stage||'')).map(d=>({...d,_brand:'cadient'}));
+  const lateStage=[...vorroLate,...cadientLate].sort((a,b)=>(b.Amount||0)-(a.Amount||0)).slice(0,15);
+  dbg(`Late-stage: ${vorroLate.length} Vorro S4+, ${cadientLate.length} Cadient`);
+  renderClosingDeals(lateStage);
+  }catch(e){console.error('Dashboard load error:',e);dbg('loadDashboard CATCH: '+e.message,'err');const _sb=document.getElementById('statsBar');if(_sb){const _errDiv=document.createElement('div');_errDiv.className='stat-card';_errDiv.style.cssText='flex:none;width:100%';_errDiv.innerHTML='<div class="stat-label" style="color:#c62828">Error: '+e.message+'. <a href="#" onclick="loadDashboard();return false" style="color:#3f51b5">Retry</a></div>';_sb.prepend(_errDiv);}}
+}
+
+function renderCalendar(events){
+  const el=document.getElementById('todayCalendar');
+  if(!el){dbg('WARN: #todayCalendar missing','err');return;}
+  if(!events.length){el.innerHTML='<div class="empty-state">No events today</div>';return}
+  el.innerHTML=events.map(e=>{
+    const start=e.start?.dateTime||e.start?.date||'';
+    const end=e.end?.dateTime||e.end?.date||'';
+    const ml=e.conferenceUrl||e.location||'';
+    const isMeet=ml.includes('meet.')||ml.includes('zoom.')||ml.includes('teams.');
+    const att=(e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email?.split('@')[0]).slice(0,3).join(', ');
+    return `<a class="item" href="${esc(e.htmlLink)}" target="_blank"><div class="item-row">
+      <div class="item-icon ${isMeet?'meet':'cal'}">${isMeet?'&#128247;':'&#128197;'}</div>
+      <div class="item-content"><div class="item-title">${esc(e.summary||'No title')}</div>
+      <div class="item-sub">${fmt(start)} - ${fmt(end)}${att?' &middot; '+esc(att):''}</div></div>
+      <div class="item-time">${fmt(start)}</div></div>
+      ${isMeet?`<div class="item-actions"><a class="action-link green" href="${esc(ml)}" target="_blank" onclick="event.stopPropagation()">Join</a></div>`:''}</a>`;
+  }).join('');
+}
+
+// Thread pin/remove state (persisted in localStorage)
+const _threadPins=JSON.parse(localStorage.getItem('sb_thread_pins')||'[]');
+const _threadDismissed=JSON.parse(localStorage.getItem('sb_thread_dismissed')||'[]');
+let _allThreads=[];
+
+function pinThread(threadId,evt){
+  evt.preventDefault();evt.stopPropagation();
+  const idx=_threadPins.indexOf(threadId);
+  if(idx>-1)_threadPins.splice(idx,1);else _threadPins.push(threadId);
+  localStorage.setItem('sb_thread_pins',JSON.stringify(_threadPins));
+  renderThreads(_allThreads);
+}
+function dismissThread(threadId,evt){
+  evt.preventDefault();evt.stopPropagation();
+  if(!_threadDismissed.includes(threadId)){_threadDismissed.push(threadId);localStorage.setItem('sb_thread_dismissed',JSON.stringify(_threadDismissed));}
+  renderThreads(_allThreads);
+}
+function undoDismissAll(){
+  _threadDismissed.length=0;localStorage.setItem('sb_thread_dismissed','[]');
+  renderThreads(_allThreads);
+}
+
+// Safe string for embedding in onclick single-quoted attributes
+function escAttr(s){return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+
+function renderThreads(threads){
+  _allThreads=threads;
+  const el=document.getElementById('priorityThreads');
+  if(!el){dbg('WARN: #priorityThreads missing','err');return;}
+  const visible=threads.filter(t=>!_threadDismissed.includes(t.id));
+  if(!visible.length){el.innerHTML='<div class="empty-state">No recent VIP threads</div>'+(_threadDismissed.length?'<div style="text-align:center;margin-top:6px"><a href="#" onclick="undoDismissAll();return false" style="font-size:11px;color:#3f51b5">Restore '+_threadDismissed.length+' hidden threads</a></div>':'');return}
+  const pinned=visible.filter(t=>_threadPins.includes(t.id));
+  const unpinned=visible.filter(t=>!_threadPins.includes(t.id));
+  const sorted=[...pinned,...unpinned];
+  el.innerHTML=sorted.slice(0,20).map(t=>{
+    const m=t.messages?.[t.messages.length-1]||{};
+    const isPinned=_threadPins.includes(t.id);
+    const ctxId='tctx_'+t.id.replace(/[^a-zA-Z0-9]/g,'');
+    const sender=m.sender||'';
+    const subject=m.subject||'(no subject)';
+    const lastMsgId=m.id||'';
+    return `<div class="item" style="position:relative;padding-bottom:0;${isPinned?'background:#f5f5ff;border-left:2px solid #3f51b5;':''}">
+      <div style="cursor:pointer;padding-bottom:8px" onclick="toggleThreadContext('${ctxId}','${t.id}','${escAttr(sender)}','${escAttr(subject)}','${escAttr(lastMsgId)}')"><div class="item-row">
+      <div class="item-icon mail">${isPinned?'&#128204;':'&#9993;'}</div>
+      <div class="item-content"><div class="item-title">${esc(truncate(subject,50))}</div>
+      <div class="item-sub">${esc(sender.split('@')[0]||'')} &middot; <strong>${esc(t._vip||'')}</strong> &middot; ${t.messages?.length||0} msgs</div>
+      <div class="item-snippet">${esc(truncate(m.snippet||'',80))}</div></div>
+      <div class="item-time">${fmtDate(m.date)}</div></div></div>
+      <div style="position:absolute;top:4px;right:4px;display:flex;gap:2px;z-index:5">
+        <a href="${gmailUrl(t.id)}" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:0.4;padding:2px 4px;border-radius:3px;text-decoration:none" onmouseover="this.style.opacity='1';this.style.background='#eee'" onmouseout="this.style.opacity='0.4';this.style.background='none'">&#8599;</a>
+        <button onclick="pinThread('${t.id}',event)" title="${isPinned?'Unpin':'Pin'}" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.4;padding:2px 4px;border-radius:3px" onmouseover="this.style.opacity='1';this.style.background='#eee'" onmouseout="this.style.opacity='0.4';this.style.background='none'">${isPinned?'&#128204;':'&#128392;'}</button>
+        <button onclick="dismissThread('${t.id}',event)" title="Remove" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.4;padding:2px 4px;border-radius:3px" onmouseover="this.style.opacity='1';this.style.background='#fee'" onmouseout="this.style.opacity='0.4';this.style.background='none'">&#10005;</button>
+      </div>
+      <div id="${ctxId}" class="thread-context" style="display:none"></div>
+    </div>`;
+  }).join('')+(_threadDismissed.length?'<div style="text-align:center;padding:6px"><a href="#" onclick="undoDismissAll();return false" style="font-size:11px;color:#3f51b5">Restore '+_threadDismissed.length+' hidden</a></div>':'');
+}
+
+async function toggleThreadContext(ctxId,threadId,sender,subject,lastMsgId){
+  const el=document.getElementById(ctxId);if(!el)return;
+  // Toggle visibility if already loaded (has data-loaded flag, no spinner)
+  if(el.dataset.loaded==='1'){el.style.display=el.style.display==='none'?'block':'none';return;}
+  el.style.display='block';
+  el.innerHTML='<div class="loading" style="padding:8px"><div class="spinner"></div> Loading thread context and drafting reply...</div>';
+
+  try{
+    // Step 1: Fetch full thread + Granola history in parallel
+    const senderName=sender.split('@')[0].replace(/[._]/g,' ');
+    const senderDomain=sender.split('@')[1]||'';
+    const [threadR,granolaR]=await Promise.allSettled([
+      call(`${GMAIL}__get_thread`,{threadId:threadId}),
+      call(`${GRAN}__query_granola_meetings`,{query:'All meetings and notes involving '+senderName+' from '+senderDomain+'. Key topics, decisions, action items, relationship context, commitments made.'}).catch(()=>null)
+    ]);
+
+    const thread=threadR.status==='fulfilled'?threadR.value:null;
+    const msgs=(thread?.messages||[]).slice(-10);
+    // Capture last message ID for reply threading
+    const replyMsgId=msgs.length?(msgs[msgs.length-1].id||lastMsgId):lastMsgId;
+
+    // Build conversation summary for the notes pane
+    const convParts=msgs.map(m=>{
+      const body=m.plaintextBody||m.body||m.snippet||'';
+      const from=m.sender||'';
+      const date=m.date?new Date(m.date).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+      return {from,date,body:body.slice(0,600),subject:m.subject||''};
+    });
+
+    // Granola context
+    const granola=granolaR.status==='fulfilled'?granolaR.value:null;
+    const granolaText=granola?(typeof granola==='string'?granola:(granola?.answer||granola?.text||JSON.stringify(granola))):'';
+
+    // Build the context data for askClaude
+    const contextData=[];
+    contextData.push('EMAIL THREAD ('+msgs.length+' messages, subject: '+subject+'):\n'+convParts.map(m=>'FROM: '+m.from+' ('+m.date+')\n'+m.body).join('\n---\n'));
+    if(granolaText&&granolaText.length>20)contextData.push('GRANOLA MEETING NOTES:\n'+granolaText.slice(0,2000));
+
+    // Step 2: Ask Claude for notes summary + draft reply in parallel
+    const [notesR,draftR]=await Promise.allSettled([
+      ask('You are Manish\'s CRO executive assistant. Summarize this email thread into a concise notes pane. Include: (1) Key topic/ask, (2) Open questions or action items, (3) Any commitments or deadlines mentioned, (4) Relationship context from meeting notes if available. Be brief and scannable. Use short paragraphs, no bullet points.',contextData),
+      ask('You are drafting a reply email for Manish (CRO at Basis Vectors Capital, managing Cadient and Vorro). Write a professional, warm, direct reply to the latest message in this thread. Use context from the full thread and any meeting notes. Keep it concise (3-5 sentences typical). Do NOT include subject line, greetings like "Hi [name]", or signature — Manish will add those. Just write the reply body. Match the tone of the conversation.',contextData)
+    ]);
+
+    const notes=notesR.status==='fulfilled'?notesR.value:'Could not generate summary.';
+    const draft=draftR.status==='fulfilled'?draftR.value:'Could not generate draft.';
+
+    // Render the context pane
+    let html='';
+
+    // Notes section
+    html+='<div class="section-header">Thread Notes</div>';
+    html+='<div class="thread-notes-box">'+renderMarkdown(notes)+'</div>';
+
+    // Granola meeting history if present
+    if(granolaText&&granolaText.length>20){
+      html+='<div class="section-header">Meeting History with '+esc(senderName)+'</div>';
+      html+='<div class="thread-notes-box" style="max-height:100px">'+renderMarkdown(granolaText.slice(0,1000))+'</div>';
+    }
+
+    // Conversation thread (collapsed by default)
+    if(convParts.length>1){
+      const convId='conv_'+threadId.replace(/[^a-zA-Z0-9]/g,'');
+      html+='<div class="section-header" style="cursor:pointer" onclick="const c=document.getElementById(\''+convId+'\');c.style.display=c.style.display===\'none\'?\'block\':\'none\'">Thread Messages ('+convParts.length+') &#9660;</div>';
+      html+='<div id="'+convId+'" style="display:none;max-height:200px;overflow-y:auto;background:#f8f9fb;border-radius:4px;padding:6px;margin:4px 0">';
+      html+=convParts.map(m=>`<div class="thread-msg-item"><span class="thread-msg-from">${esc(m.from.split('@')[0])}</span><span class="thread-msg-date">${m.date}</span><div class="thread-msg-body">${esc(truncate(m.body,300))}</div></div>`).join('');
+      html+='</div>';
+    }
+
+    // Draft reply — store metadata as data attributes for createDraftFromThread
+    html+='<div class="section-header">Draft Reply</div>';
+    const draftId='draft_'+threadId.replace(/[^a-zA-Z0-9]/g,'');
+    html+='<div class="thread-draft-box" data-thread-id="'+esc(threadId)+'" data-reply-msg-id="'+esc(replyMsgId)+'" data-subject="'+esc(subject)+'" data-to="'+esc(sender)+'">';
+    html+='<div id="'+draftId+'" contenteditable="true" style="outline:none;min-height:40px">'+esc(draft)+'</div>';
+    html+='<div class="draft-actions">';
+    html+='<button class="draft-btn primary" onclick="createDraftFromThread(this,event)">Create Gmail Draft</button>';
+    html+='<button class="draft-btn" onclick="copyDraftText(this,event)">Copy</button>';
+    html+='<button class="draft-btn" onclick="regenerateDraft(this,event)">Regenerate</button>';
+    html+='</div></div>';
+
+    el.innerHTML=html;
+    el.dataset.loaded='1';
+    dbg('Thread context loaded: '+threadId+' notes='+notes.length+'chars draft='+draft.length+'chars','ok');
+
+  }catch(e){
+    el.innerHTML='<div style="padding:8px;font-size:11px;color:#c62828">Failed to load context: '+esc(e.message)+'</div>';
+    dbg('toggleThreadContext error: '+e.message,'err');
+  }
+}
+
+async function createDraftFromThread(btnEl,evt){
+  evt.stopPropagation();
+  const box=btnEl.closest('.thread-draft-box');if(!box)return;
+  const draftDiv=box.querySelector('[contenteditable]');if(!draftDiv)return;
+  const body=draftDiv.innerText||draftDiv.textContent||'';
+  const subject=box.dataset.subject||'';
+  const toAddr=box.dataset.to||'';
+  const replyMsgId=box.dataset.replyMsgId||'';
+  const threadId=box.dataset.threadId||'';
+  btnEl.textContent='Creating...';btnEl.disabled=true;
+  try{
+    const reSubject=subject.startsWith('Re:')?subject:'Re: '+subject;
+    const draftParams={subject:reSubject,body:body,to:[toAddr]};
+    if(replyMsgId)draftParams.replyToMessageId=replyMsgId;
+    await call(`${GMAIL}__create_draft`,draftParams);
+    btnEl.textContent='Draft Created!';btnEl.style.background='#4caf50';btnEl.style.borderColor='#4caf50';
+    dbg('Gmail draft created for thread '+threadId+' (reply to msg '+replyMsgId+')','ok');
+    setTimeout(()=>{btnEl.textContent='Create Gmail Draft';btnEl.style.background='';btnEl.style.borderColor='';btnEl.disabled=false;},3000);
+  }catch(e){
+    btnEl.textContent='Failed';btnEl.style.background='#ef5350';btnEl.style.borderColor='#ef5350';
+    dbg('Draft creation failed: '+e.message,'err');
+    setTimeout(()=>{btnEl.textContent='Create Gmail Draft';btnEl.style.background='';btnEl.style.borderColor='';btnEl.disabled=false;},3000);
+  }
+}
+
+function copyDraftText(btnEl,evt){
+  evt.stopPropagation();
+  const box=btnEl.closest('.thread-draft-box');if(!box)return;
+  const draftDiv=box.querySelector('[contenteditable]');if(!draftDiv)return;
+  const text=draftDiv.innerText||draftDiv.textContent||'';
+  navigator.clipboard.writeText(text).then(()=>{
+    btnEl.textContent='Copied!';setTimeout(()=>{btnEl.textContent='Copy'},1500);
+  }).catch(()=>{});
+}
+
+async function regenerateDraft(btnEl,evt){
+  evt.stopPropagation();
+  const box=btnEl.closest('.thread-draft-box');if(!box)return;
+  const draftDiv=box.querySelector('[contenteditable]');if(!draftDiv)return;
+  const threadId=box.dataset.threadId||'';
+  btnEl.textContent='Regenerating...';btnEl.disabled=true;
+  try{
+    const threadR=await call(`${GMAIL}__get_thread`,{threadId:threadId});
+    const msgs=(threadR?.messages||[]).slice(-10);
+    const convText=msgs.map(m=>{
+      const body=m.plaintextBody||m.body||m.snippet||'';
+      return 'FROM: '+(m.sender||'')+'\n'+body.slice(0,600);
+    }).join('\n---\n');
+    const prevDraft=draftDiv.innerText||'';
+    const newDraft=await ask('You are drafting a reply email for Manish (CRO at Basis Vectors Capital). Write a different version of a professional, warm, direct reply to the latest message. Be concise (3-5 sentences). Do NOT include subject line, greeting, or signature. Just the reply body. Try a different angle or tone from this previous draft:\n\n'+prevDraft,[convText]);
+    draftDiv.textContent=newDraft;
+    btnEl.textContent='Regenerate';btnEl.disabled=false;
+  }catch(e){
+    btnEl.textContent='Failed';setTimeout(()=>{btnEl.textContent='Regenerate';btnEl.disabled=false;},2000);
+  }
+}
+
+function renderDrafts(drafts){
+  const el=document.getElementById('draftsList');
+  if(!el){dbg('WARN: #draftsList missing','err');return;}
+  if(!drafts.length){el.innerHTML='<div class="empty-state">No drafts</div>';return}
+  el.innerHTML=drafts.slice(0,25).map(d=>{
+    const subj=d.subject||d.message?.subject||'(no subject)';
+    const to=d.toRecipients||d.message?.toRecipients||[];
+    return `<a class="item" href="${draftUrl(d.id)}" target="_blank"><div class="item-row">
+      <div class="item-icon mail" style="background:#fff3e0;color:#e65100">&#9998;</div>
+      <div class="item-content"><div class="item-title">${esc(truncate(subj,50))}</div>
+      <div class="item-sub">To: ${esc(truncate(to.join(', '),40))}</div></div></div></a>`;
+  }).join('');
+}
+
+function renderClosingDeals(deals){
+  const el=document.getElementById('closingDeals');
+  if(!el){dbg('WARN: #closingDeals missing','err');return;}
+  if(!deals.length){el.innerHTML='<div class="empty-state">No late-stage deals in S4+ found</div>';return}
+  el.innerHTML=deals.map(d=>{
+    const ownerName=d.Owner?.name||d.Owner||'';
+    const acctName=d.Account_Name?.name||d.Account_Name||'';
+    const contactName=d.Contact_Name?.name||d.Contact_Name||'';
+    const daysLeft=d.Closing_Date?Math.ceil((new Date(d.Closing_Date)-new Date())/(86400000)):null;
+    const urgency=daysLeft!==null&&daysLeft<=7?'style="color:#c62828;font-weight:600"':daysLeft!==null&&daysLeft<=30?'style="color:#e65100"':'';
+    const brandTag=d._brand==='vorro'
+      ?'<span style="background:#e8f5e9;color:#2e7d32;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Vorro</span>'
+      :'<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Cadient</span>';
+    const closeInfo=d.Closing_Date?`Close: ${esc(d.Closing_Date)}${daysLeft!==null?' ('+daysLeft+'d)':''}` :'No close date';
+    return `<div class="item"><div class="item-row">
+      <div class="item-icon deal">&#128176;</div>
+      <div class="item-content"><div class="item-title">${esc(d.Deal_Name)}${brandTag}</div>
+      <div class="item-sub">${esc(d.Stage)} &middot; ${fmtMoney(d.Amount)} &middot; <span ${urgency}>${closeInfo}</span></div>
+      <div class="item-sub">${esc(acctName)}${contactName?' &middot; '+esc(contactName):''}${ownerName?' &middot; '+esc(ownerName):''}</div></div></div></div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════
+// ── CONTACT 360 ──
+// ══════════════════════════════════════
+async function loadContact(name,email){
+  switchView('contact360');
+  document.querySelectorAll('.vip-btn').forEach(b=>b.classList.remove('active'));
+  const btn=[...document.querySelectorAll('.vip-btn')].find(b=>b.textContent.trim()===name.split(' ')[0]);
+  if(btn)btn.classList.add('active');
+  document.getElementById('contactPlaceholder').style.display='none';
+  document.getElementById('contactContent').style.display='block';
+
+  // Hero
+  document.getElementById('contactHero').innerHTML=`<div class="contact-hero">
+    <div class="contact-avatar">${initials(name)}</div>
+    <div class="contact-info"><h2>${esc(name)}</h2><div class="subtitle">${esc(email)}</div>
+    <div class="contact-links">
+      <a class="contact-link" href="https://mail.google.com/mail/u/0/#search/${encodeURIComponent(email)}" target="_blank">Gmail</a>
+      <a class="contact-link" href="https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(name)}" target="_blank">LinkedIn</a>
+      <span class="contact-link" style="cursor:pointer" onclick="generateAsset('${esc(name)}','${esc(email)}')">Generate Asset</span>
+    </div></div></div>`;
+
+  // Reset
+  ['contactEmails','contactCRM','contactMeetings','contactFiles','contactBriefing','contactDeals'].forEach(id=>{
+    const _el=document.getElementById(id);if(_el)_el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading...</div>';
+  });
+
+  const [emailR,crmR,leadR,dealR,granolaR,driveR]=await Promise.allSettled([
+    call(`${GMAIL}__search_threads`,{query:`from:${email} OR to:${email} newer_than:30d`,pageSize:15}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner,Lead_Source,Mailing_City,Mailing_State'}}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company,Lead_Source,Lead_Status'}}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Deals'},query_params:{word:name.split(' ')[0],fields:'Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner,Probability'}}),
+    call(`${GRAN}__query_granola_meetings`,{query:`meetings with ${name} - what was discussed, decisions made, and action items`}),
+    call(`${DRIVE}__search_files`,{query:`fullText contains '${name.split(' ')[0]}'`,pageSize:10})
+  ]);
+
+  // Emails
+  const threads=emailR.status==='fulfilled'?(emailR.value?.threads||[]):[];
+  const eEl=document.getElementById('contactEmails');
+  if(!threads.length){eEl.innerHTML='<div class="empty-state">No recent threads</div>'}
+  else{eEl.innerHTML=threads.map(t=>{const m=t.messages?.[t.messages.length-1]||{};
+    return `<a class="item" href="${gmailUrl(t.id)}" target="_blank"><div class="item-row"><div class="item-icon mail">&#9993;</div>
+    <div class="item-content"><div class="item-title">${esc(truncate(m.subject||'',50))}</div>
+    <div class="item-sub">${fmtDate(m.date)} &middot; ${t.messages?.length||0} msgs</div>
+    <div class="item-snippet">${esc(truncate(m.snippet||'',80))}</div></div></div></a>`}).join('')}
+
+  // CRM
+  const crmData=(crmR.status==='fulfilled'?(crmR.value?.data||[]):[]);
+  const leadData=(leadR.status==='fulfilled'?(leadR.value?.data||[]):[]);
+  const allCRM=[...crmData,...leadData];
+  const cEl=document.getElementById('contactCRM');
+  if(!allCRM.length){cEl.innerHTML='<div class="empty-state">No CRM record</div>'}
+  else{cEl.innerHTML=allCRM.map(r=>{
+    const mod=crmData.includes(r)?'Contacts':'Leads';
+    const fields=[r.Title&&`Title: ${r.Title}`,(r.Company_Name||r.Company)&&`Company: ${r.Company_Name||r.Company}`,
+      r.Phone&&`Phone: ${r.Phone}`,r.Lead_Source&&`Source: ${r.Lead_Source}`,r.Lead_Status&&`Status: ${r.Lead_Status}`,
+      (r.Mailing_City||r.Mailing_State)&&`Location: ${[r.Mailing_City,r.Mailing_State].filter(Boolean).join(', ')}`,
+      r.Owner?.name&&`Owner: ${r.Owner.name}`].filter(Boolean);
+    return `<a class="item" href="${zohoUrl(mod,r.id)}" target="_blank"><div class="item-row"><div class="item-icon crm">&#128188;</div>
+    <div class="item-content"><div class="item-title">${esc(r.Full_Name||name)}</div>
+    ${fields.map(f=>`<div class="item-sub">${esc(f)}</div>`).join('')}</div></div></a>`}).join('')}
+
+  // Show assets based on CRM data, then search for generated prep briefs
+  const crmRec=allCRM[0]||{};
+  renderAssets(crmRec.Title,crmRec.Company_Name||crmRec.Company,name,email);
+  loadContactAssets(name,email,crmRec.Company_Name||crmRec.Company||'').catch(e=>dbg('Contact asset search: '+e.message,'err'));
+
+  // Deals
+  const deals=(dealR.status==='fulfilled'?(dealR.value?.data||[]):[]);
+  const dEl=document.getElementById('contactDeals');
+  if(!deals.length){dEl.innerHTML='<div class="empty-state">No deals found</div>'}
+  else{dEl.innerHTML=deals.map(d=>`<a class="item" href="${zohoUrl('Deals',d.id)}" target="_blank"><div class="item-row">
+    <div class="item-icon deal">&#128176;</div>
+    <div class="item-content"><div class="item-title">${esc(d.Deal_Name)}</div>
+    <div class="item-sub">${esc(d.Stage)} &middot; ${fmtMoney(d.Amount)} &middot; ${d.Probability||0}% &middot; Close: ${esc(d.Closing_Date||'TBD')}</div>
+    <div class="item-sub">${esc(d.Account_Name?.name||'')} &middot; Owner: ${esc(d.Owner?.name||'')}</div></div></div></a>`).join('')}
+
+  // Granola meetings
+  const mEl=document.getElementById('contactMeetings');
+  if(granolaR.status==='fulfilled'&&granolaR.value){
+    mEl.innerHTML=`<div style="padding:12px 14px;font-size:11px;color:#333;line-height:1.6">${renderMarkdown(granolaR.value)}</div>`;
+  } else {mEl.innerHTML='<div class="empty-state">No meeting data</div>'}
+
+  // Files
+  const files=(driveR.status==='fulfilled'?(driveR.value?.files||[]):[]);
+  const fEl=document.getElementById('contactFiles');
+  if(!files.length){fEl.innerHTML='<div class="empty-state">No files found</div>'}
+  else{fEl.innerHTML=files.map(f=>`<a class="item" href="${esc(f.viewUrl)}" target="_blank"><div class="item-row">
+    <div class="item-icon drive">&#128196;</div>
+    <div class="item-content"><div class="item-title">${esc(truncate(f.title,50))}</div>
+    <div class="item-sub">Modified ${fmtDate(f.modifiedTime)}</div></div></div></a>`).join('')}
+
+  // AI Briefing
+  const bEl=document.getElementById('contactBriefing');
+  try{
+    const bd=[];
+    if(threads.length)bd.push({label:'Recent emails',value:threads.slice(0,6).map(t=>t.messages?.[t.messages.length-1]?.subject).filter(Boolean).join('; ')});
+    if(allCRM.length)bd.push({label:'CRM',value:JSON.stringify(allCRM[0])});
+    if(deals.length)bd.push({label:'Deals',value:deals.map(d=>`${d.Deal_Name} (${d.Stage}, ${fmtMoney(d.Amount)})`).join('; ')});
+    const brief=await ask(`You are a CRO's executive assistant. Generate a 3-4 sentence briefing for ${name} (${email}). Cover: relationship context, recent activity, deals in play, and suggested next action. Be specific.`,bd);
+    bEl.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#333;line-height:1.7">${esc(brief)}</div>`;
+  }catch(e){bEl.innerHTML='<div class="empty-state">Briefing unavailable</div>'}
+}
+
+function renderAssets(title,company,name,email){
+  const el=document.getElementById('contactAssets');
+  const brand=detectBrand(title,company);
+  const titleClass=classifyTitle(title);
+  const industry=detectIndustry(company);
+
+  if(brand==='vorro'){
+    el.innerHTML=`<div style="padding:12px 14px">
+      <div class="item-sub" style="margin-bottom:8px">Vorro Healthcare Integration Assets</div>
+      <div class="item-actions">
+        <span class="action-link orange" onclick="generateAsset('${esc(name)}','${esc(email)}')">Generate Vorro Sales Asset</span>
+        <span class="action-link" onclick="window.open('https://vorro.net','_blank')">Vorro.net</span>
+      </div></div>`;
+    return;
+  }
+
+  // Cadient assets
+  const cem=ASSET_LIB.cem[industry]||ASSET_LIB.cem.DEFAULT;
+  const op=ASSET_LIB.onePagers[titleClass]||ASSET_LIB.onePagers.DEFAULT;
+  const vid=ASSET_LIB.videos[titleClass]||ASSET_LIB.videos.DEFAULT;
+  const cs=ASSET_LIB.caseStudies[industry]||ASSET_LIB.caseStudies.DEFAULT;
+
+  el.innerHTML=`<div style="padding:12px 14px">
+    <div class="item-sub" style="margin-bottom:8px">Cadient SmartSuite Assets (${esc(titleClass)} / ${esc(industry)})</div>
+    <div class="item-actions" style="flex-wrap:wrap;gap:6px">
+      <a class="action-link" href="${driveUrl(cem.id)}" target="_blank">&#128196; ${esc(cem.name)}</a>
+      <a class="action-link" href="${driveUrl(op.id)}" target="_blank">&#128196; ${esc(op.name)} One-Pager</a>
+      <a class="action-link" href="${driveUrl(vid.id)}" target="_blank">&#127909; ${esc(vid.name)}</a>
+      <a class="action-link" href="${driveUrl(cs.id)}" target="_blank">&#128202; ${esc(cs.name)}</a>
+      <span class="action-link orange" onclick="generateAsset('${esc(name)}','${esc(email)}')">Generate Custom Asset</span>
+    </div></div>`;
+}
+
+function generateAsset(name,email){
+  alert('Asset generation requires the Cowork desktop app. Open Second Brain in Cowork and use the Generate Asset button there.');
+}
+
+// ══════════════════════════════════════
+// ── PIPELINE ──
+// ══════════════════════════════════════
+// Pipeline data stores
+let _cadientDeals=[];let _vorroDeals=[];
+let _pipeChartInstance=null;let _ownerChartInstance=null;
+
+async function loadVorroPipelineCache(){
+  try{
+    const threads=await call(`${GMAIL}__search_threads`,{query:'subject:[VORRO-PIPELINE-CACHE] in:draft',pageSize:3});
+    if(!threads?.threads?.length){
+      // Fallback: search without in:draft
+      const t2=await call(`${GMAIL}__search_threads`,{query:'subject:[VORRO-PIPELINE-CACHE]',pageSize:3});
+      if(!t2?.threads?.length){dbg('No Vorro pipeline cache found','err');return [];}
+      const thread=await call(`${GMAIL}__get_thread`,{threadId:t2.threads[0].id});
+      const msg=thread?.messages?.[0];
+      const body=msg?.plaintextBody||msg?.body||msg?.snippet||'';
+      try{const data=JSON.parse(body);return data?.data||data?.deals||[];}catch(e){const m=body.match(/\{[\s\S]*\}/);if(m){const d=JSON.parse(m[0]);return d?.data||d?.deals||[];}return [];}
+    }
+    const thread=await call(`${GMAIL}__get_thread`,{threadId:threads.threads[0].id});
+    const msg=thread?.messages?.[0];
+    const body=msg?.plaintextBody||msg?.body||msg?.snippet||'';
+    try{const data=JSON.parse(body);return data?.data||data?.deals||[];}catch(e){const m=body.match(/\{[\s\S]*\}/);if(m){const d=JSON.parse(m[0]);return d?.data||d?.deals||[];}return [];}
+  }catch(e){dbg('Vorro cache read failed: '+e.message,'err');return [];}
+}
+
+async function loadPipeline(){
+  window._pipeLoaded=true;
+  const [cadR,vorR]=await Promise.allSettled([
+    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner,Probability,Pipeline from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 200"}}),
+    loadVorroPipelineCache()
+  ]);
+  _cadientDeals=(cadR.status==='fulfilled'?(cadR.value?.data||[]):[]).map(d=>({...d,_brand:'cadient'}));
+  _vorroDeals=(vorR.status==='fulfilled'?(vorR.value||[]):[]).map(d=>({...d,_brand:'vorro'}));
+  dbg(`Pipeline: Cadient ${_cadientDeals.length}, Vorro ${_vorroDeals.length} deals`,'ok');
+  renderPipelineView('cadient');
+}
+
+let _currentPipeBrand='cadient';
+let _currentStageFilter='';
+const CADIENT_STAGES=['Qualification','Needs Analysis','Proposal/Price Quote','Negotiation/Review','Closed Won','Closed Lost','In Progress','Delivered','Delivered without Meeting'];
+const VORRO_STAGES=['S1: Qualification','S2: Discovery','S3: Solution Development/SOW','S3: Evaluation/Scoping','S4: Proposal','S5: Verbal/Negotiation','S6: Contracting','Closed Won','Closed Lost'];
+
+function switchPipelineBrand(brand){
+  _currentPipeBrand=brand;
+  document.querySelectorAll('.brand-toggle').forEach(b=>b.classList.remove('active'));
+  const btn=document.querySelector(`.brand-toggle[data-brand="${brand}"]`);
+  if(btn)btn.classList.add('active');
+  _currentStageFilter='';
+  renderPipelineView(brand);
+}
+
+function applyStageFilter(){
+  const sel=document.getElementById('stageFilter');
+  _currentStageFilter=sel?sel.value:'';
+  renderPipelineView(_currentPipeBrand);
+}
+
+function getDealsForBrand(brand){
+  if(brand==='cadient')return _cadientDeals;
+  if(brand==='vorro')return _vorroDeals;
+  return[..._cadientDeals,..._vorroDeals];
+}
+
+function renderPipelineView(brand){
+  let allDeals=getDealsForBrand(brand);
+
+  // Populate stage filter dropdown from current deals
+  const allStages=[...new Set(allDeals.map(d=>d.Stage||'Unknown'))].sort();
+  const sf=document.getElementById('stageFilter');
+  if(sf){
+    const prev=_currentStageFilter;
+    sf.innerHTML='<option value="">All Stages ('+allDeals.length+')</option>'+allStages.map(s=>'<option value="'+esc(s)+'"'+(s===prev?' selected':'')+'>'+esc(s.replace(/^S\d+: /,''))+' ('+allDeals.filter(d=>(d.Stage||'Unknown')===s).length+')</option>').join('');
+  }
+
+  // Apply stage filter
+  let deals=_currentStageFilter?allDeals.filter(d=>(d.Stage||'Unknown')===_currentStageFilter):allDeals;
+
+  const totalVal=deals.reduce((s,d)=>s+(d.Amount||0),0);
+  const sumEl=document.getElementById('pipelineSummary');
+  if(sumEl)sumEl.textContent=`${deals.length} deals | ${fmtMoney(totalVal)} total`;
+
+  const stages={};const owners={};
+  deals.forEach(d=>{
+    const s=d.Stage||'Unknown';
+    if(!stages[s])stages[s]={count:0,value:0};
+    stages[s].count++;stages[s].value+=(d.Amount||0);
+    const o=d.Owner?.name||d.Owner||'Unassigned';
+    if(!owners[o])owners[o]={count:0,value:0};
+    owners[o].count++;owners[o].value+=(d.Amount||0);
+  });
+
+  const psEl=document.getElementById('pipelineStages');
+  if(psEl)psEl.innerHTML=Object.entries(stages).sort((a,b)=>b[1].value-a[1].value).slice(0,8).map(([s,d])=>
+    `<div class="stage-pill" style="cursor:pointer" onclick="document.getElementById('stageFilter').value='${escAttr(s)}';applyStageFilter()"><div class="num">${d.count}</div><div class="lbl">${esc(s.replace(/^S\d+: /,''))}</div><div class="lbl">${fmtMoney(d.value)}</div></div>`
+  ).join('');
+
+  if(_pipeChartInstance){_pipeChartInstance.destroy();_pipeChartInstance=null;}
+  if(_ownerChartInstance){_ownerChartInstance.destroy();_ownerChartInstance=null;}
+
+  const stageLabels=Object.keys(stages);
+  const stageValues=stageLabels.map(s=>stages[s].value);
+  const pcEl=document.getElementById('pipelineChart');
+  if(pcEl)_pipeChartInstance=new Chart(pcEl,{type:'bar',data:{labels:stageLabels.map(s=>s.replace(/^S\d+: /,'')),datasets:[{label:'Pipeline Value',data:stageValues,backgroundColor:['#bbdefb','#c8e6c9','#fff9c4','#ffccbc','#d1c4e9','#f8bbd0','#b2dfdb','#ffe0b2']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMoney(v)}}}}});
+
+  const ownerLabels=Object.keys(owners);
+  const ownerValues=ownerLabels.map(o=>owners[o].value);
+  const ocEl=document.getElementById('ownerChart');
+  if(ocEl)_ownerChartInstance=new Chart(ocEl,{type:'doughnut',data:{labels:ownerLabels,datasets:[{data:ownerValues,backgroundColor:['#42a5f5','#66bb6a','#ffa726','#ef5350','#ab47bc','#26c6da','#78909c','#8d6e63']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
+
+  // Collect unique owners for the owner dropdown
+  const ownerList=[...new Set(deals.map(d=>d.Owner?.name||d.Owner||'').filter(Boolean))].sort();
+
+  const el=document.getElementById('allDeals');if(!el)return;
+  if(!deals.length){el.innerHTML='<div class="empty-state">No deals found'+ (_currentStageFilter?' for this stage':'')+'</div>';return;}
+  el.innerHTML=deals.map((d,idx)=>{
+    const tag=d._brand==='vorro'?'<span style="background:#e8f5e9;color:#2e7d32;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Vorro</span>':'<span style="background:#e3f2fd;color:#1565c0;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Cadient</span>';
+    const ownerName=d.Owner?.name||d.Owner||'';
+    const acctName=d.Account_Name?.name||d.Account_Name||'';
+    const dealId=d.id||'';
+    const isCadient=d._brand==='cadient';
+    const stageList=isCadient?CADIENT_STAGES:VORRO_STAGES;
+    const stageSpanId='stg_'+idx;
+    const ownerSpanId='own_'+idx;
+
+    // Stage: clickable for Cadient, read-only for Vorro
+    const stageHtml=isCadient&&dealId
+      ?`<span id="${stageSpanId}" class="deal-editable" onclick="showDealStageEdit('${stageSpanId}','${escAttr(dealId)}','${escAttr(d.Stage||'')}',${idx})">${esc(d.Stage||'Unknown')}</span>`
+      :`<span class="deal-editable readonly">${esc(d.Stage||'Unknown')}</span>`;
+
+    // Owner: clickable for Cadient
+    const ownerHtml=isCadient&&dealId
+      ?`<span id="${ownerSpanId}" class="deal-editable" onclick="showDealOwnerEdit('${ownerSpanId}','${escAttr(dealId)}','${escAttr(ownerName)}',${idx})">${esc(ownerName||'Unassigned')}</span>`
+      :`<span class="deal-editable readonly">${esc(ownerName||'Unassigned')}</span>`;
+
+    return `<div class="item" data-deal-idx="${idx}"><div class="item-row">
+      <div class="item-icon deal">&#128176;</div>
+      <div class="item-content"><div class="item-title">${esc(d.Deal_Name)}${tag}</div>
+      <div class="item-sub">${stageHtml} &middot; ${fmtMoney(d.Amount)} &middot; ${d.Probability||0}% &middot; Close: ${esc(d.Closing_Date||'TBD')}</div>
+      <div class="item-sub">${esc(acctName)} &middot; ${ownerHtml}</div></div></div></div>`;
+  }).join('');
+}
+
+function showDealStageEdit(spanId,dealId,currentStage,idx){
+  const span=document.getElementById(spanId);if(!span)return;
+  const isCadient=_currentPipeBrand!=='vorro';
+  const stageList=isCadient?CADIENT_STAGES:VORRO_STAGES;
+  const sel=document.createElement('select');
+  sel.className='deal-select';
+  sel.innerHTML=stageList.map(s=>'<option value="'+esc(s)+'"'+(s===currentStage?' selected':'')+'>'+esc(s)+'</option>').join('');
+  sel.onchange=async function(){
+    const newStage=sel.value;
+    sel.disabled=true;
+    try{
+      await call(`${ZOHO}__updateRecord`,{path_variables:{module:'Deals',recordID:dealId},body:{data:[{id:dealId,Stage:newStage}]}});
+      // Update local data
+      const allDeals=getDealsForBrand(_currentPipeBrand);
+      const deal=allDeals.find(d=>d.id===dealId);
+      if(deal)deal.Stage=newStage;
+      sel.remove();
+      span.textContent=newStage;
+      span.style.display='';
+      const ok=document.createElement('span');ok.className='deal-save-ok';ok.textContent='Saved';
+      span.after(ok);setTimeout(()=>ok.remove(),2000);
+      dbg('Deal '+dealId+' stage updated to '+newStage,'ok');
+    }catch(e){
+      sel.disabled=false;
+      const err=document.createElement('span');err.className='deal-save-err';err.textContent='Failed';
+      sel.after(err);setTimeout(()=>err.remove(),3000);
+      dbg('Deal stage update failed: '+e.message,'err');
+    }
+  };
+  sel.onblur=function(){if(!sel.disabled){span.style.display='';sel.remove();}};
+  span.style.display='none';
+  span.parentNode.insertBefore(sel,span);
+  sel.focus();
+}
+
+function showDealOwnerEdit(spanId,dealId,currentOwner,idx){
+  const span=document.getElementById(spanId);if(!span)return;
+  // Collect owners from current dataset
+  const allDeals=getDealsForBrand(_currentPipeBrand);
+  const ownerList=[...new Set(allDeals.map(d=>d.Owner?.name||d.Owner||'').filter(Boolean))].sort();
+  const sel=document.createElement('select');
+  sel.className='deal-select';
+  sel.innerHTML=ownerList.map(o=>'<option value="'+esc(o)+'"'+(o===currentOwner?' selected':'')+'>'+esc(o)+'</option>').join('');
+  sel.onchange=async function(){
+    const newOwner=sel.value;
+    sel.disabled=true;
+    // Find the owner's Zoho user ID from other deals
+    const refDeal=allDeals.find(d=>(d.Owner?.name||d.Owner)===newOwner&&d.Owner?.id);
+    const ownerId=refDeal?.Owner?.id;
+    try{
+      const updateData={id:dealId};
+      if(ownerId)updateData.Owner={id:ownerId};
+      else updateData.Owner=newOwner;
+      await call(`${ZOHO}__updateRecord`,{path_variables:{module:'Deals',recordID:dealId},body:{data:[updateData]}});
+      const deal=allDeals.find(d=>d.id===dealId);
+      if(deal){if(typeof deal.Owner==='object')deal.Owner.name=newOwner;else deal.Owner=newOwner;}
+      span.textContent=newOwner;
+      span.style.display='';sel.remove();
+      const ok=document.createElement('span');ok.className='deal-save-ok';ok.textContent='Saved';
+      span.after(ok);setTimeout(()=>ok.remove(),2000);
+      dbg('Deal '+dealId+' owner updated to '+newOwner,'ok');
+    }catch(e){
+      sel.disabled=false;
+      const err=document.createElement('span');err.className='deal-save-err';err.textContent='Failed';
+      sel.after(err);setTimeout(()=>err.remove(),3000);
+      dbg('Deal owner update failed: '+e.message,'err');
+    }
+  };
+  sel.onblur=function(){if(!sel.disabled){span.style.display='';sel.remove();}};
+  span.style.display='none';
+  span.parentNode.insertBefore(sel,span);
+  sel.focus();
+}
+
+// ══════════════════════════════════════
+// ── TEAM ──
+// ══════════════════════════════════════
+async function loadTeam(){
+  window._teamLoaded=true;
+
+  // Fetch all team threads in parallel
+  const results=await Promise.allSettled(TEAM.map(t=>
+    call(`${GMAIL}__search_threads`,{query:`from:${t.email} newer_than:7d`,pageSize:10})
+  ));
+
+  // Team cards
+  const tgEl=document.getElementById('teamGrid');if(!tgEl)return;
+  tgEl.innerHTML=TEAM.map((t,i)=>{
+    const threads=results[i].status==='fulfilled'?(results[i].value?.threads||[]):[];
+    const lastDate=threads[0]?.messages?.[threads[0].messages.length-1]?.date;
+    const active=lastDate&&(Date.now()-new Date(lastDate).getTime())<86400000;
+    return `<div class="team-card" onclick="loadTeamMember('${esc(t.name)}','${esc(t.email)}')">
+      <div class="team-avatar" style="${active?'background:#c8e6c9;color:#2e7d32':'background:#ffcdd2;color:#c62828'}">${initials(t.name)}</div>
+      <div class="team-name">${esc(t.name.split(' ')[0])}</div>
+      <div class="team-role">${esc(t.company)} &middot; ${esc(t.role.split(' ')[0])}</div>
+      <div class="team-stats">
+        <div class="team-stat"><div class="n">${threads.length}</div><div class="l">Threads (7d)</div></div>
+        <div class="team-stat"><div class="n">${lastDate?fmtDate(lastDate):'-'}</div><div class="l">Last Active</div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // All team threads merged
+  const allTeamThreads=[];
+  results.forEach((r,i)=>{
+    if(r.status==='fulfilled'&&r.value?.threads){
+      r.value.threads.forEach(t=>{t._team=TEAM[i].name.split(' ')[0];allTeamThreads.push(t)});
+    }
+  });
+  allTeamThreads.sort((a,b)=>(b.messages?.[b.messages.length-1]?.date||'').localeCompare(a.messages?.[a.messages.length-1]?.date||''));
+
+  const tEl=document.getElementById('teamThreads');
+  if(!tEl){dbg('WARN: #teamThreads missing','err');return;}
+  tEl.innerHTML=allTeamThreads.slice(0,20).map(t=>{
+    const m=t.messages?.[t.messages.length-1]||{};
+    return `<a class="item" href="${gmailUrl(t.id)}" target="_blank"><div class="item-row">
+      <div class="item-icon team">&#128100;</div>
+      <div class="item-content"><div class="item-title">${esc(truncate(m.subject||'',50))}</div>
+      <div class="item-sub"><strong>${esc(t._team)}</strong> &middot; ${esc(m.sender?.split('@')[0]||'')} &middot; ${fmtDate(m.date)}</div></div></div></a>`;
+  }).join('');
+}
+
+function loadTeamMember(name,email){loadContact(name,email)}
+
+// ══════════════════════════════════════
+// ── MEETINGS ──
+// ══════════════════════════════════════
+function parseMeetings(raw){
+  if(!raw)return[];const s=typeof raw==='string'?raw:JSON.stringify(raw);const ms=[];
+  const re=/<meeting id="([^"]*)" title="([^"]*)" date="([^"]*)">\s*<known_participants>\s*([\s\S]*?)\s*<\/known_participants>/g;
+  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim()})}return ms;
+}
+
+function renderGranolaMeetings(raw,targetId){
+  const el=document.getElementById(targetId);const ms=parseMeetings(raw);
+  if(!ms.length){el.innerHTML='<div class="empty-state">No meetings</div>';return}
+  el.innerHTML=ms.map((m,i)=>{
+    const ppl=m.parts.split(',').map(p=>p.trim().split(' from ')[0].split('<')[0].trim()).filter(Boolean).slice(0,4);
+    const emails=(m.parts.match(/[\w.-]+@[\w.-]+\.\w+/g)||[]);
+    const uid=targetId+'_'+i;
+    const notesId='notes_'+uid;
+    return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="toggleMeetingContext('${uid}','${escAttr(m.title)}','${escAttr(emails.join(','))}','${escAttr(ppl.join(','))}','${escAttr(m.id)}')">
+      <div class="item-row">
+        <div class="item-icon granola">&#128221;</div>
+        <div class="item-content"><div class="item-title">${esc(m.title)}</div>
+        <div class="item-sub">${esc(m.date)} &middot; ${esc(ppl.join(', '))}</div></div>
+        <span class="notes-link active" id="${notesId}" onclick="event.stopPropagation();toggleMeetingNotes('${notesId}','${escAttr(m.id)}')">Notes</span>
+      </div>
+      <div id="${notesId}_content" style="display:none"></div>
+      <div id="${uid}" class="meeting-context" style="display:none"></div>
+    </div>`;
+  }).join('');
+  // Probe transcripts to grey out Notes links where unavailable (throttled to 3 concurrent)
+  (async()=>{
+    const batch=3;
+    for(let i=0;i<ms.length;i+=batch){
+      await Promise.allSettled(ms.slice(i,i+batch).map((m,j)=>probeTranscript('notes_'+targetId+'_'+(i+j),m.id)));
+    }
+  })();
+}
+
+async function probeTranscript(notesId,meetingId){
+  if(!meetingId){greyOutNotes(notesId);return;}
+  try{
+    const t=await call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId});
+    const text=t?(typeof t==='string'?t:(t?.transcript||t?.text||'')):'' ;
+    if(!text||text.length<20)greyOutNotes(notesId);
+  }catch(e){greyOutNotes(notesId);}
+}
+
+function greyOutNotes(notesId){
+  const el=document.getElementById(notesId);
+  if(el){el.className='notes-link greyed';el.onclick=null;el.title='No transcript available';}
+}
+
+async function toggleMeetingNotes(notesId,meetingId){
+  const contentEl=document.getElementById(notesId+'_content');
+  const linkEl=document.getElementById(notesId);
+  if(!contentEl||!linkEl)return;
+  // Toggle if already loaded
+  if(contentEl.dataset.loaded==='1'){contentEl.style.display=contentEl.style.display==='none'?'block':'none';return;}
+  contentEl.style.display='block';
+  contentEl.innerHTML='<div class="loading" style="padding:6px"><div class="spinner"></div> Loading transcript...</div>';
+  try{
+    const t=await call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId});
+    const text=t?(typeof t==='string'?t:(t?.transcript||t?.text||JSON.stringify(t))):'';
+    if(text&&text.length>20){
+      contentEl.innerHTML='<div class="notes-content">'+renderMarkdown(text.slice(0,3000))+'</div>';
+      contentEl.dataset.loaded='1';
+    }else{
+      contentEl.innerHTML='<div style="padding:6px;font-size:10px;color:#999">No transcript available for this meeting.</div>';
+      greyOutNotes(notesId);
+      contentEl.dataset.loaded='1';
+    }
+  }catch(e){
+    contentEl.innerHTML='<div style="padding:6px;font-size:10px;color:#c62828">Failed to load transcript.</div>';
+    greyOutNotes(notesId);
+  }
+}
+
+async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
+  const el=document.getElementById(uid);if(!el)return;
+  // Toggle off if already loaded
+  if(el.style.display!=='none'&&!el.querySelector('.spinner')){el.style.display=el.style.display==='none'?'block':'none';return;}
+  el.style.display='block';
+  el.innerHTML='<div class="loading" style="padding:8px"><div class="spinner"></div> Loading history...</div>';
+
+  const emails=emailsStr?emailsStr.split(',').filter(Boolean):[];
+  const names=namesStr?namesStr.split(',').filter(Boolean):[];
+
+  // Build Gmail query from attendee emails or names
+  let gmailQ='';
+  if(emails.length)gmailQ=emails.map(e=>'from:'+e+' OR to:'+e).join(' OR ')+' newer_than:14d';
+  else if(names.length)gmailQ=names.slice(0,3).map(n=>'"'+n+'"').join(' OR ')+' newer_than:14d';
+
+  // Fetch email threads, meeting transcript, and past history in parallel
+  const [emailR,transcriptR,historyR]=await Promise.allSettled([
+    gmailQ?call(`${GMAIL}__search_threads`,{query:gmailQ,pageSize:5}).catch(()=>null):Promise.resolve(null),
+    call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId}).catch(()=>null),
+    names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, relationship context.'}).catch(()=>null):Promise.resolve(null)
+  ]);
+
+  let html='';
+
+  // Email threads with attendees
+  const threads=(emailR.status==='fulfilled'&&emailR.value?.threads)?emailR.value.threads:[];
+  if(threads.length){
+    html+='<div class="section-header" style="margin-top:4px">Recent Emails with Attendees</div>';
+    html+=threads.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};
+      return `<a class="mtg-email-item" href="${gmailUrl(t.id)}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">
+        <div class="mtg-email-icon" style="background:#fce4ec;color:#c62828">&#9993;</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(truncate(m.subject||'',45))}</div>
+        <div style="font-size:10px;color:#888">${esc(m.sender?.split('@')[0]||'')} &middot; ${fmtDate(m.date)} &middot; ${t.messages?.length||0} msgs</div></div></a>`;
+    }).join('');
+  } else {
+    html+='<div style="font-size:10px;color:#999;padding:4px 0">No recent email threads with attendees</div>';
+  }
+
+  // Meeting transcript
+  const transcript=transcriptR.status==='fulfilled'?transcriptR.value:null;
+  if(transcript){
+    const tText=typeof transcript==='string'?transcript:(transcript?.transcript||transcript?.text||JSON.stringify(transcript));
+    if(tText&&tText.length>20){
+      html+='<div class="section-header">Meeting Notes</div>';
+      html+='<div class="mtg-transcript-box">'+renderMarkdown(tText.slice(0,1500))+'</div>';
+    }
+  }
+
+  // Past meeting history with these people
+  const history=historyR.status==='fulfilled'?historyR.value:null;
+  if(history){
+    const hText=typeof history==='string'?history:(history?.answer||history?.text||JSON.stringify(history));
+    if(hText&&hText.length>20){
+      html+='<div class="section-header">Previous Meeting History</div>';
+      html+='<div class="mtg-transcript-box">'+renderMarkdown(hText.slice(0,1000))+'</div>';
+    }
+  }
+
+  el.innerHTML=html||'<div style="font-size:10px;color:#999;padding:4px 0">No previous context found for attendees</div>';
+}
+
+async function loadMeetingsView(){
+  window._meetLoaded=true;
+  const [wR,mR]=await Promise.allSettled([
+    call(`${GRAN}__list_meetings`,{time_range:'this_week'}),
+    call(`${GRAN}__list_meetings`,{time_range:'last_30_days'})
+  ]);
+  if(wR.status==='fulfilled')renderGranolaMeetings(wR.value,'weekMeetings');
+  else{const _wm=document.getElementById('weekMeetings');if(_wm)_wm.innerHTML='<div class="empty-state">Failed to load</div>';}
+  if(mR.status==='fulfilled')renderGranolaMeetings(mR.value,'monthMeetings');
+  else{const _mm=document.getElementById('monthMeetings');if(_mm)_mm.innerHTML='<div class="empty-state">Failed to load</div>';}
+}
+
+// ══════════════════════════════════════
+// ── INTELLIGENCE ──
+// ══════════════════════════════════════
+async function loadIntelligence(){
+  window._intelLoaded=true;
+  const [aR,dR,sR]=await Promise.allSettled([
+    call(`${GRAN}__query_granola_meetings`,{query:'What are the open action items and follow-ups from the past week? List by person responsible.'}),
+    call(`${GRAN}__query_granola_meetings`,{query:'What key decisions were made in meetings this week? Include context and who decided.'}),
+    call(`${GRAN}__query_granola_meetings`,{query:'High-level summary of all meeting topics and themes from the past week. Major workstreams and their status.'})
+  ]);
+  const render=(r,id)=>{const el=document.getElementById(id);if(!el)return;
+    if(r.status==='fulfilled'&&r.value){const v=typeof r.value==='string'?r.value:(r.value?.answer||r.value?.text||r.value?.result||JSON.stringify(r.value));el.innerHTML=`<div style="padding:12px 14px;font-size:11px;color:#333;line-height:1.6">${renderMarkdown(v)}</div>`}
+    else{el.innerHTML='<div class="empty-state">No data</div>'}};
+  render(sR,'intelligenceContent');render(dR,'decisionsContent');render(aR,'actionsContent');
+}
+
+// ══════════════════════════════════════
+// ── SEARCH ──
+// ══════════════════════════════════════
+let searchTimeout;
+const sI=document.getElementById('searchInput');
+const sR=document.getElementById('searchResults');
+sI.addEventListener('input',()=>{clearTimeout(searchTimeout);const q=sI.value.trim();
+  if(q.length<2){sR.classList.remove('visible');return}searchTimeout=setTimeout(()=>runSearch(q),350)});
+sI.addEventListener('blur',()=>setTimeout(()=>sR.classList.remove('visible'),200));
+sI.addEventListener('focus',()=>{if(sR.innerHTML&&sI.value.trim().length>=2)sR.classList.add('visible')});
+
+async function runSearch(q){
+  sR.innerHTML='<div class="loading" style="padding:12px"><div class="spinner"></div></div>';sR.classList.add('visible');
+  const [gR,cR,dR,dealR]=await Promise.allSettled([
+    call(`${GMAIL}__search_threads`,{query:`${q} newer_than:30d`,pageSize:5}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:q,per_page:5,fields:'Full_Name,Email,Company_Name,Title'}}),
+    call(`${DRIVE}__search_files`,{query:`title contains '${q}'`,pageSize:5}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Deals'},query_params:{word:q,per_page:5,fields:'Deal_Name,Stage,Amount,Account_Name'}})
+  ]);
+  let h='';
+  // CRM
+  (cR.status==='fulfilled'?(cR.value?.data||[]):[]).forEach(c=>{
+    h+=`<div class="sr-item" onclick="loadContact('${esc(c.Full_Name)}','${esc(c.Email||'')}')">
+      <div class="sr-avatar">${initials(c.Full_Name)}</div>
+      <div class="sr-info"><div class="sr-name">${esc(c.Full_Name)}</div><div class="sr-meta">${esc(c.Title||'')} ${c.Company_Name?'at '+esc(c.Company_Name):''}</div></div>
+      <span class="sr-source">CRM</span></div>`;
+  });
+  // Deals
+  (dealR.status==='fulfilled'?(dealR.value?.data||[]):[]).forEach(d=>{
+    h+=`<div class="sr-item" onclick="window.open('${zohoUrl('Deals',d.id)}','_blank')">
+      <div class="sr-avatar" style="background:#e8eaf6;color:#283593">&#128176;</div>
+      <div class="sr-info"><div class="sr-name">${esc(d.Deal_Name)}</div><div class="sr-meta">${esc(d.Stage)} &middot; ${fmtMoney(d.Amount)}</div></div>
+      <span class="sr-source" style="background:#e8eaf6;color:#283593">Deal</span></div>`;
+  });
+  // Gmail
+  (gR.status==='fulfilled'?(gR.value?.threads||[]):[]).forEach(t=>{const m=t.messages?.[t.messages.length-1]||{};
+    h+=`<div class="sr-item" onclick="window.open('${gmailUrl(t.id)}','_blank')">
+      <div class="sr-avatar" style="background:#fce4ec;color:#c62828">&#9993;</div>
+      <div class="sr-info"><div class="sr-name">${esc(truncate(m.subject||'',40))}</div><div class="sr-meta">${esc(m.sender||'')} &middot; ${fmtDate(m.date)}</div></div>
+      <span class="sr-source" style="background:#fce4ec;color:#c62828">Email</span></div>`;
+  });
+  // Drive
+  (dR.status==='fulfilled'?(dR.value?.files||[]):[]).forEach(f=>{
+    h+=`<div class="sr-item" onclick="window.open('${esc(f.viewUrl)}','_blank')">
+      <div class="sr-avatar" style="background:#f3e5f5;color:#7b1fa2">&#128196;</div>
+      <div class="sr-info"><div class="sr-name">${esc(truncate(f.title,40))}</div><div class="sr-meta">Modified ${fmtDate(f.modifiedTime)}</div></div>
+      <span class="sr-source" style="background:#f3e5f5;color:#7b1fa2">Drive</span></div>`;
+  });
+  sR.innerHTML=h||'<div class="empty-state">No results</div>';
+}
+
+// ══════════════════════════════════════
+// ── COPILOT ──
+// ══════════════════════════════════════
+let copilotRecognition=null;
+let copilotListening=false;
+let copilotTranscriptLines=[];
+let copilotCurrentMeeting=null;
+let copilotMeetingContext='';
+let copilotAttendeeData={};
+let copilotLastActionType='';
+
+// Knowledge base (embedded for zero-latency)
+const KNOWLEDGE_BASE = {
+  cadient: {
+    company: 'Cadient Talent',
+    product: 'SmartSuite - AI-powered talent and HR optimization platform',
+    tools: [
+      'SmartSource: AI candidate sourcing, 5x bigger pools',
+      'SmartMatch: AI skills matching, 15% accuracy lift',
+      'SmartScreen: Automated phone screening, 30% faster hiring',
+      'SmartTenure: Predictive retention, 20% retention lift',
+      'SmartFeedback: Post-hire engagement insights, 30% improvement'
+    ],
+    metrics: '60% faster hiring, 30% better quality, 45% lower cost-per-hire, 80% recruiter productivity lift',
+    pricing: 'Enterprise SaaS model, contact for pricing',
+    industries: 'Retail, Healthcare, Logistics, Hospitality, Manufacturing, Finance',
+    objectionHandlers: {
+      'too expensive': 'Industry benchmark: $3,200 avg cost per hire with 45-day fill time. Our clients see 45% lower cost-per-hire. One client saved $1M+ annually. The question is not cost, it is ROI.',
+      'already have ats': 'SmartSuite is not an ATS replacement. It augments your existing ATS with AI-powered sourcing, screening, and retention prediction. We integrate with all major ATS platforms.',
+      'not ready': 'Implementation takes 2-3 weeks, not months. We handle data migration and training. Most clients see ROI within the first hiring cycle.',
+      'need to think': 'Completely understand. What specific concerns can I address? Many of our clients had the same hesitation, but found that starting with SmartSource alone delivered measurable results within 30 days.',
+      'competitor': 'Unlike point solutions, SmartSuite covers the ENTIRE talent journey from sourcing to retention. Most competitors only address one piece. That means multiple vendor contracts, data silos, and integration headaches for you.'
+    }
+  },
+  vorro: {
+    company: 'Vorro Healthcare Integration',
+    product: 'BridgeGate EiPaaS - Enterprise Integration Platform as a Service',
+    tools: [
+      'Integration: Connect all systems (EHRs, billing, HIEs)',
+      'Automation: AI-driven workflow automation',
+      'AI Data Hub: Unified patient data from all sources',
+      'Monitoring: Real-time dashboards + auto-healing'
+    ],
+    metrics: '100+ enterprises, 5000+ apps connected, 10M daily transactions',
+    pricing: '$20K-$90K+/year plus per-connection fees',
+    standards: 'FHIR, HL7, EDI X12, NCPDP, C-CDA',
+    objectionHandlers: {
+      'too expensive': 'Our clients typically see 52% reduction in integration costs. One consolidated 47 tools into BridgeGate alone, saving $2.3M annually. At $20K-$90K/year, the payback period is typically 4-6 months.',
+      'already have integration': 'How many point-to-point integrations are you maintaining? Most health systems have 15-30 separate integration tools. BridgeGate consolidates them into one platform with unified monitoring, auto-healing, and compliance.',
+      'hipaa concerns': 'BridgeGate is fully HIPAA compliant with automated audit trails, encryption at rest and in transit, and SOC 2 Type II certification. We handle more sensitive healthcare data daily than most competitors handle in a year.',
+      'implementation time': 'Average implementation is 6 weeks for core integrations. We support self-managed, hybrid, and fully managed deployment options. Our team handles the heavy lifting.',
+      'competitor': 'Unlike generic iPaaS platforms (MuleSoft, Boomi), BridgeGate was built FROM DAY ONE for healthcare. Native FHIR/HL7/EDI support, healthcare-specific monitoring, and compliance are not add-ons, they are the foundation.'
+    }
+  }
+};
+
+function getKnowledgeString(){
+  return `CADIENT TALENT: ${KNOWLEDGE_BASE.cadient.product}. Key metrics: ${KNOWLEDGE_BASE.cadient.metrics}. Industries: ${KNOWLEDGE_BASE.cadient.industries}. Tools: ${KNOWLEDGE_BASE.cadient.tools.join('; ')}.
+
+VORRO HEALTHCARE: ${KNOWLEDGE_BASE.vorro.product}. Key metrics: ${KNOWLEDGE_BASE.vorro.metrics}. Standards: ${KNOWLEDGE_BASE.vorro.standards}. Pricing: ${KNOWLEDGE_BASE.vorro.pricing}. Tools: ${KNOWLEDGE_BASE.vorro.tools.join('; ')}.`;
+}
+
+// ── Speech Recognition ──
+function initCopilotSpeech(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    document.getElementById('btnListen').textContent='Mic Unavailable';
+    document.getElementById('btnListen').disabled=true;
+    document.getElementById('listenStatus').textContent='Speech recognition not supported in this viewer. Type or paste transcript below instead.';
+    return;
+  }
+  copilotRecognition=new SR();
+  copilotRecognition.continuous=true;
+  copilotRecognition.interimResults=true;
+  copilotRecognition.lang='en-US';
+  copilotRecognition.maxAlternatives=1;
+
+  copilotRecognition.onresult=(e)=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal){
+        copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence});
+        renderCopilotTranscript();
+        checkObjections(t);
+      } else { interim=t; }
+    }
+    if(interim) renderCopilotInterim(interim);
+  };
+  copilotRecognition.onerror=(e)=>{
+    if(e.error==='not-allowed'){
+      document.getElementById('listenStatus').textContent='Microphone blocked by embedded viewer. Type or paste transcript below instead.';
+      document.getElementById('btnListen').textContent='Mic Blocked';
+      document.getElementById('btnListen').disabled=true;
+    } else if(e.error!=='no-speech'){
+      document.getElementById('listenStatus').textContent='Error: '+e.error+'. Restarting...';
+    }
+  };
+  copilotRecognition.onend=()=>{
+    if(copilotListening){try{copilotRecognition.start()}catch(e){}}
+  };
+}
+
+function toggleListening(){
+  if(!copilotRecognition){initCopilotSpeech();if(!copilotRecognition)return;}
+  if(copilotListening){
+    copilotListening=false;
+    try{copilotRecognition.stop()}catch(e){}
+    document.getElementById('btnListen').textContent='Start Listening';
+    document.getElementById('btnListen').className='listen-btn idle';
+    document.getElementById('listenStatus').textContent='Stopped';
+    document.getElementById('listenDot').className='listen-dot off';
+  } else {
+    copilotListening=true;
+    try{copilotRecognition.start()}catch(e){copilotRecognition.stop();setTimeout(()=>copilotRecognition.start(),200)}
+    document.getElementById('btnListen').textContent='Stop Listening';
+    document.getElementById('btnListen').className='listen-btn active';
+    document.getElementById('listenStatus').textContent='Listening... speak into your microphone';
+    document.getElementById('listenDot').className='listen-dot on';
+  }
+}
+
+function renderCopilotTranscript(){
+  const el=document.getElementById('copilotTranscript');
+  if(!copilotTranscriptLines.length){el.innerHTML='<div class="empty-state">Transcript will appear here</div>';return}
+  el.innerHTML=copilotTranscriptLines.map(l=>`<div class="ct-line"><span class="ct-time">${l.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}</span>${esc(l.text)}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function renderCopilotInterim(text){
+  const el=document.getElementById('copilotTranscript');
+  const existing=el.querySelector('.ct-interim');
+  if(existing)existing.remove();
+  const div=document.createElement('div');
+  div.className='ct-interim';
+  div.textContent=text;
+  el.appendChild(div);
+  el.scrollTop=el.scrollHeight;
+}
+
+function addManualTranscript(){
+  const ta=document.getElementById('copilotManualInput');
+  const text=ta.value.trim();
+  if(!text)return;
+  copilotTranscriptLines.push({text,time:new Date(),confidence:1,manual:true});
+  ta.value='';
+  renderCopilotTranscript();
+  checkObjections(text);
+}
+
+function getRecentTranscript(minutes){
+  const cutoff=Date.now()-(minutes||10)*60000;
+  return copilotTranscriptLines.filter(l=>l.time.getTime()>cutoff).map(l=>l.text).join(' ');
+}
+
+function getFullTranscript(){
+  return copilotTranscriptLines.map(l=>l.text).join(' ');
+}
+
+// ── Objection Detection ──
+const OBJECTION_PATTERNS=[
+  {pattern:/too expensive|cost too much|budget|can't afford|price is high|pricing concern/i, type:'pricing', brand:'auto'},
+  {pattern:/already have|already using|current solution|existing system|happy with what we have/i, type:'existing_solution', brand:'auto'},
+  {pattern:/not ready|not the right time|maybe later|next quarter|too soon/i, type:'timing', brand:'auto'},
+  {pattern:/need to think|talk to my team|run it by|get approval|decision maker/i, type:'stakeholder', brand:'auto'},
+  {pattern:/competitor|other vendor|alternative|also looking at|compared to/i, type:'competitor', brand:'auto'},
+  {pattern:/implementation|how long|timeline|disruption|migration/i, type:'implementation', brand:'auto'},
+  {pattern:/hipaa|compliance|security|data privacy|audit/i, type:'compliance', brand:'vorro'},
+  {pattern:/integration.*complex|too many systems|point.to.point/i, type:'complexity', brand:'vorro'}
+];
+
+function checkObjections(text){
+  for(const p of OBJECTION_PATTERNS){
+    if(p.pattern.test(text)){
+      generateAutoRebuttal(text,p.type,p.brand);
+      return;
+    }
+  }
+}
+
+async function generateAutoRebuttal(text,objType,brand){
+  const detectedBrand=brand==='auto'?detectBrandFromContext():brand;
+  const kb=KNOWLEDGE_BASE[detectedBrand]||KNOWLEDGE_BASE.cadient;
+
+  // Check for pre-built rebuttals first
+  const handlers=kb.objectionHandlers;
+  let quickRebuttal='';
+  for(const[key,val]of Object.entries(handlers)){
+    if(text.toLowerCase().includes(key)||objType.includes(key.split(' ')[0])){
+      quickRebuttal=val;break;
+    }
+  }
+
+  const el=document.getElementById('copilotAutoRebuttal');
+  if(quickRebuttal){
+    el.innerHTML=`<div class="copilot-auto-rebuttal">
+      <div class="car-tag">&#9889; Auto-Rebuttal Detected</div>
+      <div class="car-body">${esc(quickRebuttal)}</div>
+    </div>`;
+  }
+
+  // Also generate a contextual rebuttal via AI
+  try{
+    const ctx=[
+      {label:'Objection detected',value:text},
+      {label:'Objection type',value:objType},
+      {label:'Meeting context',value:copilotMeetingContext},
+      {label:'Full transcript',value:getRecentTranscript(5)},
+      {label:'Product knowledge',value:getKnowledgeString()}
+    ];
+    const aiRebuttal=await ask(
+      `You are a CRO's real-time meeting coach for ${kb.company}. The prospect just raised an objection. Generate a natural, conversational rebuttal that Manish can say immediately. Be specific with data and metrics. Keep it under 80 words. Do NOT use bullet points.`,
+      ctx
+    );
+    el.innerHTML=`<div class="copilot-auto-rebuttal">
+      <div class="car-tag">&#9889; AI Rebuttal (${esc(objType)})</div>
+      <div class="car-body">${esc(aiRebuttal)}</div>
+    </div>`;
+  }catch(e){}
+}
+
+function detectBrandFromContext(){
+  const allText=(copilotMeetingContext+' '+getFullTranscript()).toLowerCase();
+  if(/fhir|hl7|ehr|epic|cerner|integration|healthcare|hipaa|claims|medicaid|interop/.test(allText))return 'vorro';
+  return 'cadient';
+}
+
+// ── Action Buttons ──
+async function copilotAction(type){
+  const transcript=getRecentTranscript(10);
+  if(!transcript&&!copilotTranscriptLines.length){
+    document.getElementById('copilotResponseBody').innerHTML='<div class="empty-state">Add some transcript content first (speak or type)</div>';
+    return;
+  }
+
+  // Highlight active button
+  document.querySelectorAll('.copilot-action-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.copilot-action-btn.${type}`).classList.add('active');
+  copilotLastActionType=type;
+
+  const body=document.getElementById('copilotResponseBody');
+  body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Thinking...</div>';
+
+  const brand=detectBrandFromContext();
+  const kb=KNOWLEDGE_BASE[brand];
+
+  const prompts={
+    explain:`You are a CRO's real-time meeting assistant. Explain what the client/prospect just said in the last few minutes of conversation. Break it down into: (1) what they literally said, (2) what they actually mean (read between the lines), (3) what concern or need this reveals. Be concise and direct. Use the meeting context and product knowledge to frame your explanation.`,
+    rebuttal:`You are a CRO's real-time meeting coach for ${kb.company}. The prospect said something that needs a counter-argument. Generate a strong, data-driven rebuttal that Manish can use right now. Include specific metrics, client results, and competitive advantages. Make it conversational (not a script). Under 100 words.`,
+    tone:`You are a CRO's emotional intelligence coach. Analyze the tone and emotional state of the conversation based on the transcript. Report: (1) Overall tone (interested/skeptical/hostile/engaged/confused/excited), (2) Specific signals you detected, (3) Whether the deal is trending positive or negative, (4) What emotional levers to pull next. Be specific about what words/phrases indicate the tone.`,
+    advise:`You are a CRO's real-time meeting strategist for ${kb.company}. Based on the full conversation so far, tell Manish exactly what to say next. Consider: (1) where the conversation is heading, (2) any objections or concerns raised, (3) opportunities to advance the deal, (4) the right product/feature to highlight next. Give a specific, word-for-word suggestion Manish can use. Under 100 words.`
+  };
+
+  const data=[
+    {label:'Recent transcript (last 10 min)',value:transcript||getFullTranscript()},
+    {label:'Full conversation',value:getFullTranscript()},
+    {label:'Meeting context',value:copilotMeetingContext},
+    {label:'Attendee data',value:JSON.stringify(copilotAttendeeData)},
+    {label:'Product knowledge',value:getKnowledgeString()},
+    {label:'Brand detected',value:brand}
+  ];
+
+  try{
+    const response=await ask(prompts[type],data);
+    renderCopilotResponse(type,response);
+  }catch(e){
+    body.innerHTML=`<div class="empty-state">AI response failed: ${esc(e.message||'Unknown error')}</div>`;
+  }
+}
+
+function renderCopilotResponse(type,text){
+  const headers={
+    explain:'&#128161; Explanation',
+    rebuttal:'&#9889; Rebuttal',
+    tone:'&#127912; Tone Analysis',
+    advise:'&#128172; What to Say Next'
+  };
+  const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50'};
+  const headerEl=document.querySelector('.copilot-response .cr-header');
+  headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span>`;
+  const body=document.getElementById('copilotResponseBody');
+
+  if(type==='tone'){
+    // Parse tone and show pills
+    const toneMatch=text.match(/(interested|skeptical|hostile|engaged|confused|excited|neutral|positive|negative|curious|cautious|warm|defensive)/gi);
+    const tones=(toneMatch||['neutral']).slice(0,3);
+    const toneClasses={interested:'positive',engaged:'positive',excited:'positive',warm:'positive',positive:'positive',
+      skeptical:'neutral',confused:'neutral',cautious:'neutral',neutral:'neutral',
+      hostile:'negative',defensive:'negative',negative:'negative',curious:'curious'};
+    body.innerHTML=`<div class="copilot-tone-bar">${tones.map(t=>`<span class="copilot-tone-pill tone-${toneClasses[t.toLowerCase()]||'neutral'}">${esc(t)}</span>`).join('')}</div>
+      <div style="font-size:12px;line-height:1.7;color:#333">${esc(text)}</div>`;
+  } else {
+    body.innerHTML=`<div style="font-size:12px;line-height:1.7;color:#333">${esc(text)}</div>`;
+  }
+}
+
+// ── Meeting Context Loading ──
+async function loadCopilot(){
+  window._copilotLoaded=true;
+  initCopilotSpeech();
+
+  // Get current/upcoming meetings
+  const now=new Date();
+  const twoHours=new Date(now.getTime()+7200000);
+  try{
+    const calR=await call(`${CAL}__list_events`,{startTime:now.toISOString(),endTime:twoHours.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
+    const events=calR?.events||[];
+    if(events.length){
+      copilotCurrentMeeting=events[0];
+      const m=copilotCurrentMeeting;
+      // Detect conference platform from conferenceUrl or location field
+      const confUrl=m.conferenceUrl||m.location||'';
+      let platform='Calendar';
+      let joinUrl='';
+      if(confUrl.includes('meet.google.com')){platform='Google Meet';joinUrl=confUrl;}
+      else if(confUrl.includes('zoom.us')){platform='Zoom';joinUrl=confUrl;}
+      else if(confUrl.includes('teams.microsoft.com')||confUrl.includes('teams.live.com')){platform='Microsoft Teams';joinUrl=confUrl;}
+      // Also check location if conferenceUrl didn't match
+      if(!joinUrl&&m.location){
+        const loc=m.location;
+        if(loc.includes('meet.google.com')){platform='Google Meet';joinUrl=loc;}
+        else if(loc.includes('zoom.us')){platform='Zoom';joinUrl=loc;}
+        else if(loc.includes('teams.microsoft.com')||loc.includes('teams.live.com')){platform='Microsoft Teams';joinUrl=loc;}
+      }
+      const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=(m.summary||'Meeting')+' ('+platform+')';
+      const start=m.start?.dateTime||m.start?.date||'';
+      const attendees=(m.attendees||[]).filter(a=>!a.self);
+      const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
+      const joinHtml=joinUrl?` <a href="${joinUrl}" target="_blank" style="color:#4caf50;font-weight:600;text-decoration:none;margin-left:8px">Join ${platform}</a>`:'';
+      const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.innerHTML=`${fmt(start)} | ${attendees.length} attendees: ${esc(names)}${joinHtml}`;
+
+      // Load context for attendees in parallel
+      await loadAttendeeContext(attendees);
+    } else {
+      const _cmt2=document.getElementById('copilotMeetingTitle');if(_cmt2)_cmt2.textContent='No Upcoming Meeting';
+      const _cmm2=document.getElementById('copilotMeetingMeta');if(_cmm2)_cmm2.textContent='Your next meeting will auto-load when it starts. You can still use the copilot with manual input.';
+    }
+  }catch(e){
+    const _cmm3=document.getElementById('copilotMeetingMeta');if(_cmm3)_cmm3.textContent='Calendar sync failed. Use manual input.';
+  }
+}
+
+async function loadAttendeeContext(attendees){
+  if(!attendees.length)return;
+  const contextCards=document.getElementById('copilotContextCards');
+  contextCards.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading meeting context...</div>';
+
+  const emails=attendees.map(a=>a.email).filter(Boolean);
+  const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).filter(Boolean);
+
+  // Parallel context fetch
+  const promises=[];
+  emails.forEach(email=>{
+    promises.push(call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner,Lead_Source'}}).catch(()=>null));
+    promises.push(call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company,Lead_Source,Lead_Status'}}).catch(()=>null));
+  });
+  if(names.length){
+    promises.push(call(`${GRAN}__query_granola_meetings`,{query:`Summary of past meetings with ${names.join(' and ')}. Key decisions, action items, and relationship context.`}).catch(()=>null));
+  }
+  // Deals
+  promises.push(call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 20`}}).catch(()=>null));
+
+  const results=await Promise.allSettled(promises);
+
+  let contextHtml='';
+  let contextStr='';
+
+  // CRM records
+  const crmRecords=[];
+  for(let i=0;i<emails.length*2;i++){
+    const r=results[i];
+    if(r.status==='fulfilled'&&r.value?.data){
+      r.value.data.forEach(rec=>{
+        if(!crmRecords.find(c=>c.Email===rec.Email))crmRecords.push(rec);
+      });
+    }
+  }
+  if(crmRecords.length){
+    const crmStr=crmRecords.map(r=>`${r.Full_Name}: ${r.Title||'?'} at ${r.Company_Name||r.Company||'?'} (${r.Lead_Source||'?'})`).join('; ');
+    contextStr+=`ATTENDEE CRM DATA: ${crmStr}. `;
+    contextHtml+=`<div class="copilot-ctx-card"><div class="ccc-title">CRM Records</div><div class="ccc-body">${crmRecords.map(r=>
+      `<strong>${esc(r.Full_Name||'')}</strong> - ${esc(r.Title||'')} at ${esc(r.Company_Name||r.Company||'')}${r.Lead_Source?' ('+esc(r.Lead_Source)+')':''}`
+    ).join('<br>')}</div></div>`;
+    copilotAttendeeData.crm=crmRecords;
+  }
+
+  // Granola meeting history
+  const granolaIdx=emails.length*2;
+  const granolaR=results[granolaIdx];
+  if(granolaR&&granolaR.status==='fulfilled'&&granolaR.value){
+    const gText=typeof granolaR.value==='string'?granolaR.value:JSON.stringify(granolaR.value);
+    contextStr+=`PAST MEETING NOTES: ${gText.slice(0,500)}. `;
+    contextHtml+=`<div class="copilot-ctx-card"><div class="ccc-title">Past Meetings (Granola)</div><div class="ccc-body" style="max-height:120px;overflow-y:auto">${renderMarkdown(gText)}</div></div>`;
+    copilotAttendeeData.meetings=gText;
+  }
+
+  // Active deals
+  const dealsR=results[granolaIdx+1];
+  if(dealsR&&dealsR.status==='fulfilled'&&dealsR.value?.data){
+    const deals=dealsR.value.data.slice(0,5);
+    contextStr+=`ACTIVE DEALS: ${deals.map(d=>`${d.Deal_Name} (${d.Stage}, ${fmtMoney(d.Amount)})`).join('; ')}. `;
+    contextHtml+=`<div class="copilot-ctx-card"><div class="ccc-title">Active Deals</div><div class="ccc-body">${deals.map(d=>
+      `<strong>${esc(d.Deal_Name)}</strong> - ${esc(d.Stage)} - ${fmtMoney(d.Amount)}`
+    ).join('<br>')}</div></div>`;
+    copilotAttendeeData.deals=deals;
+  }
+
+  copilotMeetingContext=contextStr;
+  contextCards.innerHTML=contextHtml||'<div class="empty-state">No context data found for attendees</div>';
+}
+
+function refreshCopilotMeeting(){
+  window._copilotLoaded=false;
+  loadCopilot();
+}
+
+function clearCopilotSession(){
+  copilotTranscriptLines=[];
+  copilotMeetingContext='';
+  copilotAttendeeData={};
+  renderCopilotTranscript();
+  const _crb=document.getElementById('copilotResponseBody');if(_crb)_crb.innerHTML='<div class="empty-state">Session cleared</div>';
+  const _car=document.getElementById('copilotAutoRebuttal');if(_car)_car.innerHTML='';
+  const _ccc=document.getElementById('copilotContextCards');if(_ccc)_ccc.innerHTML='';
+  if(copilotListening)toggleListening();
+}
+
+// ══════════════════════════════════════
+// ── PRODUCTIVITY ──
+// ══════════════════════════════════════
+let prodTasks={active:[],waiting:[],someday:[],done:[]};
+let prodMemory={people:[],projects:[],preferences:[],decisions:[]};
+let prodGlossary=[];
+async function ask(p,d){
+  try{
+    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[]})});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    return await res.json();
+  }catch(e){
+    dbg('askClaude failed: '+e.message,'err');
+    return 'AI response unavailable';
+  }
+}
+
+async function loadProductivity(){
+  window._prodLoaded=true;
+  // Load tasks from multiple sources in parallel
+  const [calTasks,emailTasks,granolaTasks,dealTasks]=await Promise.allSettled([
+    loadCalendarTasks(),
+    loadEmailTasks(),
+    loadGranolaTasks(),
+    loadDealTasks()
+  ]);
+
+  // Also load memory context
+  loadMemoryView();
+  loadGlossaryView();
+  renderKanban();
+}
+
+async function loadCalendarTasks(){
+  try{
+    const now=new Date();
+    const weekEnd=new Date(now);weekEnd.setDate(weekEnd.getDate()+7);
+    const calR=await call(`${CAL}__list_events`,{startTime:now.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
+    const events=calR?.events||[];
+    // Extract action items from meetings
+    events.forEach(e=>{
+      if(e.summary&&(e.summary.toLowerCase().includes('review')||e.summary.toLowerCase().includes('prep')||e.summary.toLowerCase().includes('complete')||e.summary.toLowerCase().includes('deadline'))){
+        const d=e.start?.dateTime||e.start?.date||'';
+        const att=(e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email?.split('@')[0]).slice(0,2).join(', ');
+        addTaskIfNew('active',{title:e.summary,context:att?'with '+att:'',person:att,due:d?d.slice(0,10):'',source:'calendar'});
+      }
+    });
+  }catch(e){}
+}
+
+async function loadEmailTasks(){
+  try{
+    // Find emails with action keywords
+    const r=await call(`${GMAIL}__search_threads`,{query:'subject:(action OR todo OR follow up OR reminder OR deadline OR urgent) newer_than:3d',pageSize:10});
+    const threads=r?.threads||[];
+    threads.forEach(t=>{
+      const msg=t.messages?.[t.messages.length-1]||{};
+      if(msg.subject){
+        const sender=msg.sender?.split('<')[0]?.trim()||msg.sender?.split('@')[0]||'';
+        addTaskIfNew('active',{title:msg.subject,context:'from '+sender,person:sender,due:'',source:'email'});
+      }
+    });
+  }catch(e){}
+}
+
+async function loadGranolaTasks(){
+  try{
+    const r=await call(`${GRAN}__query_granola_meetings`,{query:'Action items and follow-ups from meetings in the last 3 days. List each task separately.'});
+    if(r){
+      const text=typeof r==='string'?r:JSON.stringify(r);
+      // Use AI to parse action items
+      const parsed=await ask('Extract action items from these meeting notes as a JSON array. Each item: {"title":"...", "person":"who its for", "context":"meeting context", "due":"date if mentioned"}. Return ONLY valid JSON array, no other text.',
+        [{type:'text',text:text.slice(0,2000)}]);
+      try{
+        const items=JSON.parse(parsed);
+        if(Array.isArray(items)){
+          items.forEach(item=>{
+            addTaskIfNew('active',{title:item.title,context:item.context||'from meeting',person:item.person||'',due:item.due||'',source:'granola'});
+          });
+        }
+      }catch(e){}
+    }
+  }catch(e){}
+}
+
+async function loadDealTasks(){
+  try{
+    const now=new Date().toISOString().slice(0,10);
+    const week=new Date();week.setDate(week.getDate()+14);
+    const weekStr=week.toISOString().slice(0,10);
+    // Cadient deals from Zoho MCP
+    const r=await call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Closing_Date between '${now}' and '${weekStr}' and Stage != 'Closed Won' and Stage != 'Closed Lost' order by Closing_Date asc limit 20`}});
+    (r?.data||[]).forEach(d=>{
+      addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Cadient &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm'});
+    });
+    // Vorro deals from Gmail pipeline cache
+    const vDeals=await loadVorroPipelineCache();
+    vDeals.filter(d=>d.Closing_Date&&d.Closing_Date>=now&&d.Closing_Date<=weekStr).forEach(d=>{
+      addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Vorro &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm'});
+    });
+  }catch(e){}
+}
+
+function addTaskIfNew(col,task){
+  const key=(task.title||'').toLowerCase().trim();
+  const exists=Object.values(prodTasks).flat().some(t=>(t.title||'').toLowerCase().trim()===key);
+  if(!exists&&key.length>2){
+    task.id='t_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    task.created=new Date().toISOString().slice(0,10);
+    prodTasks[col].push(task);
+  }
+}
+
+function renderKanban(){
+  ['active','waiting','someday','done'].forEach(col=>{
+    const container=document.getElementById('cards'+col.charAt(0).toUpperCase()+col.slice(1));
+    const count=document.getElementById('cnt'+col.charAt(0).toUpperCase()+col.slice(1));
+    if(!container||!count)return;
+    const tasks=prodTasks[col]||[];
+    count.textContent=tasks.length;
+    container.innerHTML=tasks.map(t=>{
+      const isOverdue=t.due&&new Date(t.due)<new Date()&&col!=='done';
+      const sourceIcon={calendar:'&#128197;',email:'&#9993;',granola:'&#127793;',crm:'&#128178;',manual:'&#128221;'}[t.source]||'&#128221;';
+      return `<div class="kanban-card" data-id="${t.id}">
+        <div class="kc-actions">
+          ${col!=='done'?`<button onclick="moveTask('${t.id}','done')" title="Complete">&#10003;</button>`:''}
+          ${col!=='active'&&col!=='done'?`<button onclick="moveTask('${t.id}','active')" title="Move to Active">&#9654;</button>`:''}
+          ${col==='active'?`<button onclick="moveTask('${t.id}','waiting')" title="Waiting">&#9202;</button>`:''}
+          <button onclick="removeTask('${t.id}')" title="Remove">&#10005;</button>
+        </div>
+        <div class="kc-title">${esc(t.title)}</div>
+        ${t.context?`<div class="kc-context">${esc(t.context)}</div>`:''}
+        <div class="kc-meta">
+          <span class="kc-tag" style="background:#f5f5f5;color:#666">${sourceIcon}</span>
+          ${t.person?`<span class="kc-tag person">${esc(t.person)}</span>`:''}
+          ${t.due?`<span class="kc-tag due ${isOverdue?'overdue':''}">${isOverdue?'OVERDUE ':''} ${t.due}</span>`:''}
+          ${t.created&&!t.due?`<span class="kc-tag since">since ${t.created}</span>`:''}
+        </div>
+      </div>`;
+    }).join('')||'<div class="memory-empty">No tasks</div>';
+  });
+}
+
+function moveTask(id,toCol){
+  for(const col of ['active','waiting','someday','done']){
+    const idx=prodTasks[col].findIndex(t=>t.id===id);
+    if(idx>-1){
+      const task=prodTasks[col].splice(idx,1)[0];
+      if(toCol==='done')task.completed=new Date().toISOString().slice(0,10);
+      prodTasks[toCol].push(task);
+      break;
+    }
+  }
+  renderKanban();
+}
+
+function removeTask(id){
+  for(const col of ['active','waiting','someday','done']){
+    const idx=prodTasks[col].findIndex(t=>t.id===id);
+    if(idx>-1){prodTasks[col].splice(idx,1);break;}
+  }
+  renderKanban();
+}
+
+function toggleAddTask(){
+  document.getElementById('prodAddForm').classList.toggle('visible');
+  document.getElementById('prodTaskTitle').focus();
+}
+
+function quickAddTask(col){
+  document.getElementById('prodTaskColumn').value=col;
+  toggleAddTask();
+}
+
+function addProdTask(){
+  const title=document.getElementById('prodTaskTitle').value.trim();
+  if(!title)return;
+  const col=document.getElementById('prodTaskColumn').value;
+  addTaskIfNew(col,{
+    title:title,
+    context:document.getElementById('prodTaskContext').value.trim(),
+    person:document.getElementById('prodTaskPerson').value.trim(),
+    due:document.getElementById('prodTaskDue').value,
+    source:'manual'
+  });
+  document.getElementById('prodTaskTitle').value='';
+  document.getElementById('prodTaskContext').value='';
+  document.getElementById('prodTaskPerson').value='';
+  document.getElementById('prodTaskDue').value='';
+  document.getElementById('prodAddForm').classList.remove('visible');
+  renderKanban();
+}
+
+function switchProdView(view,btn){
+  document.querySelectorAll('.prod-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('prodBoardView').style.display=view==='board'?'block':'none';
+  document.getElementById('prodMemoryView').style.display=view==='memory'?'block':'none';
+  document.getElementById('prodGlossaryView').style.display=view==='glossary'?'block':'none';
+}
+
+async function loadMemoryView(){
+  // Build memory from CLAUDE.md knowledge + CRM + Calendar
+  const memPeople=document.getElementById('memPeople');
+  const memProjects=document.getElementById('memProjects');
+  const memPrefs=document.getElementById('memPrefs');
+  const memDecisions=document.getElementById('memDecisions');
+
+  // People from team + CRM
+  const people=[
+    {name:'Ambarish Gupta',role:'Managing Partner',company:'Basis Vectors Capital',freq:'Daily'},
+    {name:'Bill Mastin',role:'CEO',company:'Cadient',freq:'Daily'},
+    {name:'Andrew Baker',role:'CEO',company:'Vorro',freq:'Daily'},
+    {name:'Scott Sirdevan',role:'VP Sales',company:'Vorro',freq:'Weekly'},
+    {name:'Anjali Garg',role:'TA Lead',company:'Cadient',freq:'Weekly'},
+    {name:'Anshu Bisht',role:'TA Lead',company:'Cadient',freq:'Daily'},
+    {name:'Kashif Sultan',role:'TA Lead',company:'Cadient',freq:'Weekly'},
+    {name:'Toiba Paul',role:'Integration Lead',company:'Vorro',freq:'Weekly'},
+    {name:'Justin Roberts',role:'Account Manager',company:'Cadient',freq:'Weekly'},
+    {name:'Gibran Crismatt',role:'Technical Lead',company:'Vorro',freq:'Weekly'},
+    {name:'Lori Nicholas',role:'Client Success',company:'Cadient',freq:'Weekly'},
+    {name:'Kyle Bidwell',role:'Product',company:'Cadient',freq:'Weekly'},
+    {name:'Nilanjan',role:'Operations',company:'Basis Vectors',freq:'Daily'},
+  ];
+  memPeople.innerHTML=people.map(p=>
+    `<div class="memory-entry"><span class="me-key">${esc(p.name)}</span><span class="me-val">${esc(p.role)} @ ${esc(p.company)} (${p.freq})</span></div>`
+  ).join('');
+
+  // Projects
+  const projects=[
+    {name:'Cadient SmartSuite',status:'Active',desc:'AI hiring platform. SmartSource, SmartMatch, SmartScreen, SmartTenure, SmartFeedback'},
+    {name:'Vorro BridgeGate',status:'Active',desc:'Healthcare EiPaaS. FHIR, HL7, EDI X12 integration'},
+    {name:'Social Selling Pipeline',status:'Active',desc:'LinkedIn + email outreach. 1,100+ prospects. Apify + Evaboot enrichment'},
+    {name:'Command Center',status:'Active',desc:'Prospect management dashboard. API at cadient-command.onrender.com'},
+    {name:'Second Brain',status:'Active',desc:'This dashboard. CRM + Calendar + Granola + Copilot'},
+  ];
+  memProjects.innerHTML=projects.map(p=>
+    `<div class="memory-entry"><span class="me-key" style="color:${p.status==='Active'?'#4caf50':'#999'}">${esc(p.name)}</span><span class="me-val">${esc(p.desc)}</span></div>`
+  ).join('');
+
+  // Preferences
+  const prefs=[
+    {key:'Work Style',val:'Parallel over serial. Batch all independent calls.'},
+    {key:'Formatting',val:'No asterisks, hyphens, arrows. Use numbered lists or prose.'},
+    {key:'Messaging',val:'LinkedIn DM first (no email). Get email at Stage 1.'},
+    {key:'Research',val:'Verified data only. No hallucination. Self-healing on failure.'},
+    {key:'Outreach',val:'Personalization-focused. Industry-specific value props.'},
+    {key:'Error Handling',val:'Log root cause to CLAUDE.md. Auto session cutover on loops.'},
+  ];
+  memPrefs.innerHTML=prefs.map(p=>
+    `<div class="memory-entry"><span class="me-key">${esc(p.key)}</span><span class="me-val">${esc(p.val)}</span></div>`
+  ).join('');
+
+  // Recent decisions from Granola
+  try{
+    const r=await call(`${GRAN}__query_granola_meetings`,{query:'Key decisions made in the last 7 days. Strategy decisions, architecture choices, business commitments.'});
+    if(r){
+      const text=typeof r==='string'?r:JSON.stringify(r);
+      const parsed=await ask('Extract the top 5 most important business decisions from these meeting notes. Return as JSON array: [{"decision":"...","date":"...","context":"who/what meeting"}]. ONLY valid JSON.',
+        [{type:'text',text:text.slice(0,2000)}]);
+      try{
+        const items=JSON.parse(parsed);
+        if(Array.isArray(items)&&items.length){
+          memDecisions.innerHTML=items.map(d=>
+            `<div class="memory-entry"><span class="me-key">${esc(d.date||'Recent')}</span><span class="me-val"><strong>${esc(d.decision)}</strong>${d.context?' ('+esc(d.context)+')':''}</span></div>`
+          ).join('');
+          return;
+        }
+      }catch(e){}
+    }
+    memDecisions.innerHTML='<div class="memory-empty">No recent decisions found in Granola</div>';
+  }catch(e){
+    memDecisions.innerHTML='<div class="memory-empty">Connect Granola to see decisions</div>';
+  }
+}
+
+async function loadGlossaryView(){
+  // Build glossary from CLAUDE.md knowledge
+  prodGlossary=[
+    {term:'SmartSuite',def:'Cadient integrated AI hiring platform (SmartSource + SmartMatch + SmartScreen + SmartTenure + SmartFeedback)'},
+    {term:'SmartSource',def:'AI candidate sourcing tool. 5x pool improvement.'},
+    {term:'SmartMatch',def:'AI skills matching. 15% accuracy lift.'},
+    {term:'SmartScreen',def:'Auto phone screening. 30% faster hiring.'},
+    {term:'SmartTenure',def:'Predictive retention analytics. 20% retention lift.'},
+    {term:'SmartFeedback',def:'Post-hire engagement insights. 30% improvement.'},
+    {term:'SmartHire',def:'Cadient central hiring orchestration system.'},
+    {term:'BridgeGate',def:'Vorro enterprise integration platform (EiPaaS). Connects EHRs, billing, HIEs.'},
+    {term:'EiPaaS',def:'Enterprise Integration Platform as a Service (Vorro model).'},
+    {term:'FHIR',def:'Fast Healthcare Interoperability Resources. Modern healthcare data standard.'},
+    {term:'HL7',def:'Health Level 7. Legacy healthcare messaging standard.'},
+    {term:'EDI X12',def:'Electronic Data Interchange. Healthcare billing/transaction standard.'},
+    {term:'NCPDP',def:'National Council for Prescription Drug Programs. Pharmacy data standard.'},
+    {term:'C-CDA',def:'Consolidated Clinical Document Architecture. Clinical document standard.'},
+    {term:'ATS',def:'Applicant Tracking System. The software companies use to manage hiring.'},
+    {term:'WOTC',def:'Work Opportunity Tax Credit. Tax incentive for hiring from target groups.'},
+    {term:'CAC',def:'Customer Acquisition Cost.'},
+    {term:'TTF',def:'Time-to-Fill. Days from job posting to hire.'},
+    {term:'CEM',def:'Candidate Engagement Model. Cadient hiring journey PDF assets.'},
+    {term:'ICP',def:'Ideal Customer Profile. Scoring criteria for prospect qualification.'},
+    {term:'KOL',def:'Key Opinion Leader. Influencers whose audiences match our ICP.'},
+    {term:'BDR',def:'Business Development Representative. Anjali, Anshu, Kashif, Toiba.'},
+    {term:'Basis Vectors',def:'PE firm. Parent company managing Cadient and Vorro.'},
+    {term:'Command Center',def:'Prospect management dashboard at cadient-command.onrender.com.'},
+    {term:'Evaboot',def:'Email enrichment service. 65% hit rate. $0.05/lookup.'},
+    {term:'Apify',def:'LinkedIn scraping platform. 5-actor stack for profile enrichment.'},
+    {term:'Apollo',def:'Prospect enrichment. Free people/match endpoint for name+company lookup.'},
+    {term:'Warmly',def:'Website visitor identification. Feeds into outreach pipeline.'},
+    {term:'Granola',def:'Meeting transcription and AI notes tool.'},
+    {term:'TPL',def:'Third Party Liability. Healthcare billing concept.'},
+    {term:'MCO',def:'Managed Care Organization. Type of health insurance plan.'},
+  ];
+  renderGlossary();
+}
+
+function renderGlossary(filter){
+  const items=filter?prodGlossary.filter(g=>g.term.toLowerCase().includes(filter)||g.def.toLowerCase().includes(filter)):prodGlossary;
+  document.getElementById('glossaryItems').innerHTML=items.length?items.map(g=>
+    `<div class="glossary-item"><div class="gi-term">${esc(g.term)}</div><div class="gi-def">${esc(g.def)}</div></div>`
+  ).join(''):'<div class="memory-empty">No matching terms</div>';
+}
+
+function filterGlossary(val){renderGlossary(val.toLowerCase().trim())}
+
+async function prodSyncTasks(){
+  // Refresh tasks from external sources
+  prodTasks={active:[],waiting:[],someday:[],done:prodTasks.done||[]};
+  renderKanban();
+  const [a,b,c,d]=await Promise.allSettled([loadCalendarTasks(),loadEmailTasks(),loadGranolaTasks(),loadDealTasks()]);
+  renderKanban();
+}
+
+async function prodScanActivity(){
+  // Comprehensive scan: chat, email, calendar, Granola for missed todos
+  const scanEl=document.getElementById('cardsActive');
+  scanEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Scanning all activity for missed tasks...</div>';
+
+  try{
+    const [emailR,calR,granolaR]=await Promise.allSettled([
+      call(`${GMAIL}__search_threads`,{query:'is:inbox newer_than:3d',pageSize:20}),
+      call(`${CAL}__list_events`,{startTime:new Date(Date.now()-3*86400000).toISOString(),endTime:new Date(Date.now()+7*86400000).toISOString(),timeZone:'America/New_York'}),
+      call(`${GRAN}__query_granola_meetings`,{query:'All action items, follow-ups, commitments, deadlines from the last 5 days. Include who is responsible and any dates mentioned.'})
+    ]);
+
+    // Use AI to extract action items from all sources
+    const context=[];
+    if(emailR.status==='fulfilled'){
+      const threads=emailR.value?.threads||[];
+      const subjects=threads.map(t=>{const m=t.messages?.[t.messages.length-1];return m?`Email: ${m.subject} (from ${m.sender})`:''}).filter(Boolean);
+      context.push({type:'text',text:'RECENT EMAILS:\n'+subjects.join('\n')});
+    }
+    if(granolaR.status==='fulfilled'&&granolaR.value){
+      const gt=typeof granolaR.value==='string'?granolaR.value:JSON.stringify(granolaR.value);
+      context.push({type:'text',text:'MEETING NOTES:\n'+gt.slice(0,3000)});
+    }
+    if(calR.status==='fulfilled'){
+      const events=(calR.value?.events||[]).map(e=>e.summary).filter(Boolean);
+      context.push({type:'text',text:'CALENDAR EVENTS:\n'+events.join('\n')});
+    }
+
+    const aiResult=await ask(
+      'Analyze these activity sources and extract ALL action items, follow-ups, and tasks that Manish needs to do. For each, classify as: active (needs doing now), waiting (blocked on someone), or someday (nice to have). Return JSON: {"active":[{"title":"...","person":"...","context":"...","due":"..."}], "waiting":[...], "someday":[...]}. ONLY valid JSON.',
+      context
+    );
+
+    try{
+      const parsed=JSON.parse(aiResult);
+      ['active','waiting','someday'].forEach(col=>{
+        (parsed[col]||[]).forEach(item=>{
+          addTaskIfNew(col,{title:item.title,context:item.context||'',person:item.person||'',due:item.due||'',source:'scan'});
+        });
+      });
+    }catch(e){}
+  }catch(e){}
+  renderKanban();
+}
+
+// ══════════════════════════════════════
+// ── LEGAL ASSETS ──
+// ══════════════════════════════════════
+let legalSelectedType='';
+let legalSelectedClient={name:'',email:'',company:'',title:''};
+
+const LEGAL_TEMPLATES={
+  nda:{
+    label:'Non-Disclosure Agreement',
+    fields:[
+      {id:'party1_name',label:'Disclosing Party',placeholder:'e.g., Cadient Talent LLC'},
+      {id:'party1_address',label:'Disclosing Party Address',placeholder:'Full address'},
+      {id:'party2_name',label:'Receiving Party',placeholder:'Client company name'},
+      {id:'party2_address',label:'Receiving Party Address',placeholder:'Client address'},
+      {id:'effective_date',label:'Effective Date',type:'date'},
+      {id:'duration',label:'Duration (years)',placeholder:'2',type:'number'},
+      {id:'governing_law',label:'Governing Law (State)',placeholder:'New Jersey'},
+      {id:'scope',label:'Purpose / Scope',placeholder:'Evaluation of SmartSuite platform...'},
+    ]
+  },
+  msa:{
+    label:'Master Service Agreement',
+    fields:[
+      {id:'provider_name',label:'Service Provider',placeholder:'e.g., Cadient Talent LLC'},
+      {id:'provider_address',label:'Provider Address',placeholder:'Full address'},
+      {id:'client_name',label:'Client',placeholder:'Client company name'},
+      {id:'client_address',label:'Client Address',placeholder:'Client address'},
+      {id:'effective_date',label:'Effective Date',type:'date'},
+      {id:'term_years',label:'Initial Term (years)',placeholder:'1'},
+      {id:'renewal_term',label:'Auto-Renewal Term (months)',placeholder:'12'},
+      {id:'payment_terms',label:'Payment Terms (Net days)',placeholder:'30'},
+      {id:'governing_law',label:'Governing Law (State)',placeholder:'New Jersey'},
+      {id:'liability_cap',label:'Liability Cap',placeholder:'12 months of fees'},
+    ]
+  },
+  sow:{
+    label:'Statement of Work',
+    fields:[
+      {id:'sow_number',label:'SOW Number',placeholder:'SOW-2026-001'},
+      {id:'msa_ref',label:'MSA Reference',placeholder:'MSA dated...'},
+      {id:'provider_name',label:'Provider',placeholder:'e.g., Cadient Talent LLC'},
+      {id:'client_name',label:'Client',placeholder:'Client company name'},
+      {id:'project_name',label:'Project Name',placeholder:'SmartSuite Implementation'},
+      {id:'start_date',label:'Start Date',type:'date'},
+      {id:'end_date',label:'End Date',type:'date'},
+      {id:'total_value',label:'Total Value ($)',placeholder:'50000',type:'number'},
+      {id:'deliverables',label:'Key Deliverables',placeholder:'Platform setup, data migration, training...'},
+      {id:'milestones',label:'Milestones',placeholder:'Phase 1: Config (2 weeks), Phase 2: Go-live...'},
+    ]
+  },
+  amendment:{
+    label:'Contract Amendment',
+    fields:[
+      {id:'amendment_number',label:'Amendment Number',placeholder:'1'},
+      {id:'original_agreement',label:'Original Agreement',placeholder:'MSA dated January 15, 2026'},
+      {id:'party1_name',label:'Party 1',placeholder:'e.g., Cadient Talent LLC'},
+      {id:'party2_name',label:'Party 2',placeholder:'Client company name'},
+      {id:'effective_date',label:'Amendment Effective Date',type:'date'},
+      {id:'changes',label:'Changes / Modifications',placeholder:'Section 3.2 pricing updated to...'},
+      {id:'reason',label:'Reason for Amendment',placeholder:'Annual pricing adjustment per CPI...'},
+    ]
+  },
+  proposal:{
+    label:'Business Proposal',
+    fields:[
+      {id:'from_company',label:'From',placeholder:'e.g., Cadient Talent LLC'},
+      {id:'to_company',label:'To',placeholder:'Client company name'},
+      {id:'to_contact',label:'Attention',placeholder:'Contact name and title'},
+      {id:'proposal_date',label:'Proposal Date',type:'date'},
+      {id:'valid_until',label:'Valid Until',type:'date'},
+      {id:'project_name',label:'Project / Solution',placeholder:'SmartSuite Enterprise Deployment'},
+      {id:'executive_summary',label:'Executive Summary',placeholder:'Brief overview of the proposed solution...'},
+      {id:'total_investment',label:'Total Investment ($)',placeholder:'150000',type:'number'},
+      {id:'payment_schedule',label:'Payment Schedule',placeholder:'50% upfront, 50% on go-live'},
+      {id:'timeline',label:'Implementation Timeline',placeholder:'8 weeks from contract signing'},
+    ]
+  }
+};
+
+function selectLegalType(type){
+  legalSelectedType=type;
+  document.querySelectorAll('.legal-type-card').forEach(c=>{
+    c.classList.toggle('selected',c.dataset.type===type);
+  });
+  document.getElementById('legalFormPanel').style.display='block';
+  updateLegalFields();
+}
+
+function updateLegalFields(){
+  if(!legalSelectedType)return;
+  const tmpl=LEGAL_TEMPLATES[legalSelectedType];
+  const brand=document.getElementById('legalBrand').value;
+  const brandNames={cadient:'Cadient Talent LLC',vorro:'Vorro Inc.',bvc:'Basis Vectors Capital LLC'};
+  const brandAddresses={
+    cadient:'1200 Route 22 East, Suite 2000, Bridgewater, NJ 08807',
+    vorro:'1200 Route 22 East, Suite 2000, Bridgewater, NJ 08807',
+    bvc:'1200 Route 22 East, Suite 2000, Bridgewater, NJ 08807'
+  };
+
+  const fieldsEl=document.getElementById('legalFields');
+  fieldsEl.innerHTML=tmpl.fields.map(f=>{
+    let val='';
+    // Pre-fill known fields
+    if(f.id.includes('party1')||f.id==='provider_name'||f.id==='from_company')val=brandNames[brand]||'';
+    if(f.id.includes('party1_address')||f.id==='provider_address')val=brandAddresses[brand]||'';
+    if(f.id==='party2_name'||f.id==='client_name'||f.id==='to_company')val=legalSelectedClient.company||'';
+    if(f.id==='to_contact')val=legalSelectedClient.name?(legalSelectedClient.name+(legalSelectedClient.title?', '+legalSelectedClient.title:'')):'';
+    if(f.id==='effective_date'||f.id==='proposal_date')val=new Date().toISOString().slice(0,10);
+    if(f.id==='governing_law')val='New Jersey';
+
+    const inputType=f.type||'text';
+    const isTextarea=f.id==='deliverables'||f.id==='milestones'||f.id==='changes'||f.id==='reason'||f.id==='executive_summary'||f.id==='scope';
+
+    if(isTextarea){
+      return `<div style="grid-column:span 2"><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">${esc(f.label)}</label>
+        <textarea id="lf_${f.id}" rows="2" placeholder="${esc(f.placeholder||'')}" style="width:100%;padding:6px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-family:inherit;resize:vertical">${esc(val)}</textarea></div>`;
+    }
+    return `<div><label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:3px">${esc(f.label)}</label>
+      <input type="${inputType}" id="lf_${f.id}" value="${esc(val)}" placeholder="${esc(f.placeholder||'')}" style="width:100%;padding:6px 8px;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-family:inherit"></div>`;
+  }).join('');
+}
+
+let legalSearchTimeout;
+async function legalSearchClient(q){
+  clearTimeout(legalSearchTimeout);
+  const el=document.getElementById('legalClientResults');
+  if(q.length<2){el.style.display='none';return}
+  legalSearchTimeout=setTimeout(async()=>{
+    el.style.display='block';
+    el.innerHTML='<div class="loading" style="padding:10px"><div class="spinner"></div></div>';
+    try{
+      const [cR,lR]=await Promise.allSettled([
+        call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:q,per_page:8,fields:'Full_Name,Email,Company_Name,Title'}}),
+        call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{word:q,per_page:5,fields:'Full_Name,Email,Company,Title'}})
+      ]);
+      const contacts=[...(cR.status==='fulfilled'?(cR.value?.data||[]):[]),...(lR.status==='fulfilled'?(lR.value?.data||[]):[])];
+      if(!contacts.length){el.innerHTML='<div style="padding:10px;font-size:11px;color:#999">No results. Type the company name manually.</div>';return}
+      el.innerHTML=contacts.map(c=>{
+        const name=c.Full_Name||'';
+        const company=c.Company_Name||c.Company||'';
+        const title=c.Title||'';
+        const email=c.Email||'';
+        return `<div class="sr-item" onclick="pickLegalClient('${esc(name)}','${esc(email)}','${esc(company)}','${esc(title)}')">
+          <div class="sr-avatar">${initials(name)}</div>
+          <div class="sr-info"><div class="sr-name">${esc(name)}</div><div class="sr-meta">${esc(title)} at ${esc(company)}</div></div></div>`;
+      }).join('');
+    }catch(e){
+      el.innerHTML='<div style="padding:10px;font-size:11px;color:#c62828">Search failed: '+esc(e.message)+'</div>';
+    }
+  },400);
+}
+
+function pickLegalClient(name,email,company,title){
+  legalSelectedClient={name,email,company,title};
+  document.getElementById('legalClientSearch').value=name+' - '+company;
+  document.getElementById('legalClientResults').style.display='none';
+  updateLegalFields();
+}
+
+function generateLegalDoc(format){
+  if(!legalSelectedType){alert('Select a document type first');return}
+  const tmpl=LEGAL_TEMPLATES[legalSelectedType];
+  const brand=document.getElementById('legalBrand').value;
+  const customTerms=document.getElementById('legalCustomTerms').value.trim();
+
+  // Gather field values
+  const fields={};
+  tmpl.fields.forEach(f=>{
+    const el=document.getElementById('lf_'+f.id);
+    if(el)fields[f.id]=el.value||el.textContent||'';
+  });
+
+  const fieldStr=Object.entries(fields).map(([k,v])=>`${k}: ${v}`).join('\n');
+
+  const formatLabel={docx:'Word document (.docx)',pdf:'PDF document (.pdf)',both:'both Word (.docx) and PDF (.pdf)'}[format];
+
+  const prompt=`Generate a professional ${tmpl.label} as a ${formatLabel} for ${brand==='cadient'?'Cadient Talent':'Vorro Healthcare'}.
+
+Document Type: ${tmpl.label}
+Brand: ${brand}
+Format: ${format}
+
+Field Values:
+${fieldStr}
+
+${customTerms?'Additional Terms/Instructions:\n'+customTerms:''}
+
+Requirements:
+1. Use the ${format==='pdf'?'pdf':format==='both'?'docx and pdf':'docx'} skill to create a polished, professional document
+2. Include standard legal boilerplate appropriate for a ${tmpl.label}
+3. Use proper section numbering and formatting
+4. Include signature blocks for both parties
+5. Save the final file(s) to the workspace folder
+6. If format is "both", generate both .docx and .pdf versions`;
+
+  alert('Legal document generation requires the Cowork desktop app. Open Second Brain in Cowork and use the Generate button there.');
+}
+
+async function legalSearchExamples(){
+  const panel=document.getElementById('legalExamplesPanel');
+  const el=document.getElementById('legalExamples');
+  panel.style.display='block';
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching emails for NDA, MSA, SOW, Amendment, Proposal examples...</div>';
+
+  try{
+    const queries=[
+      'subject:(NDA OR "non-disclosure" OR "nondisclosure")',
+      'subject:(MSA OR "master service" OR "service agreement")',
+      'subject:(SOW OR "statement of work")',
+      'subject:(amendment OR "contract amendment" OR "addendum")',
+      'subject:(proposal OR "business proposal" OR "pricing proposal")'
+    ];
+    const labels=['NDA','MSA','SOW','Amendment','Proposal'];
+
+    const results=await Promise.allSettled(queries.map(q=>
+      call(`${GMAIL}__search_threads`,{query:q+' newer_than:365d',pageSize:5})
+    ));
+
+    let html='';
+    results.forEach((r,i)=>{
+      const threads=r.status==='fulfilled'?(r.value?.threads||[]):[];
+      if(threads.length){
+        html+=`<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#e91e63;text-transform:uppercase;border-bottom:1px solid #f0f0f0">${labels[i]} Examples (${threads.length})</div>`;
+        threads.forEach(t=>{
+          const m=t.messages?.[t.messages.length-1]||{};
+          html+=`<a class="item" href="${gmailUrl(t.id)}" target="_blank"><div class="item-row">
+            <div class="item-icon" style="background:#fce4ec;color:#e91e63">&#128220;</div>
+            <div class="item-content"><div class="item-title">${esc(truncate(m.subject||'',55))}</div>
+            <div class="item-sub">${esc(m.sender?.split('@')[0]||'')} &middot; ${fmtDate(m.date)} &middot; ${t.messages?.length||0} msgs</div></div></div></a>`;
+        });
+      }
+    });
+
+    el.innerHTML=html||'<div class="empty-state">No legal document examples found in your email</div>';
+  }catch(e){
+    el.innerHTML='<div class="empty-state" style="color:#c62828">Search failed: '+esc(e.message)+'</div>';
+  }
+}
+
+// ══════════════════════════════════════
+// ── AUTOMATION STATUS ──
+// ══════════════════════════════════════
+const CORE_AUTOMATIONS=[
+  {name:'Pre-Meeting Prep',schedule:'M-F 8:18am',desc:'Calendar scan, research, prep drafts + sales assets',failSubject:'[FAILED] Prospect prep'},
+  {name:'Morning Outreach',schedule:'M-F 7:47am',desc:'Stage 1-5 campaign drafts from prospect queue',failSubject:'Morning Outreach Pipeline'},
+  {name:'Post-Meeting CRM',schedule:'M-F every 3hrs',desc:'Granola transcript to CRM (Cadient Zoho + Vorro cache)',failSubject:'[FAILED]'},
+  {name:'Meeting Outcome Router',schedule:'M-F every 3hrs',desc:'yes/maybe/no detection, auto-route follow-ups',failSubject:'Meeting Outcomes'},
+  {name:'Warmly Outreach',schedule:'On demand',desc:'Website visitors to embedded HTML email assets',failSubject:'Warmly'},
+  {name:'Intent Signal Scan',schedule:'M-F 6:54am + Mon 6:30am',desc:'Reddit, HN, Apollo job signals for Cadient + Vorro',failSubject:'Intent'},
+  {name:'ATS Detection',schedule:'Daily 10pm + every 2hrs',desc:'Company ATS detection via DuckDuckGo + careers pages',failSubject:'ATS'},
+  {name:'Draft Approval Queue',schedule:'M-F 9:05am',desc:'Surfaces drafts needing review before send',failSubject:'Draft Approval'},
+  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'Second Brain Digest'}
+];
+
+async function loadAutomationStatus(){
+  const el=document.getElementById('automationStatus');
+  if(!el)return;
+  dbg('loadAutomationStatus() started');
+
+  // Search for recent failure emails and summary emails in parallel
+  const [failR,prepR,outreachR]=await Promise.allSettled([
+    call(`${GMAIL}__search_threads`,{query:'subject:([FAILED]) newer_than:7d',pageSize:10}),
+    call(`${GMAIL}__search_threads`,{query:'subject:(Daily Prospect Prep) newer_than:3d',pageSize:3}),
+    call(`${GMAIL}__search_threads`,{query:'subject:(Morning Outreach Pipeline) newer_than:3d',pageSize:3})
+  ]);
+
+  const failures=failR.status==='fulfilled'?(failR.value?.threads||[]):[];
+  const failSubjects=failures.flatMap(t=>(t.messages||[]).map(m=>m.subject||'')).filter(s=>s.includes('[FAILED]'));
+  const prepOk=prepR.status==='fulfilled'&&(prepR.value?.threads||[]).length>0;
+  const outreachOk=outreachR.status==='fulfilled'&&(outreachR.value?.threads||[]).length>0;
+
+  // Build status for each automation
+  const cards=CORE_AUTOMATIONS.map(a=>{
+    const hasFail=failSubjects.some(s=>s.toLowerCase().includes(a.name.toLowerCase().split(' ')[0]));
+    let dot='ok';
+    let lastText='Running';
+    if(hasFail){dot='fail';lastText='Recent failure';}
+    else if(a.name==='Pre-Meeting Prep'&&!prepOk){dot='warn';lastText='No recent run';}
+    else if(a.name==='Morning Outreach'&&!outreachOk){dot='warn';lastText='No recent run';}
+    else if(a.schedule==='On demand'){dot='ok';lastText='On demand';}
+
+    return `<div class="auto-card">
+      <div class="auto-dot ${dot}"></div>
+      <div class="auto-info">
+        <div class="auto-name">${esc(a.name)}</div>
+        <div class="auto-schedule">${esc(a.schedule)}</div>
+      </div>
+      <div class="auto-last ${dot==='fail'?'old':dot==='warn'?'stale':''}">${lastText}</div>
+    </div>`;
+  }).join('');
+
+  let failBanner='';
+  if(failSubjects.length>0){
+    failBanner=`<div style="background:#fce4ec;border:1px solid #ef9a9a;border-radius:5px;padding:6px 10px;margin-bottom:8px;font-size:11px;color:#c62828">
+      <strong>&#9888; ${failSubjects.length} task failure(s) in last 7 days:</strong> ${failSubjects.slice(0,3).map(s=>esc(s)).join(', ')}${failSubjects.length>3?' + '+(failSubjects.length-3)+' more':''}
+    </div>`;
+  }
+
+  el.innerHTML=failBanner+`<div class="auto-grid">${cards}</div>`;
+  dbg('Automation status: '+CORE_AUTOMATIONS.length+' tasks, '+failSubjects.length+' failures','ok');
+}
+
+// ══════════════════════════════════════
+// ── STALE THREAD ALERTS ──
+// ══════════════════════════════════════
+async function loadStaleThreads(){
+  const el=document.getElementById('staleAlerts');
+  if(!el)return;
+  dbg('loadStaleThreads() started');
+
+  // Search for threads from VIPs and key prospects where last message is >5 days old
+  // Look for threads where Manish was the recipient (from:VIP) and may not have replied
+  const vips=['ambarish@basisvectors.com','bmastin@cadienttalent.com','abaker@vorro.net','ssirdevan@vorro.net',
+    'prateek@cadienttalent.com','scott@vorro.net','terry@vorro.net'];
+  const query=vips.map(e=>'from:'+e).join(' OR ')+' older_than:5d newer_than:30d -in:draft';
+
+  try{
+    const r=await call(`${GMAIL}__search_threads`,{query:query,pageSize:20});
+    const threads=(r?.threads||[]);
+    if(!threads.length){el.style.display='none';return;}
+
+    // Filter: only threads where the LAST message is FROM the VIP (meaning Manish hasn't replied)
+    const stale=[];
+    for(const t of threads){
+      const msgs=t.messages||[];
+      const last=msgs[msgs.length-1];
+      if(!last)continue;
+      const fromEmail=(last.sender||'').toLowerCase();
+      const isFromVip=vips.some(v=>fromEmail.includes(v.split('@')[0]));
+      if(!isFromVip)continue;
+      const daysSince=Math.floor((Date.now()-new Date(last.date).getTime())/(1000*60*60*24));
+      if(daysSince>=5){
+        stale.push({thread:t,last,daysSince,sender:last.sender});
+      }
+    }
+
+    if(!stale.length){el.style.display='none';return;}
+
+    stale.sort((a,b)=>b.daysSince-a.daysSince);
+    el.style.display='block';
+    el.innerHTML=`<div class="stale-banner">
+      <div class="sb-title">&#9888; ${stale.length} thread${stale.length>1?'s':''} awaiting your reply</div>
+      ${stale.slice(0,6).map(s=>{
+        const name=s.sender.split('@')[0].replace(/[._]/g,' ');
+        return `<div class="stale-item">
+          <span class="stale-days">${s.daysSince}d</span>
+          <a href="${gmailUrl(s.thread.id)}" target="_blank" style="color:#333;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <strong>${esc(name)}</strong>: ${esc(truncate(s.last.subject||'(no subject)',45))}
+          </a>
+        </div>`;
+      }).join('')}
+      ${stale.length>6?`<div style="font-size:10px;color:#e65100;margin-top:4px">+ ${stale.length-6} more</div>`:''}
+    </div>`;
+    dbg('Stale threads: '+stale.length+' awaiting reply','ok');
+  }catch(e){
+    dbg('Stale threads failed: '+e.message,'err');
+    el.style.display='none';
+  }
+}
+
+// ══════════════════════════════════════
+// ── ASSET SEARCH FOR CONTACT 360 ──
+// ══════════════════════════════════════
+async function loadContactAssets(name,email,company){
+  const el=document.getElementById('contactAssets');
+  if(!el)return;
+
+  // Search Gmail for prep emails and generated assets related to this contact/company
+  const searchTerms=[];
+  if(company)searchTerms.push(company);
+  if(name)searchTerms.push(name.split(' ')[0]);
+  const domain=email?email.split('@')[1]:'';
+  if(domain&&!['gmail.com','outlook.com','yahoo.com','hotmail.com'].includes(domain))searchTerms.push(domain);
+
+  if(!searchTerms.length)return;
+
+  try{
+    const query='subject:(Prep:) ('+searchTerms.join(' OR ')+') newer_than:90d';
+    const r=await call(`${GMAIL}__search_threads`,{query:query,pageSize:5});
+    const threads=(r?.threads||[]);
+
+    if(!threads.length)return; // renderAssets already populated the base assets
+
+    // Append generated asset links below the existing content
+    const existing=el.innerHTML;
+    const assetLinks=threads.map(t=>{
+      const m=t.messages?.[0]||{};
+      const date=fmtDate(m.date);
+      return `<a class="item" href="${gmailUrl(t.id)}" target="_blank" style="padding:6px 14px"><div class="item-row">
+        <div class="item-icon asset">&#128196;</div>
+        <div class="item-content">
+          <div class="item-title">${esc(truncate(m.subject||'Prep document',55))}</div>
+          <div class="item-sub">${date} <span class="asset-tag generated">Generated</span></div>
+        </div></div></a>`;
+    }).join('');
+
+    el.innerHTML=existing+`<div style="border-top:1px solid #f0f0f0;margin-top:4px">
+      <div style="padding:8px 14px 4px;font-size:10px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:0.5px">Generated Prep Briefs</div>
+      ${assetLinks}
+    </div>`;
+    dbg('Contact assets: found '+threads.length+' prep briefs for '+name,'ok');
+  }catch(e){
+    dbg('Contact asset search failed: '+e.message,'err');
+  }
+}
+
+// ── INIT: Auth check then load dashboard ──
+dbg('INIT started. Checking DOM elements...');
+const _st=document.getElementById('sbStatus');
+const _criticalIds=['searchInput','searchResults','statsBar','statEvents','statThreads','statDrafts','statDeals','statPipeline','todayCalendar','priorityThreads','draftsList','closingDeals','automationStatus','staleAlerts'];
+const _missing=_criticalIds.filter(id=>!document.getElementById(id));
+if(_missing.length)dbg('MISSING DOM: '+_missing.join(', '),'err');
+else dbg('All '+_criticalIds.length+' critical DOM elements found','ok');
+dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADED'));
+
+// Check auth status then load
+(async function(){
+  if(_st)_st.textContent='v4.0 | checking auth...';
+  try{
+    const res=await fetch('/auth/status',{credentials:'same-origin'});
+    const status=await res.json();
+    dbg('Auth status: '+JSON.stringify(status));
+    if(!status.authenticated){
+      if(_st)_st.textContent='v4.0 | not authenticated';
+      const main=document.querySelector('.main');
+      if(main)main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Second Brain</h2><p style="color:#666;margin-bottom:20px">Sign in with Google to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Sign in with Google</a><p style="color:#999;margin-top:16px;font-size:11px">Requires Gmail, Calendar, and Drive permissions</p></div>';
+      return;
+    }
+    if(_st)_st.textContent='v4.0 | loading dashboard...';
+    await loadDashboard();
+    if(_st)_st.textContent='v4.0 | ready';
+    dbg('Dashboard loaded successfully!','ok');
+    _tabStatus.dashboard='ok';
+    flushLogs();
+  }catch(e){
+    dbg('Init failed: '+e.message,'err');
+    if(_st)_st.textContent='v4.0 | error';
+    const sb=document.getElementById('statsBar');
+    if(sb)sb.innerHTML='<div class="stat-card" style="flex:none;width:100%"><div class="stat-label" style="color:#c62828">Connection error: '+e.message+'. <a href="#" onclick="location.reload();return false" style="color:#3f51b5">Retry</a></div></div>';
+  }
+})();
+</script>
+</body>
+</html>

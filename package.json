@@ -1,0 +1,19 @@
+{
+  "name": "second-brain-app",
+  "version": "1.0.0",
+  "description": "CRO Second Brain - Web Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "googleapis": "^144.0.0"
+  }
+}
