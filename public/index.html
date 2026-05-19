@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Second Brain</title>
+<title>Manish's HQ</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root { color-scheme: light; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fb; color: #1a1a2e; font-size: 13px; line-height: 1.5; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .app { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* Top Bar */
-.topbar { background: #1a1a2e; color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }
-.topbar h1 { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.topbar { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; padding: 12px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }
+.topbar h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; }
 .search-wrap { flex: 1; min-width: 200px; max-width: 380px; position: relative; }
-.search-wrap input { width: 100%; padding: 6px 10px 6px 28px; border-radius: 5px; border: none; background: rgba(255,255,255,0.12); color: #fff; font-size: 12px; outline: none; }
+.search-wrap input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 8px; border: none; background: rgba(255,255,255,0.12); color: #fff; font-size: 12px; outline: none; }
 .search-wrap input::placeholder { color: rgba(255,255,255,0.5); }
 .search-wrap input:focus { background: rgba(255,255,255,0.2); }
 .search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.5); font-size: 12px; }
 .vip-bar { display: flex; gap: 4px; }
-.vip-btn { padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.vip-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .vip-btn:hover, .vip-btn.active { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
 
 /* Search dropdown */
@@ -35,19 +38,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .sr-source { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: #e8f5e9; color: #2e7d32; }
 
 /* Tabs */
-.tabs { display: flex; background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 16px; position: sticky; top: 42px; z-index: 90; overflow-x: auto; }
-.tab { padding: 8px 14px; font-size: 11px; font-weight: 500; color: #666; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.tabs { display: flex; background: #fff; border-bottom: 2px solid #e5e7eb; padding: 0 20px; position: sticky; top: 46px; z-index: 90; overflow-x: auto; }
+.tab { padding: 10px 16px; font-size: 12px; font-weight: 600; color: #666; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
 .tab:hover { color: #333; }
 .tab.active { color: #3f51b5; border-bottom-color: #3f51b5; }
 .tab .badge { background: #ef5350; color: #fff; font-size: 9px; padding: 1px 4px; border-radius: 6px; margin-left: 3px; }
 
 /* Main */
-.main { flex: 1; padding: 12px 16px; }
+.main { flex: 1; padding: 16px 20px; }
 .view { display: none; }
 .view.active { display: block; }
 
 /* Cards */
-.card { background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 10px; overflow: hidden; }
+.card { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
 .card-header { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; }
 .card-header h3 { font-size: 12px; font-weight: 600; flex: 1; }
 .card-body { padding: 0; }
@@ -59,7 +62,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
 
 /* Section headers */
-.section-header { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 6px; }
+.section-header { font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.8px; margin: 18px 0 8px; }
 .section-header:first-child { margin-top: 0; }
 
 /* Items */
@@ -78,8 +81,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .item-icon.asset { background: #fff8e1; color: #f57f17; }
 .item-icon.team { background: #e0f7fa; color: #00838f; }
 .item-content { flex: 1; min-width: 0; }
-.item-title { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item-sub { font-size: 10px; color: #888; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-sub { font-size: 11px; color: #64748b; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-snippet { font-size: 11px; color: #666; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .item-time { font-size: 10px; color: #999; white-space: nowrap; flex-shrink: 0; }
 .item-actions { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
@@ -89,7 +92,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .action-link.orange { background: #fff3e0; color: #e65100; }
 
 /* Contact 360 hero */
-.contact-hero { display: flex; align-items: center; gap: 14px; padding: 16px; background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 100%); color: #fff; border-radius: 6px; margin-bottom: 12px; }
+.contact-hero { display: flex; align-items: center; gap: 16px; padding: 20px; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #fff; border-radius: 6px; margin-bottom: 12px; }
 .contact-avatar { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; flex-shrink: 0; }
 .contact-info h2 { font-size: 16px; font-weight: 700; }
 .contact-info .subtitle { font-size: 11px; opacity: 0.7; margin-top: 1px; }
@@ -99,13 +102,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 /* Stats */
 .stats-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.stat-card { flex: 1; min-width: 80px; background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; padding: 10px 12px; text-align: center; }
-.stat-num { font-size: 20px; font-weight: 700; color: #1a1a2e; }
-.stat-label { font-size: 10px; color: #888; margin-top: 1px; }
+.stat-card { flex: 1; min-width: 90px; background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 14px 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.stat-num { font-size: 22px; font-weight: 700; color: #0f172a; letter-spacing: -0.5px; }
+.stat-label { font-size: 11px; color: #64748b; margin-top: 3px; font-weight: 500; }
 
 /* Pipeline stages */
 .stage-bar { display: flex; gap: 4px; margin-bottom: 12px; }
-.stage-pill { flex: 1; text-align: center; padding: 8px 4px; border-radius: 6px; background: #fff; border: 1px solid #e5e7eb; }
+.stage-pill { flex: 1; text-align: center; padding: 10px 6px; border-radius: 10px; background: #fff; border: 1px solid #e5e7eb; }
 .stage-pill .num { font-size: 16px; font-weight: 700; }
 .stage-pill .lbl { font-size: 9px; color: #888; margin-top: 2px; }
 .stage-pill.s1 { border-color: #bbdefb; background: #e3f2fd; }
@@ -115,7 +118,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .stage-pill.closed { border-color: #c5cae9; background: #e8eaf6; }
 
 /* Brand toggle */
-.brand-toggle { padding: 5px 14px; border-radius: 5px; border: 1px solid #e5e7eb; background: #fff; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.brand-toggle { padding: 6px 16px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
 .brand-toggle:hover { border-color: #3f51b5; background: #f5f7ff; }
 .brand-toggle.active { background: #3f51b5; color: #fff; border-color: #3f51b5; }
 .brand-toggle[data-brand="vorro"].active { background: #2e7d32; border-color: #2e7d32; }
@@ -171,7 +174,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 /* Loading */
 .loading { text-align: center; padding: 20px; color: #999; }
-.loading .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #e5e7eb; border-top-color: #3f51b5; border-radius: 50%; animation: spin 0.6s linear infinite; margin-bottom: 6px; }
+.loading .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.6s linear infinite; margin-bottom: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .empty-state { text-align: center; padding: 24px; color: #999; font-size: 12px; }
 
@@ -181,7 +184,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 /* ── Copilot ── */
 .copilot-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 900px) { .copilot-layout { grid-template-columns: 1fr; } }
-.copilot-meeting-bar { background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 100%); color: #fff; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+.copilot-meeting-bar { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: #fff; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
 .copilot-meeting-bar .cmb-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
 .copilot-meeting-bar .cmb-info { flex: 1; }
 .copilot-meeting-bar .cmb-title { font-size: 14px; font-weight: 700; }
@@ -337,7 +340,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <body>
 <div class="app">
   <div class="topbar">
-    <h1>Second Brain</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v4.0 | init...</span>
+    <h1>Manish's HQ</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v5.0 | init...</span>
     <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="margin-left:auto;padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer">Debug</button>
     <button onclick="fetch('/auth/logout',{method:'POST'}).then(()=>location.reload())" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">Logout</button>
     <div class="search-wrap">
@@ -364,7 +367,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="tab" data-view="legal" onclick="switchView('legal')" style="color:#e91e63;font-weight:600">Legal Assets</div>
   </div>
   <div id="debugPanel" style="display:none;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:10px;padding:8px 12px;max-height:200px;overflow-y:auto;border-bottom:2px solid #4caf50">
-    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><strong style="color:#4caf50">Debug Log v4.0</strong><button onclick="navigator.clipboard.writeText(document.getElementById('debugLog').textContent)" style="font-size:9px;background:#333;color:#0f0;border:1px solid #0f0;padding:1px 4px;cursor:pointer">Copy</button></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><strong style="color:#4caf50">Debug Log v5.0</strong><button onclick="navigator.clipboard.writeText(document.getElementById('debugLog').textContent)" style="font-size:9px;background:#333;color:#0f0;border:1px solid #0f0;padding:1px 4px;cursor:pointer">Copy</button></div>
     <div id="debugLog"></div>
   </div>
   <div class="main">
@@ -745,7 +748,7 @@ async function flushLogs(){
     const subj='[SB-TELEMETRY] '+now.toISOString().slice(0,16).replace('T',' ');
     const errCount=_logLines.filter(l=>l.includes(' ERR ')).length;
     const okCount=_logLines.filter(l=>l.includes(' OK  ')).length;
-    const summary='Second Brain v4.0 Telemetry\nTime: '+now.toLocaleString()+'\nCalls: '+_callCount+' | OK: '+okCount+' | Errors: '+errCount+'\nTabs: '+tabReport()+'\n'+'='.repeat(60)+'\n\n'+_logLines.join('\n');
+    const summary='Manish\'s HQ v5.0 Telemetry\nTime: '+now.toLocaleString()+'\nCalls: '+_callCount+' | OK: '+okCount+' | Errors: '+errCount+'\nTabs: '+tabReport()+'\n'+'='.repeat(60)+'\n\n'+_logLines.join('\n');
     await call(GMAIL+'__create_draft',{subject:subj,body:summary,to:['manish696@gmail.com']});
   }catch(e){console.warn('Telemetry flush failed:',e);}
 }
@@ -909,6 +912,7 @@ function switchView(v){
   if(v==='intelligence'&&!window._intelLoaded)safeLoad(loadIntelligence,'Intelligence');
   if(v==='copilot'&&!window._copilotLoaded)safeLoad(loadCopilot,'Copilot');
   if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
+  if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadAllCRMContacts();}
   // Legal tab is static — no data load needed on switch
 }
 
@@ -925,9 +929,19 @@ async function loadDashboard(){
   const friStr=fri.toISOString().slice(0,10);
   const todayStr=now.toISOString().slice(0,10);
 
-  // Fire automation status + stale thread checks in parallel with main dashboard data
+  // Fire automation status + stale thread checks + meeting cache in parallel with main dashboard data
   loadAutomationStatus().catch(e=>dbg('AutoStatus failed: '+e.message,'err'));
   loadStaleThreads().catch(e=>dbg('StaleThreads failed: '+e.message,'err'));
+  // Pre-load cached meetings for calendar prep notes
+  if(!window._cachedMeetings){
+    call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}).then(r=>{
+      const parsed=parseMeetings(r);
+      window._cachedMeetings=parsed;
+      dbg('Cached '+parsed.length+' meetings for calendar prep','ok');
+      // Store events globally so re-render can use them
+      if(window._todayEvents&&window._todayEvents.length)renderCalendar(window._todayEvents);
+    }).catch(e=>dbg('Meeting cache prefetch failed: '+e.message,'err'));
+  }
 
   const [calR,ambR,billR,andrewR,scottR,draftsR,dealsR,closingR]=await Promise.allSettled([
     call(`${CAL}__list_events`,{startTime:sod,endTime:eod,timeZone:'America/New_York',orderBy:'startTime'}),
@@ -947,6 +961,7 @@ async function loadDashboard(){
 
   // Calendar
   const events=calR.status==='fulfilled'?(calR.value?.events||[]):[];
+  window._todayEvents=events;
   setStat('statEvents',events.length);
   renderCalendar(events);
 
@@ -986,18 +1001,38 @@ function renderCalendar(events){
   const el=document.getElementById('todayCalendar');
   if(!el){dbg('WARN: #todayCalendar missing','err');return;}
   if(!events.length){el.innerHTML='<div class="empty-state">No events today</div>';return}
+  // Build meeting prep lookup from cached meetings (title fuzzy match)
+  const meetingPrepMap={};
+  if(window._cachedMeetings&&window._cachedMeetings.length){
+    window._cachedMeetings.forEach(m=>{
+      if(m.summary){
+        const key=(m.title||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        meetingPrepMap[key]=m.summary;
+      }
+    });
+  }
   el.innerHTML=events.map(e=>{
     const start=e.start?.dateTime||e.start?.date||'';
     const end=e.end?.dateTime||e.end?.date||'';
     const ml=e.conferenceUrl||e.location||'';
     const isMeet=ml.includes('meet.')||ml.includes('zoom.')||ml.includes('teams.');
     const att=(e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email?.split('@')[0]).slice(0,3).join(', ');
-    return `<a class="item" href="${esc(e.htmlLink)}" target="_blank"><div class="item-row">
+    // Match calendar event to cached meeting notes
+    const evtKey=(e.summary||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    let prepNotes=meetingPrepMap[evtKey]||'';
+    if(!prepNotes){
+      // Fuzzy: check if any cached meeting title is contained in or contains the event title
+      for(const[k,v] of Object.entries(meetingPrepMap)){
+        if(k&&evtKey&&(k.includes(evtKey)||evtKey.includes(k))){prepNotes=v;break;}
+      }
+    }
+    const prepHtml=prepNotes?`<div style="margin:4px 0 2px 28px;padding:6px 8px;background:#f3e5f5;border-radius:4px;font-size:10px;color:#6a1b9a;max-height:80px;overflow:auto;line-height:1.4"><strong>Prep Notes:</strong> ${renderMarkdown(prepNotes.slice(0,300))}</div>`:'';
+    return `<div class="item" style="display:block;padding:0"><a href="${esc(e.htmlLink)}" target="_blank" style="display:block;text-decoration:none;color:inherit;padding:8px 14px"><div class="item-row">
       <div class="item-icon ${isMeet?'meet':'cal'}">${isMeet?'&#128247;':'&#128197;'}</div>
       <div class="item-content"><div class="item-title">${esc(e.summary||'No title')}</div>
       <div class="item-sub">${fmt(start)} - ${fmt(end)}${att?' &middot; '+esc(att):''}</div></div>
       <div class="item-time">${fmt(start)}</div></div>
-      ${isMeet?`<div class="item-actions"><a class="action-link green" href="${esc(ml)}" target="_blank" onclick="event.stopPropagation()">Join</a></div>`:''}</a>`;
+      ${isMeet?`<div class="item-actions"><a class="action-link green" href="${esc(ml)}" target="_blank" onclick="event.stopPropagation()">Join</a></div>`:''}</a>${prepHtml}</div>`;
   }).join('');
 }
 
@@ -1245,6 +1280,48 @@ function renderClosingDeals(deals){
 // ══════════════════════════════════════
 // ── CONTACT 360 ──
 // ══════════════════════════════════════
+async function loadAllCRMContacts(){
+  const placeholder=document.getElementById('contactPlaceholder');
+  if(!placeholder)return;
+  placeholder.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading CRM contacts...</div>';
+  try{
+    const [contactsR,leadsR]=await Promise.allSettled([
+      call(`${ZOHO}__getRecords`,{path_variables:{module:'Contacts'},query_params:{per_page:50,sort_by:'Modified_Time',sort_order:'desc',fields:'Full_Name,Email,Title,Phone,Company_Name,Owner,Lead_Source'}}),
+      call(`${ZOHO}__getRecords`,{path_variables:{module:'Leads'},query_params:{per_page:50,sort_by:'Modified_Time',sort_order:'desc',fields:'Full_Name,Email,Title,Phone,Company,Lead_Source,Lead_Status'}})
+    ]);
+    const contacts=(contactsR.status==='fulfilled'?(contactsR.value?.data||[]):[]);
+    const leads=(leadsR.status==='fulfilled'?(leadsR.value?.data||[]):[]);
+    const all=[...contacts.map(c=>({...c,_mod:'Contacts'})),...leads.map(l=>({...l,_mod:'Leads'}))];
+    if(!all.length){placeholder.innerHTML='<div class="empty-state">No CRM contacts found. Click a VIP button or search.</div>';return;}
+    // Group by recency, show as clickable cards
+    placeholder.innerHTML=`<div style="padding:4px 0">
+      <div style="font-size:11px;color:#999;margin-bottom:8px">${all.length} recent CRM contacts and leads (click to view)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px">
+      ${all.slice(0,40).map(c=>{
+        const name=c.Full_Name||'Unknown';
+        const email=c.Email||'';
+        const company=c.Company_Name||c.Company||'';
+        const title=c.Title||'';
+        const modBadge=c._mod==='Leads'?'<span style="background:#fff3e0;color:#e65100;font-size:8px;padding:1px 3px;border-radius:2px;margin-left:4px">Lead</span>':'';
+        return `<div class="item" onclick="loadContact('${escAttr(name)}','${escAttr(email)}')" style="cursor:pointer;padding:8px 10px;margin:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="contact-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">${initials(name)}</div>
+            <div style="overflow:hidden">
+              <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}${modBadge}</div>
+              <div style="font-size:9px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}${company?' at '+esc(company):''}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+      </div>
+    </div>`;
+    dbg('Loaded '+all.length+' CRM contacts for Contact 360','ok');
+  }catch(e){
+    dbg('loadAllCRMContacts failed: '+e.message,'err');
+    placeholder.innerHTML='<div class="empty-state">Click a VIP button or search for a contact.</div>';
+  }
+}
+
 async function loadContact(name,email){
   switchView('contact360');
   document.querySelectorAll('.vip-btn').forEach(b=>b.classList.remove('active'));
@@ -1379,7 +1456,7 @@ function renderAssets(title,company,name,email){
 }
 
 function generateAsset(name,email){
-  alert('Asset generation requires the Cowork desktop app. Open Second Brain in Cowork and use the Generate Asset button there.');
+  alert('Asset generation requires the Cowork desktop app. Open Manish\'s HQ in Cowork and use the Generate Asset button there.');
 }
 
 // ══════════════════════════════════════
@@ -1653,9 +1730,18 @@ function loadTeamMember(name,email){loadContact(name,email)}
 // ── MEETINGS ──
 // ══════════════════════════════════════
 function parseMeetings(raw){
-  if(!raw)return[];const s=typeof raw==='string'?raw:JSON.stringify(raw);const ms=[];
+  if(!raw)return[];
+  // Handle JSON cache format (array of meeting objects)
+  if(raw.meetings&&Array.isArray(raw.meetings)){
+    return raw.meetings.map(m=>({id:m.id,title:m.title,date:m.date,parts:(m.participants||[]).join(', '),summary:m.summary||''}));
+  }
+  if(Array.isArray(raw)){
+    return raw.map(m=>({id:m.id,title:m.title,date:m.date,parts:(m.participants||[]).join(', '),summary:m.summary||''}));
+  }
+  // Fallback: XML parsing for live Granola API
+  const s=typeof raw==='string'?raw:JSON.stringify(raw);const ms=[];
   const re=/<meeting id="([^"]*)" title="([^"]*)" date="([^"]*)">\s*<known_participants>\s*([\s\S]*?)\s*<\/known_participants>/g;
-  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim()})}return ms;
+  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim(),summary:''})}return ms;
 }
 
 function renderGranolaMeetings(raw,targetId){
@@ -1666,24 +1752,27 @@ function renderGranolaMeetings(raw,targetId){
     const emails=(m.parts.match(/[\w.-]+@[\w.-]+\.\w+/g)||[]);
     const uid=targetId+'_'+i;
     const notesId='notes_'+uid;
+    const hasSummary=m.summary&&m.summary.length>10;
     return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="toggleMeetingContext('${uid}','${escAttr(m.title)}','${escAttr(emails.join(','))}','${escAttr(ppl.join(','))}','${escAttr(m.id)}')">
       <div class="item-row">
         <div class="item-icon granola">&#128221;</div>
         <div class="item-content"><div class="item-title">${esc(m.title)}</div>
         <div class="item-sub">${esc(m.date)} &middot; ${esc(ppl.join(', '))}</div></div>
-        <span class="notes-link active" id="${notesId}" onclick="event.stopPropagation();toggleMeetingNotes('${notesId}','${escAttr(m.id)}')">Notes</span>
+        <span class="notes-link ${hasSummary?'active':'greyed'}" id="${notesId}" onclick="event.stopPropagation();toggleMeetingNotes('${notesId}','${escAttr(m.id)}')" title="${hasSummary?'View meeting notes':'No notes available'}">&#128196; Notes</span>
       </div>
       <div id="${notesId}_content" style="display:none"></div>
       <div id="${uid}" class="meeting-context" style="display:none"></div>
     </div>`;
   }).join('');
   // Probe transcripts to grey out Notes links where unavailable (throttled to 3 concurrent)
-  (async()=>{
-    const batch=3;
-    for(let i=0;i<ms.length;i+=batch){
-      await Promise.allSettled(ms.slice(i,i+batch).map((m,j)=>probeTranscript('notes_'+targetId+'_'+(i+j),m.id)));
-    }
-  })();
+  if(!ms[0]?.summary){
+    (async()=>{
+      const batch=3;
+      for(let i=0;i<ms.length;i+=batch){
+        await Promise.allSettled(ms.slice(i,i+batch).map((m,j)=>probeTranscript('notes_'+targetId+'_'+(i+j),m.id)));
+      }
+    })();
+  }
 }
 
 async function probeTranscript(notesId,meetingId){
@@ -2526,7 +2615,7 @@ async function loadMemoryView(){
     {name:'Vorro BridgeGate',status:'Active',desc:'Healthcare EiPaaS. FHIR, HL7, EDI X12 integration'},
     {name:'Social Selling Pipeline',status:'Active',desc:'LinkedIn + email outreach. 1,100+ prospects. Apify + Evaboot enrichment'},
     {name:'Command Center',status:'Active',desc:'Prospect management dashboard. API at cadient-command.onrender.com'},
-    {name:'Second Brain',status:'Active',desc:'This dashboard. CRM + Calendar + Granola + Copilot'},
+    {name:'Manish\'s HQ',status:'Active',desc:'This dashboard. CRM + Calendar + Granola + Copilot'},
   ];
   memProjects.innerHTML=projects.map(p=>
     `<div class="memory-entry"><span class="me-key" style="color:${p.status==='Active'?'#4caf50':'#999'}">${esc(p.name)}</span><span class="me-val">${esc(p.desc)}</span></div>`
@@ -2863,7 +2952,7 @@ Requirements:
 5. Save the final file(s) to the workspace folder
 6. If format is "both", generate both .docx and .pdf versions`;
 
-  alert('Legal document generation requires the Cowork desktop app. Open Second Brain in Cowork and use the Generate button there.');
+  alert('Legal document generation requires the Cowork desktop app. Open Manish\'s HQ in Cowork and use the Generate button there.');
 }
 
 async function legalSearchExamples(){
@@ -2919,7 +3008,7 @@ const CORE_AUTOMATIONS=[
   {name:'Intent Signal Scan',schedule:'M-F 6:54am + Mon 6:30am',desc:'Reddit, HN, Apollo job signals for Cadient + Vorro',failSubject:'Intent'},
   {name:'ATS Detection',schedule:'Daily 10pm + every 2hrs',desc:'Company ATS detection via DuckDuckGo + careers pages',failSubject:'ATS'},
   {name:'Draft Approval Queue',schedule:'M-F 9:05am',desc:'Surfaces drafts needing review before send',failSubject:'Draft Approval'},
-  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'Second Brain Digest'}
+  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'HQ Digest'}
 ];
 
 async function loadAutomationStatus(){
@@ -3007,19 +3096,41 @@ async function loadStaleThreads(){
     if(!stale.length){el.style.display='none';return;}
 
     stale.sort((a,b)=>b.daysSince-a.daysSince);
+    // Persist dismissed stale threads
+    const _staleDismissed=JSON.parse(localStorage.getItem('sb_stale_dismissed')||'[]');
+    const visibleStale=stale.filter(s=>!_staleDismissed.includes(s.thread.id));
+    if(!visibleStale.length){el.style.display='none';return;}
+    window._staleDismiss=function(threadId,evt){
+      evt.preventDefault();evt.stopPropagation();
+      const arr=JSON.parse(localStorage.getItem('sb_stale_dismissed')||'[]');
+      if(!arr.includes(threadId))arr.push(threadId);
+      localStorage.setItem('sb_stale_dismissed',JSON.stringify(arr));
+      const row=document.getElementById('stale_'+threadId.replace(/[^a-zA-Z0-9]/g,''));
+      if(row)row.remove();
+      const remaining=document.querySelectorAll('.stale-item');
+      if(!remaining.length){el.style.display='none';}
+      else{document.querySelector('.sb-title').innerHTML='&#9888; '+remaining.length+' thread'+(remaining.length>1?'s':'')+' awaiting your reply';}
+    };
+    window._staleRestoreAll=function(){
+      localStorage.setItem('sb_stale_dismissed','[]');
+      loadStaleThreads();
+    };
     el.style.display='block';
     el.innerHTML=`<div class="stale-banner">
-      <div class="sb-title">&#9888; ${stale.length} thread${stale.length>1?'s':''} awaiting your reply</div>
-      ${stale.slice(0,6).map(s=>{
+      <div class="sb-title">&#9888; ${visibleStale.length} thread${visibleStale.length>1?'s':''} awaiting your reply</div>
+      ${visibleStale.slice(0,8).map(s=>{
         const name=s.sender.split('@')[0].replace(/[._]/g,' ');
-        return `<div class="stale-item">
+        const safeId=s.thread.id.replace(/[^a-zA-Z0-9]/g,'');
+        return `<div class="stale-item" id="stale_${safeId}" style="display:flex;align-items:center;gap:6px">
           <span class="stale-days">${s.daysSince}d</span>
           <a href="${gmailUrl(s.thread.id)}" target="_blank" style="color:#333;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             <strong>${esc(name)}</strong>: ${esc(truncate(s.last.subject||'(no subject)',45))}
           </a>
+          <span onclick="_staleDismiss('${s.thread.id}',event)" style="cursor:pointer;color:#999;font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
         </div>`;
       }).join('')}
-      ${stale.length>6?`<div style="font-size:10px;color:#e65100;margin-top:4px">+ ${stale.length-6} more</div>`:''}
+      ${visibleStale.length>8?`<div style="font-size:10px;color:#e65100;margin-top:4px">+ ${visibleStale.length-8} more</div>`:''}
+      ${_staleDismissed.length?`<div style="text-align:right;margin-top:4px"><a href="#" onclick="_staleRestoreAll();return false" style="font-size:10px;color:#3f51b5">Restore ${_staleDismissed.length} dismissed</a></div>`:''}
     </div>`;
     dbg('Stale threads: '+stale.length+' awaiting reply','ok');
   }catch(e){
@@ -3085,26 +3196,26 @@ dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADE
 
 // Check auth status then load
 (async function(){
-  if(_st)_st.textContent='v4.0 | checking auth...';
+  if(_st)_st.textContent='v5.0 | checking auth...';
   try{
     const res=await fetch('/auth/status',{credentials:'same-origin'});
     const status=await res.json();
     dbg('Auth status: '+JSON.stringify(status));
     if(!status.authenticated){
-      if(_st)_st.textContent='v4.0 | not authenticated';
+      if(_st)_st.textContent='v5.0 | not authenticated';
       const main=document.querySelector('.main');
-      if(main)main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Second Brain</h2><p style="color:#666;margin-bottom:20px">Sign in with Google to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Sign in with Google</a><p style="color:#999;margin-top:16px;font-size:11px">Requires Gmail, Calendar, and Drive permissions</p></div>';
+      if(main)main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Manish\'s HQ</h2><p style="color:#666;margin-bottom:20px">Sign in with Google to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Sign in with Google</a><p style="color:#999;margin-top:16px;font-size:11px">Requires Gmail, Calendar, and Drive permissions</p></div>';
       return;
     }
-    if(_st)_st.textContent='v4.0 | loading dashboard...';
+    if(_st)_st.textContent='v5.0 | loading dashboard...';
     await loadDashboard();
-    if(_st)_st.textContent='v4.0 | ready';
+    if(_st)_st.textContent='v5.0 | ready';
     dbg('Dashboard loaded successfully!','ok');
     _tabStatus.dashboard='ok';
     flushLogs();
   }catch(e){
     dbg('Init failed: '+e.message,'err');
-    if(_st)_st.textContent='v4.0 | error';
+    if(_st)_st.textContent='v5.0 | error';
     const sb=document.getElementById('statsBar');
     if(sb)sb.innerHTML='<div class="stat-card" style="flex:none;width:100%"><div class="stat-label" style="color:#c62828">Connection error: '+e.message+'. <a href="#" onclick="location.reload();return false" style="color:#3f51b5">Retry</a></div></div>';
   }

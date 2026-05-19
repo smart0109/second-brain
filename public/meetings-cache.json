@@ -1,0 +1,248 @@
+{
+  "lastUpdated": "2026-05-19T02:00:00Z",
+  "meetings": [
+    {
+      "id": "b5c110b8-3bb9-46c9-bada-6995fc094db5",
+      "title": "Monday sales pipeline review",
+      "date": "May 18, 2026 3:30 PM EDT",
+      "participants": ["Manish Agarwal", "Bill Mastin", "Thomas Ricks", "Ambarish Gupta"],
+      "summary": "Pipeline ~2,000 prospects. JPI Group re-engagement (Bill leads). Learning Care Group procurement July. Colorado Springs pilot feedback negative. Mutual of Omaha verbal approval, waiting volumes. Charlie Hells exec on leave 3 weeks. Amaco tentative pilot. S1-S4 stage definitions clarified. SmartSource alternatives: hiringhub.ai, new vendor 9c/record. New small client pricing: $6,500 setup + $1,500/mo."
+    },
+    {
+      "id": "46a4cf52-e395-4e3f-a5a6-65aed47ace25",
+      "title": "Lydia Balment / ICE InsureTech Partnership",
+      "date": "May 18, 2026 11:45 AM EDT",
+      "participants": ["Manish Agarwal", "Lydia Balment"],
+      "summary": "Standard retainer 6hrs/week, 3 content pieces. Surge capacity for campaigns. $30-40 commission per booked meeting for BDRs. Test campaign: pet insurance with Mark. Need IT credentials, HubSpot API, LinkedIn accounts. SOW with pricing to be sent."
+    },
+    {
+      "id": "37416f69-f203-4688-b821-92a3d1d60ae7",
+      "title": "Update Weekly Tracker",
+      "date": "May 17, 2026 9:00 PM EDT",
+      "participants": ["Manish Agarwal", "Prateek Shrivastava", "Bill Mastin", "Thomas Ricks", "Nilanjan"],
+      "summary": "No summary captured."
+    },
+    {
+      "id": "9591ef7d-824c-404f-ab68-bc9c3e2b9cdc",
+      "title": "Athena Equity / Basis Vectors",
+      "date": "May 15, 2026 1:00 PM EDT",
+      "participants": ["Manish Agarwal", "Ambarish Gupta", "Teena", "Asharma"],
+      "summary": "Pitched AI sales engine to Athena Equity. Three-pronged: outbound engine, inbound optimization, second brain. 12 BDRs managing ~30 profiles, 200 leads/week. 90% ICP filtering. Multi-model AI approach. Demo session to be scheduled."
+    },
+    {
+      "id": "e73ac7af-64f6-46ce-8eb7-42352ef71920",
+      "title": "Marketing Deep Dive",
+      "date": "May 15, 2026 11:00 AM EDT",
+      "participants": ["Manish Agarwal", "Ambarish Gupta", "Teena Minhas", "Scott Sirdevan", "Abaker", "Shashank Tewari", "Nilanjan", "Vivek"],
+      "summary": "PCC partnership needs Patrick's client deal first. 3 new prospects this week. Fixed Claude hallucination in messaging. STG awaiting ADP approval. OnCare near close. Giv eliminated, 2 more departures planned. CPEH Alliance considering switch to Redox."
+    },
+    {
+      "id": "9d7e5c28-f7a4-412b-bec2-7d0fd30ad3ff",
+      "title": "Revenue Growth meeting",
+      "date": "May 15, 2026 9:00 AM EDT",
+      "participants": ["Manish", "Terry Sirdevan", "Scott", "Shashank", "Tpaul", "Adhara", "Gibran", "Abaker", "Nilanjan", "Rashmi"],
+      "summary": "Demo videos by May 29: HL7, FHIR, manual mapping, dashboard, troubleshooting. Webinars underutilized. AWS marketplace blocked - Ayush unresponsive. CMS and chatbot complete. Cadence product integration opportunity."
+    },
+    {
+      "id": "7769d0a7-a856-4f1d-86fa-c1a0e45a8adb",
+      "title": "Cadient - Surge",
+      "date": "May 14, 2026 12:00 PM EDT",
+      "participants": ["Manish", "Ajay", "Ambarish", "Bill Mastin", "Nilanjan", "Prateek", "Teena", "Vivek"],
+      "summary": "No summary captured."
+    },
+    {
+      "id": "b5379e4a-364c-441b-a2b1-e07542f91338",
+      "title": "Ecosystem",
+      "date": "May 13, 2026 1:00 PM EDT",
+      "participants": ["Manish", "Scott", "Rashmi", "Shashank", "Abaker"],
+      "summary": "Partner ecosystem review. BlueStair removed. XYGene strong reseller candidate. ClearSense perpetual license. SCS secure mailbox $100/mo. Supply chain docs needed. Newsletter to existing clients."
+    },
+    {
+      "id": "510c2c1e-2873-4a48-90f5-95491b6a5c80",
+      "title": "Existing Customer Pipeline Review",
+      "date": "May 13, 2026 12:00 PM EDT",
+      "participants": ["Manish", "Kyle Bidwell", "Justin Roberts", "Bill Mastin", "Nida Zahra", "Thomas Ricks", "Anjali G"],
+      "summary": "Release notes missing all year. 8 of 16 high tickets marked complete but open. Genesco account at risk. Wayne Memorial needs to close this month. Atlanta trade show: 16 opps worth $1.8M. Two active RFPs. Target 5 deal closures this month."
+    },
+    {
+      "id": "36f0f33c-858a-452c-a515-849dc8444707",
+      "title": "Vorro Leadership catchup",
+      "date": "May 12, 2026 9:30 AM EDT",
+      "participants": ["Manish", "Scott", "Shashank", "Abaker"],
+      "summary": "Sanofi support breakdown. Brent undocumented responsibilities. Daily ticket reports implemented. $10-12K backup hire for Sanofi. SunRx $33,500/month. Dr. Boyd $10K payment pending. BDR metrics: 400 connections/week vs 4,000 target."
+    },
+    {
+      "id": "9645122e-86ec-496e-b9fa-4e1f6500fa2d",
+      "title": "Vorro / University Hospital DEMO",
+      "date": "May 12, 2026 8:30 AM EDT",
+      "participants": ["Manish", "Gibran", "Shashank", "Psinha", "Modeh", "Mmohammed", "Abaker", "Rashmi", "Info@health-codes.com"],
+      "summary": ""
+    },
+    {
+      "id": "4e5188e3-8698-40f3-8d53-c6a916cf3578",
+      "title": "Revenginer Pipeline",
+      "date": "May 11, 2026 2:15 PM EDT",
+      "participants": ["Manish", "Ambarish", "Nilanjan"],
+      "summary": "Ritesh/Lydia account recovery urgent. Frank and Mike account salvage needed. Ankit FTK Capital partnership ($1B fund). Saurabh 20% rev share. Target $200K/month revenue. Hire Vorro salesperson ($100K budget). BDR engine not connected."
+    },
+    {
+      "id": "76dbc35e-c663-4503-a91d-f37e7feb8543",
+      "title": "Vorro - Stance Health Solutions",
+      "date": "May 8, 2026 4:00 PM EDT",
+      "participants": ["Manish", "Fpeguero", "Agriffiths", "Scott", "Jwhite", "Mbelforte", "Abaker"],
+      "summary": "Vorro platform demo for Stance. Built Bright Tree integration prototype live on call. 24/7 monitoring, 99.9% SLA. Transaction-based pricing ~240K annual. $2,500/yr per connection. SOC 2, HIPAA BAA. Decision timeline: coming weeks."
+    },
+    {
+      "id": "f1404556-6038-4e46-93ff-699d03d912bc",
+      "title": "Revenue Growth meeting",
+      "date": "May 8, 2026 9:00 AM EDT",
+      "participants": ["Manish", "Terry", "Scott", "Shashank", "Tpaul", "Adhara", "Gibran", "Swati", "Abaker", "Nilanjan", "Rashmi"],
+      "summary": "AWS meeting rescheduled. Website chatbot deployed. Competitor analysis on pricing disclosure. Mike Boggs contract overdue. Boyd stalled on data migration. Stance call scheduled. iClinic Product A $10-15K estimate."
+    },
+    {
+      "id": "7fe21873-dea5-447c-a512-27478f05ec5a",
+      "title": "Cadient Product Roadmap",
+      "date": "May 5, 2026 10:30 AM EDT",
+      "participants": ["Manish", "Brajendra", "Prateek", "Shamsan", "Bill", "Kyle", "Naveen", "Ayush", "Justin", "Thomas", "Teena", "Ginni"],
+      "summary": "Chatbot revamp complete, launches Monday. SmartShield landing page for ERE conference. Genesco and MLK job posting issues. Wayne Memorial ADA compliance overdue. Demo capability crisis - only Kyle can demo. Bulk update API issue."
+    },
+    {
+      "id": "d9f57c5d-03f7-435d-96f6-6cf3ad6ff77f",
+      "title": "Ambarish Gupta and Michael Baer",
+      "date": "May 5, 2026 3:30 PM EDT",
+      "participants": ["Manish", "Ambarish", "Michael Baer"],
+      "summary": "RevEngineer.ai platform overview. Michael Baer - fractional B2B CMO, healthcare tech. Target: $25-50M B2B SaaS companies. Need 4-5 senior marketing professionals. Follow-up dinner planned."
+    },
+    {
+      "id": "c26b9be4-42f3-4b69-bc09-927f2da8afd6",
+      "title": "NYC Small Business Expo 2026",
+      "date": "May 7, 2026 9:30 AM EDT",
+      "participants": ["Manish"],
+      "summary": "Fractional CMO strategy: recruit 30 candidates, select top 5. Indian startup market: target startups with funding, $2-3K retainer + equity. Target 10 startups by June, $15-20K MRR."
+    },
+    {
+      "id": "c6ef95c0-2e34-472d-8927-e58330047f9e",
+      "title": "Intro call Bridgegate/Vorro - AperitySoft",
+      "date": "May 6, 2026 12:30 PM EDT",
+      "participants": ["Manish", "Terry Sirdevan", "Tpaul", "Albert", "Abaker"],
+      "summary": "AperitySoft risk performance management platform. Monte Carlo simulation. 300-bed Texas facility. Reduced falls 80%. Epic consulting team. NDA + technical demo as next steps."
+    },
+    {
+      "id": "cbb60001-f28c-4521-82e1-0613862570a9",
+      "title": "Intro call Bridgegate/Vorro - Nexus Nova",
+      "date": "May 6, 2026 9:30 AM EDT",
+      "participants": ["Manish", "Tpaul", "Abaker", "Mahfuz Chowdhury"],
+      "summary": "Nexus Nova - NHS/UK digital transformation. EPR training. AI agent for hospital users. Partnership for UK market entry. Sweetheart deal proposed."
+    },
+    {
+      "id": "d10bffb5-7b7a-4ebf-9d9b-4e2e0061af95",
+      "title": "Norm/Manish/Gib",
+      "date": "May 5, 2026 4:30 PM EDT",
+      "participants": ["Manish", "Nbell", "Gibran"],
+      "summary": "PHC Ventures - 18 healthcare sites in Canada. InfoWay partnership. MCP server as game changer. Snowflake partnership registered. Stripe marketplace application."
+    },
+    {
+      "id": "6f2ff8f4-7a02-44bd-86b6-22d437589812",
+      "title": "New note",
+      "date": "May 15, 2026 12:29 PM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "25efa77e-37ac-4a4c-b7e2-ae34a72fc775",
+      "title": "Vorro Leadership catchup",
+      "date": "May 5, 2026 9:30 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "6803096c-c94c-4591-adeb-6f3053227a2f",
+      "title": "Intro call Bridgegate/Vorro - Willy AI",
+      "date": "May 5, 2026 9:00 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "db3155e9-56c6-4ed4-abaa-9bb3fc60e215",
+      "title": "Robo MQ X Vorro",
+      "date": "May 4, 2026 10:30 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "f57b7d52-19ed-426a-a28d-ad5a4d8263d0",
+      "title": "Juliana Pereira / Basis Vector",
+      "date": "May 4, 2026 9:00 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "4d17324f-b4fd-4fba-b417-2969f1a95a49",
+      "title": "Ashley Benjamin / InterCare Therapy",
+      "date": "Apr 30, 2026 5:00 PM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "6cdd51d7-a39b-408e-8d4a-edbea42b8f8a",
+      "title": "Technical call Ipill/BridgeGate",
+      "date": "Apr 30, 2026 1:00 PM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "33c640c7-2191-4bf4-8170-0da7647da25d",
+      "title": "Vorro - Nuba Solutions",
+      "date": "Apr 30, 2026 12:30 PM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "23739118-9b1f-4651-973f-c5aeb4575863",
+      "title": "Cadient - Surge",
+      "date": "Apr 30, 2026 12:00 PM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "0d8d3cff-5404-4410-ab58-b3e15abf9d5d",
+      "title": "QBridge & Vorro",
+      "date": "Apr 30, 2026 10:30 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "9e124236-3b47-4db4-9fd6-710d3b5a65b8",
+      "title": "Cadient Weekly Revenue Growth",
+      "date": "Apr 30, 2026 10:00 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "20b0a9ef-7ce1-4eec-ad86-741e392be295",
+      "title": "4lData - Vorro Partnership",
+      "date": "Apr 30, 2026 9:30 AM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "425316a5-e16f-4cf2-98ea-7bc820122ad9",
+      "title": "Frank / Manish",
+      "date": "Apr 29, 2026 4:00 PM EDT",
+      "participants": [],
+      "summary": ""
+    },
+    {
+      "id": "869b6019-9b3b-4e09-86af-4197cd7486e3",
+      "title": "CV3 - Deep Dive",
+      "date": "Apr 29, 2026 11:00 AM EDT",
+      "participants": [],
+      "summary": ""
+    }
+  ],
+  "intelligence": {
+    "actionItems": "## Manish\n- Start campaigns for Ritesh, Frank, and Mike immediately\n- Send Saurabh the 20-page deck and video; schedule follow-up\n- Begin Vorro salesperson hiring process ($100K budget approved)\n- Push Patrick directly for client specs and technical feasibility (PCC)\n\n## Nilanjan\n- Fix BDR engine connectivity issues\n- Deliver Second Brain demo for Ritesh/Lydia\n\n## Scott (Vorro)\n- Email Dr. Boyd about $10K payment\n- Upgrade Claude to $200/month plan\n\n## Shashank (Vorro)\n- Daily ticket reporting for Sanofi\n- Hire backup support ($10-12K) for Sanofi\n- Process flow docs for supply chain/EDI\n\n## Rashmi\n- Contact dormant accounts (Hero, Trivalence)\n- Send email campaign examples\n\n## Bill (Cadient)\n- Follow up on Genesco ideas timeline with Pratik\n\n## Justin (Cadient)\n- Tag all tickets (bug vs idea), review Genesco priorities\n\n## Thomas (Cadient)\n- Add Manish to Tuesday MHMR call, send deck\n\n## Kyle (Cadient)\n- Follow up on Town Fair Tire/WATSI\n- Schedule one-on-ones with AM team",
+    "decisions": "## Sales Pipeline Review - May 18\n**Pipeline stages clarified:** S1 discovery, S2 solutions dev, S3 proposal, S4 close\n**Data source shift:** Moving from SmartSource to hiringhub.ai + new vendor at 9c/record\n**Small client pricing:** $6,500 setup + $1,500/month for single Epic integration\n**Re-engagement:** Bill leads JPI Group; Manish reaches out to Learning Care Group\n\n## ICE InsureTech Partnership - May 18\n**Retainer agreed:** 6 hrs/week, 3 content pieces, surge pricing for campaigns\n**BDR commission:** $30-40 per booked meeting\n**Test campaign:** Pet insurance vertical with Mark as lead\n**LinkedIn approach:** Dedicated accounts per salesperson, 6-8 touch sequence",
+    "weeklySummary": "## Revenue Pipeline & Sales Execution\nMultiple deals in focus: STG (awaiting ADP), OnCare (near close), IPill (demo ready), Wayne Memorial (must close this month). Cadient: 16 opps worth $1.8M from Atlanta trade show. Active RFPs for Kentucky University and Rhode Island Police.\n\n## AI-Powered Outbound & BDR Engine\nBDR engine was not connected to accounts despite claims. Claude hallucination fixed, LLM QC added via Grok and Gemini. Current: ~400 LinkedIn connections/week vs 4,000 target. Pitched full AI sales engine to Athena Equity.\n\n## Vorro Platform & Client Health\nSanofi support crisis: week-long ticket gaps. Daily reporting + backup hire in motion. Med Impact delays ongoing. $33.5K/month SunRx revenue secured. Demo videos due May 29.\n\n## Ecosystem & Partners\nPartner list cleaned. XYGene top reseller candidate. AWS Marketplace blocked. PCC partnership gated on Patrick's client deal.\n\n## Org & Team\nGiv eliminated, 2 more departures planned. Vorro salesperson hire approved ($100K). Akansha and Aprathi flagged for performance issues."
+  }
+}

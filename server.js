@@ -5,6 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 const { google } = require('googleapis');
 
 const app = express();
@@ -36,12 +37,22 @@ const GOOGLE_SCOPES = [
 // ---------------------------------------------------------------------------
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Trust Render's reverse proxy for secure cookies / correct protocol
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.use(
   session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
   })
 );
 
@@ -438,59 +449,100 @@ async function handleZoho(toolName, args) {
 }
 
 // ---- Granola ----
+// Load cached meetings data (refreshed periodically via Cowork scheduled task)
+let meetingsCache = null;
+function loadMeetingsCache() {
+  try {
+    const cachePath = path.join(__dirname, 'public', 'meetings-cache.json');
+    if (fs.existsSync(cachePath)) {
+      meetingsCache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+      console.log(`Meetings cache loaded: ${meetingsCache.meetings?.length || 0} meetings`);
+    }
+  } catch (e) { console.error('Failed to load meetings cache:', e.message); }
+}
+loadMeetingsCache();
+
 async function handleGranola(toolName, args) {
   const apiKey = process.env.GRANOLA_API_KEY;
-  if (!apiKey) {
-    return { answer: 'Granola not configured. Set GRANOLA_API_KEY to enable meeting features.' };
+
+  // If we have an API key, use live Granola API
+  if (apiKey) {
+    const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    const BASE = 'https://api.granola.ai/v1';
+    try {
+      if (toolName === 'query_granola_meetings') {
+        const resp = await fetch(`${BASE}/meetings/search`, { method: 'POST', headers, body: JSON.stringify({ query: args?.query || '' }) });
+        if (!resp.ok) throw new Error(`Granola search: ${resp.status}`);
+        return await resp.json();
+      }
+      if (toolName === 'list_meetings') {
+        const resp = await fetch(`${BASE}/meetings`, { headers });
+        if (!resp.ok) throw new Error(`Granola list: ${resp.status}`);
+        return await resp.json();
+      }
+      if (toolName === 'get_meeting_transcript') {
+        const meetingId = args?.meetingId;
+        if (!meetingId) throw new Error('meetingId is required');
+        const resp = await fetch(`${BASE}/meetings/${meetingId}/transcript`, { headers });
+        if (!resp.ok) throw new Error(`Granola transcript: ${resp.status}`);
+        return await resp.json();
+      }
+      if (toolName === 'get_meetings') {
+        const resp = await fetch(`${BASE}/meetings`, { headers });
+        if (!resp.ok) throw new Error(`Granola get_meetings: ${resp.status}`);
+        return await resp.json();
+      }
+      throw new Error(`Unknown Granola tool: ${toolName}`);
+    } catch (err) {
+      console.error('Granola API error:', err.message);
+      // Fall through to cache on API error
+    }
   }
-  const headers = {
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-  };
-  const BASE = 'https://api.granola.ai/v1';
 
-  try {
-    if (toolName === 'query_granola_meetings') {
-      const resp = await fetch(`${BASE}/meetings/search`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ query: args?.query || '' }),
-      });
-      if (!resp.ok) throw new Error(`Granola search: ${resp.status}`);
-      return await resp.json();
-    }
+  // Serve from cache when no API key or API fails
+  if (!meetingsCache) loadMeetingsCache();
+  if (!meetingsCache) return { error: 'No Granola data available. Cache not loaded.' };
 
-    if (toolName === 'list_meetings') {
-      const resp = await fetch(`${BASE}/meetings`, { headers });
-      if (!resp.ok) throw new Error(`Granola list: ${resp.status}`);
-      return await resp.json();
-    }
-
-    if (toolName === 'get_meeting_transcript') {
-      const meetingId = args?.meetingId;
-      if (!meetingId) throw new Error('meetingId is required');
-      const resp = await fetch(`${BASE}/meetings/${meetingId}/transcript`, { headers });
-      if (!resp.ok) throw new Error(`Granola transcript: ${resp.status}`);
-      return await resp.json();
-    }
-
-    if (toolName === 'list_meeting_folders') {
-      const resp = await fetch(`${BASE}/meetings/folders`, { headers });
-      if (!resp.ok) throw new Error(`Granola folders: ${resp.status}`);
-      return await resp.json();
-    }
-
-    if (toolName === 'get_meetings') {
-      const resp = await fetch(`${BASE}/meetings`, { headers });
-      if (!resp.ok) throw new Error(`Granola get_meetings: ${resp.status}`);
-      return await resp.json();
-    }
-
-    throw new Error(`Unknown Granola tool: ${toolName}`);
-  } catch (err) {
-    console.error('Granola error:', err.message);
-    return { error: err.message, answer: `Granola API error: ${err.message}` };
+  if (toolName === 'list_meetings') {
+    const range = args?.time_range || 'last_30_days';
+    const now = new Date();
+    let cutoff = new Date(now);
+    if (range === 'this_week') { cutoff.setDate(now.getDate() - now.getDay()); cutoff.setHours(0,0,0,0); }
+    else if (range === 'last_week') { cutoff.setDate(now.getDate() - 7); }
+    else { cutoff.setDate(now.getDate() - 30); }
+    const filtered = (meetingsCache.meetings || []).filter(m => new Date(m.date) >= cutoff);
+    return { meetings: filtered };
   }
+
+  if (toolName === 'get_meetings') {
+    const ids = args?.meeting_ids || [];
+    if (ids.length) {
+      const found = (meetingsCache.meetings || []).filter(m => ids.includes(m.id));
+      return { meetings: found };
+    }
+    return { meetings: meetingsCache.meetings || [] };
+  }
+
+  if (toolName === 'get_meeting_transcript') {
+    const mid = args?.meetingId;
+    const mtg = (meetingsCache.meetings || []).find(m => m.id === mid);
+    if (mtg && mtg.summary) return { transcript: mtg.summary, text: mtg.summary };
+    return { error: 'No transcript in cache for this meeting' };
+  }
+
+  if (toolName === 'query_granola_meetings') {
+    const q = (args?.query || '').toLowerCase();
+    if (q.includes('action item') || q.includes('follow-up')) {
+      return { answer: meetingsCache.intelligence?.actionItems || 'No cached action items.' };
+    }
+    if (q.includes('decision')) {
+      return { answer: meetingsCache.intelligence?.decisions || 'No cached decisions.' };
+    }
+    // Default: return weekly summary
+    return { answer: meetingsCache.intelligence?.weeklySummary || 'No cached summary.' };
+  }
+
+  return { error: `Unknown Granola tool: ${toolName}` };
 }
 
 // ---- Drive ----
@@ -604,7 +656,7 @@ app.get('/health', (_req, res) => {
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      granola: !!process.env.GRANOLA_API_KEY,
+      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
       claude: !!process.env.ANTHROPIC_API_KEY,
     },
   });
@@ -618,7 +670,7 @@ app.get('/auth/status', (req, res) => {
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      granola: !!process.env.GRANOLA_API_KEY,
+      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
       claude: !!process.env.ANTHROPIC_API_KEY,
     },
   });
