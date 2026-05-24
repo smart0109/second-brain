@@ -5,7 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
-const fs = require('fs');
 const { google } = require('googleapis');
 
 const app = express();
@@ -449,100 +448,59 @@ async function handleZoho(toolName, args) {
 }
 
 // ---- Granola ----
-// Load cached meetings data (refreshed periodically via Cowork scheduled task)
-let meetingsCache = null;
-function loadMeetingsCache() {
-  try {
-    const cachePath = path.join(__dirname, 'public', 'meetings-cache.json');
-    if (fs.existsSync(cachePath)) {
-      meetingsCache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
-      console.log(`Meetings cache loaded: ${meetingsCache.meetings?.length || 0} meetings`);
-    }
-  } catch (e) { console.error('Failed to load meetings cache:', e.message); }
-}
-loadMeetingsCache();
-
 async function handleGranola(toolName, args) {
   const apiKey = process.env.GRANOLA_API_KEY;
+  if (!apiKey) {
+    return { answer: 'Granola not configured. Set GRANOLA_API_KEY to enable meeting features.' };
+  }
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
+  const BASE = 'https://api.granola.ai/v1';
 
-  // If we have an API key, use live Granola API
-  if (apiKey) {
-    const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
-    const BASE = 'https://api.granola.ai/v1';
-    try {
-      if (toolName === 'query_granola_meetings') {
-        const resp = await fetch(`${BASE}/meetings/search`, { method: 'POST', headers, body: JSON.stringify({ query: args?.query || '' }) });
-        if (!resp.ok) throw new Error(`Granola search: ${resp.status}`);
-        return await resp.json();
-      }
-      if (toolName === 'list_meetings') {
-        const resp = await fetch(`${BASE}/meetings`, { headers });
-        if (!resp.ok) throw new Error(`Granola list: ${resp.status}`);
-        return await resp.json();
-      }
-      if (toolName === 'get_meeting_transcript') {
-        const meetingId = args?.meetingId;
-        if (!meetingId) throw new Error('meetingId is required');
-        const resp = await fetch(`${BASE}/meetings/${meetingId}/transcript`, { headers });
-        if (!resp.ok) throw new Error(`Granola transcript: ${resp.status}`);
-        return await resp.json();
-      }
-      if (toolName === 'get_meetings') {
-        const resp = await fetch(`${BASE}/meetings`, { headers });
-        if (!resp.ok) throw new Error(`Granola get_meetings: ${resp.status}`);
-        return await resp.json();
-      }
-      throw new Error(`Unknown Granola tool: ${toolName}`);
-    } catch (err) {
-      console.error('Granola API error:', err.message);
-      // Fall through to cache on API error
+  try {
+    if (toolName === 'query_granola_meetings') {
+      const resp = await fetch(`${BASE}/meetings/search`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query: args?.query || '' }),
+      });
+      if (!resp.ok) throw new Error(`Granola search: ${resp.status}`);
+      return await resp.json();
     }
-  }
 
-  // Serve from cache when no API key or API fails
-  if (!meetingsCache) loadMeetingsCache();
-  if (!meetingsCache) return { error: 'No Granola data available. Cache not loaded.' };
-
-  if (toolName === 'list_meetings') {
-    const range = args?.time_range || 'last_30_days';
-    const now = new Date();
-    let cutoff = new Date(now);
-    if (range === 'this_week') { cutoff.setDate(now.getDate() - now.getDay()); cutoff.setHours(0,0,0,0); }
-    else if (range === 'last_week') { cutoff.setDate(now.getDate() - 7); }
-    else { cutoff.setDate(now.getDate() - 30); }
-    const filtered = (meetingsCache.meetings || []).filter(m => new Date(m.date) >= cutoff);
-    return { meetings: filtered };
-  }
-
-  if (toolName === 'get_meetings') {
-    const ids = args?.meeting_ids || [];
-    if (ids.length) {
-      const found = (meetingsCache.meetings || []).filter(m => ids.includes(m.id));
-      return { meetings: found };
+    if (toolName === 'list_meetings') {
+      const resp = await fetch(`${BASE}/meetings`, { headers });
+      if (!resp.ok) throw new Error(`Granola list: ${resp.status}`);
+      return await resp.json();
     }
-    return { meetings: meetingsCache.meetings || [] };
-  }
 
-  if (toolName === 'get_meeting_transcript') {
-    const mid = args?.meetingId;
-    const mtg = (meetingsCache.meetings || []).find(m => m.id === mid);
-    if (mtg && mtg.summary) return { transcript: mtg.summary, text: mtg.summary };
-    return { error: 'No transcript in cache for this meeting' };
-  }
-
-  if (toolName === 'query_granola_meetings') {
-    const q = (args?.query || '').toLowerCase();
-    if (q.includes('action item') || q.includes('follow-up')) {
-      return { answer: meetingsCache.intelligence?.actionItems || 'No cached action items.' };
+    if (toolName === 'get_meeting_transcript') {
+      const meetingId = args?.meetingId;
+      if (!meetingId) throw new Error('meetingId is required');
+      const resp = await fetch(`${BASE}/meetings/${meetingId}/transcript`, { headers });
+      if (!resp.ok) throw new Error(`Granola transcript: ${resp.status}`);
+      return await resp.json();
     }
-    if (q.includes('decision')) {
-      return { answer: meetingsCache.intelligence?.decisions || 'No cached decisions.' };
-    }
-    // Default: return weekly summary
-    return { answer: meetingsCache.intelligence?.weeklySummary || 'No cached summary.' };
-  }
 
-  return { error: `Unknown Granola tool: ${toolName}` };
+    if (toolName === 'list_meeting_folders') {
+      const resp = await fetch(`${BASE}/meetings/folders`, { headers });
+      if (!resp.ok) throw new Error(`Granola folders: ${resp.status}`);
+      return await resp.json();
+    }
+
+    if (toolName === 'get_meetings') {
+      const resp = await fetch(`${BASE}/meetings`, { headers });
+      if (!resp.ok) throw new Error(`Granola get_meetings: ${resp.status}`);
+      return await resp.json();
+    }
+
+    throw new Error(`Unknown Granola tool: ${toolName}`);
+  } catch (err) {
+    console.error('Granola error:', err.message);
+    return { error: err.message, answer: `Granola API error: ${err.message}` };
+  }
 }
 
 // ---- Drive ----
@@ -656,7 +614,7 @@ app.get('/health', (_req, res) => {
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
+      granola: !!process.env.GRANOLA_API_KEY,
       claude: !!process.env.ANTHROPIC_API_KEY,
     },
   });
@@ -670,7 +628,7 @@ app.get('/auth/status', (req, res) => {
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
+      granola: !!process.env.GRANOLA_API_KEY,
       claude: !!process.env.ANTHROPIC_API_KEY,
     },
   });
@@ -792,295 +750,6 @@ app.post('/api/proxy', requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Weather proxy (wttr.in has no CORS headers)
-// ---------------------------------------------------------------------------
-app.get('/api/weather', requireAuth, async (req, res) => {
-  const loc = req.query.location || '07086';
-  try {
-    const url = `https://wttr.in/${encodeURIComponent(loc)}?format=j1`;
-    const resp = await fetch(url, { headers: { 'User-Agent': 'ManishHQ/1.0' } });
-    if (!resp.ok) throw new Error('wttr.in returned ' + resp.status);
-    const data = await resp.json();
-    res.json(data);
-  } catch (e) {
-    res.status(502).json({ error: e.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// News RSS proxy — fetches Google News RSS and returns parsed articles
-// ---------------------------------------------------------------------------
-app.get('/api/news', requireAuth, async (req, res) => {
-  const topic = req.query.topic || 'HR technology';
-  const limit = Math.min(parseInt(req.query.limit) || 8, 15);
-  try {
-    const q = encodeURIComponent(topic);
-    const url = `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
-    const resp = await fetch(url, { headers: { 'User-Agent': 'ManishHQ/1.0' } });
-    if (!resp.ok) throw new Error('Google News RSS returned ' + resp.status);
-    const xml = await resp.text();
-    const items = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match;
-    while ((match = itemRegex.exec(xml)) !== null && items.length < limit) {
-      const block = match[1];
-      const get = (tag) => { const m = block.match(new RegExp('<' + tag + '>(.*?)</' + tag + '>', 's')); return m ? m[1].replace(/<!\[CDATA\[(.*?)\]\]>/s, '$1').trim() : ''; };
-      const title = get('title');
-      const link = get('link');
-      const pubDate = get('pubDate');
-      const source = get('source');
-      if (title && link) items.push({ title, link, pubDate, source });
-    }
-    res.json({ topic, items });
-  } catch (e) {
-    res.status(502).json({ error: e.message });
-  }
-});
-
-// ---------------------------------------------------------------------------
-// ICP Checker API
-// ---------------------------------------------------------------------------
-const ICP_CONFIGS = {
-  cadient: {
-    brand: 'Cadient',
-    product: 'SmartSuite™',
-    focus: 'AI-powered talent & HR optimization',
-    min_employees: 500,
-    min_title_score: 1,
-    geo: 'US only',
-    target_personas: [
-      { title: 'CHRO / Chief People Officer', score: 10, tier: 'A' },
-      { title: 'VP Talent Acquisition', score: 9, tier: 'A' },
-      { title: 'VP Human Resources / VP People', score: 8, tier: 'A' },
-      { title: 'Head of Talent Acquisition', score: 8, tier: 'A' },
-      { title: 'Director of HR / Director of TA', score: 7, tier: 'A' },
-      { title: 'Talent Acquisition Manager', score: 6, tier: 'B' },
-      { title: 'HR Manager', score: 5, tier: 'B' },
-      { title: 'Senior Recruiter', score: 4, tier: 'B' },
-      { title: 'HR Business Partner', score: 4, tier: 'B' },
-      { title: 'Recruiter (volume hiring)', score: 3, tier: 'C' },
-      { title: 'HR Generalist', score: 2, tier: 'C' },
-    ],
-    industries: ['Retail', 'Healthcare', 'Logistics', 'Hospitality', 'Manufacturing', 'Contact Centers', 'Staffing/RPO'],
-    competitors: ['iCIMS', 'Greenhouse', 'Lever', 'Workday/Taleo', 'SmartRecruiters', 'Jobvite', 'Paradox', 'Phenom', 'Paylocity', 'UKG', 'Rippling'],
-    disqualify_titles: ['Student', 'PhD', 'Freelancer', 'Job Seeker', 'BDR/SDR', 'Account Executive', 'Bench Sales', 'Agency Recruiter'],
-    disqualify_companies: ['iCIMS', 'Greenhouse', 'Lever', 'Workday', 'SmartRecruiters', 'Paradox'],
-    keyword_boosts: { 'high-volume hiring': 2, 'staffing': 2, 'workforce': 1, 'frontline': 2, 'hourly': 2, 'contact center': 2 },
-    tier_thresholds: { A: 6, B: 3, C: 1 },
-  },
-  vorro: {
-    brand: 'Vorro',
-    product: 'BridgeGate™ EiPaaS',
-    focus: 'Healthcare data integration & automation',
-    min_employees: 500,
-    min_title_score: 1,
-    geo: 'US only',
-    target_personas: [
-      { title: 'CIO / Chief Information Officer', score: 10, tier: 'A' },
-      { title: 'CTO / Chief Technology Officer', score: 9, tier: 'A' },
-      { title: 'CMIO', score: 9, tier: 'A' },
-      { title: 'VP of Health IT / VP Technology', score: 9, tier: 'A' },
-      { title: 'Director of Interoperability', score: 9, tier: 'A' },
-      { title: 'VP/Director of Integration', score: 8, tier: 'A' },
-      { title: 'Director of IT / Technology', score: 7, tier: 'A' },
-      { title: 'Chief Data Officer', score: 8, tier: 'A' },
-      { title: 'Integration Manager', score: 6, tier: 'B' },
-      { title: 'Health IT Manager', score: 6, tier: 'B' },
-      { title: 'Enterprise/Integration Architect', score: 5, tier: 'B' },
-      { title: 'Health Informatics', score: 5, tier: 'B' },
-      { title: 'Interface Analyst', score: 3, tier: 'C' },
-      { title: 'FHIR/HL7 Specialist', score: 3, tier: 'C' },
-    ],
-    industries: ['Health Systems/Hospitals', 'Payers/MCOs', 'TPL/Payment Integrity', 'PBMs', 'HIEs', 'Digital Health', 'Healthcare ISVs', 'Rural/Critical Access'],
-    competitors: ['Rhapsody', 'MuleSoft', 'Corepoint', 'Redox', 'InterSystems', 'Jitterbit', 'Boomi', 'Health Gorilla', 'Particle Health'],
-    disqualify_titles: ['Student', 'PhD', 'Freelancer', 'Job Seeker', 'BDR/SDR', 'Sales Rep', 'Marketing Manager', 'Therapist', 'Clinician (non-IT)'],
-    disqualify_companies: ['Rhapsody', 'MuleSoft', 'Corepoint', 'Redox', 'InterSystems'],
-    keyword_boosts: { 'FHIR': 2, 'HL7': 2, 'interoperability': 2, 'EHR integration': 2, 'claims': 1, 'payer': 1, 'Medicaid': 2 },
-    tier_thresholds: { A: 6, B: 3, C: 1 },
-  },
-};
-
-app.get('/api/icp', requireAuth, async (_req, res) => {
-  res.json(ICP_CONFIGS);
-});
-
-app.get('/api/icp/crm-analysis', requireAuth, async (_req, res) => {
-  try {
-    const token = await getZohoAccessToken();
-    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
-    // Fetch closed-won deals for pattern analysis
-    const wonResp = await fetch(
-      `${domain}/crm/v2/Deals/search?criteria=(Stage:equals:Closed Won)&per_page=100`,
-      { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
-    );
-    const wonData = wonResp.ok ? await wonResp.json() : { data: [] };
-    const wonDeals = wonData.data || [];
-
-    // Fetch closed-lost deals
-    const lostResp = await fetch(
-      `${domain}/crm/v2/Deals/search?criteria=(Stage:equals:Closed Lost)&per_page=100`,
-      { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
-    );
-    const lostData = lostResp.ok ? await lostResp.json() : { data: [] };
-    const lostDeals = lostData.data || [];
-
-    // Fetch open deals
-    const openResp = await fetch(
-      `${domain}/crm/v2/Deals?per_page=200&sort_by=Closing_Date&sort_order=asc`,
-      { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
-    );
-    const openData = openResp.ok ? await openResp.json() : { data: [] };
-    const allDeals = openData.data || [];
-    const openDeals = allDeals.filter(d => d.Stage && !d.Stage.startsWith('Closed'));
-
-    // Analyze patterns
-    const analysis = {
-      won: { count: wonDeals.length, deals: wonDeals.map(d => ({ name: d.Deal_Name, amount: d.Amount, stage: d.Stage, account: d.Account_Name?.name, contact_title: d.Contact_Name?.title || '', industry: d.Industry || '' })) },
-      lost: { count: lostDeals.length, deals: lostDeals.map(d => ({ name: d.Deal_Name, amount: d.Amount, stage: d.Stage, account: d.Account_Name?.name, reason: d.Reason_For_Loss__s || '', contact_title: d.Contact_Name?.title || '' })) },
-      open: { count: openDeals.length, deals: openDeals.map(d => ({ name: d.Deal_Name, amount: d.Amount, stage: d.Stage, account: d.Account_Name?.name, closing: d.Closing_Date, probability: d.Probability, contact_title: d.Contact_Name?.title || '' })) },
-      recommendations: [],
-    };
-
-    // Generate ICP recommendations from CRM data
-    const wonTitles = wonDeals.map(d => (d.Contact_Name?.title || '').toLowerCase()).filter(Boolean);
-    const lostTitles = lostDeals.map(d => (d.Contact_Name?.title || '').toLowerCase()).filter(Boolean);
-    const wonIndustries = wonDeals.map(d => (d.Industry || '')).filter(Boolean);
-
-    // Title pattern analysis
-    const titleCounts = {};
-    wonTitles.forEach(t => { titleCounts[t] = (titleCounts[t] || 0) + 1; });
-    const topWonTitles = Object.entries(titleCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
-    if (topWonTitles.length) {
-      analysis.recommendations.push({
-        type: 'title_pattern',
-        priority: 'high',
-        message: `Top converting titles: ${topWonTitles.map(([t,c]) => `"${t}" (${c} wins)`).join(', ')}. Consider boosting these in ICP scoring.`,
-        data: topWonTitles,
-      });
-    }
-
-    // Industry pattern analysis
-    const industryCounts = {};
-    wonIndustries.forEach(i => { industryCounts[i] = (industryCounts[i] || 0) + 1; });
-    const topIndustries = Object.entries(industryCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
-    if (topIndustries.length) {
-      analysis.recommendations.push({
-        type: 'industry_pattern',
-        priority: 'medium',
-        message: `Top converting industries: ${topIndustries.map(([i,c]) => `${i} (${c} wins)`).join(', ')}. Prioritize prospecting in these verticals.`,
-        data: topIndustries,
-      });
-    }
-
-    // Loss pattern analysis
-    const lossCounts = {};
-    lostDeals.forEach(d => { const r = d.Reason_For_Loss__s || 'Unknown'; lossCounts[r] = (lossCounts[r] || 0) + 1; });
-    const topLossReasons = Object.entries(lossCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
-    if (topLossReasons.length) {
-      analysis.recommendations.push({
-        type: 'loss_pattern',
-        priority: 'high',
-        message: `Top loss reasons: ${topLossReasons.map(([r,c]) => `"${r}" (${c}x)`).join(', ')}. Address these in outreach and qualification.`,
-        data: topLossReasons,
-      });
-    }
-
-    // Deal size analysis
-    const wonAmounts = wonDeals.map(d => d.Amount).filter(a => a > 0);
-    if (wonAmounts.length) {
-      const avg = wonAmounts.reduce((s,a) => s+a, 0) / wonAmounts.length;
-      const median = wonAmounts.sort((a,b) => a-b)[Math.floor(wonAmounts.length/2)];
-      analysis.recommendations.push({
-        type: 'deal_size',
-        priority: 'medium',
-        message: `Average won deal: $${Math.round(avg).toLocaleString()}, median: $${Math.round(median).toLocaleString()}. Filter out prospects unlikely to reach this threshold.`,
-        data: { avg: Math.round(avg), median: Math.round(median), min: Math.min(...wonAmounts), max: Math.max(...wonAmounts) },
-      });
-    }
-
-    // Stale deal detection
-    const now = new Date();
-    const staleDeals = openDeals.filter(d => {
-      if (!d.Closing_Date) return false;
-      const close = new Date(d.Closing_Date);
-      return close < now;
-    });
-    if (staleDeals.length) {
-      analysis.recommendations.push({
-        type: 'stale_deals',
-        priority: 'urgent',
-        message: `${staleDeals.length} deals have closing dates in the past. Review and update or close these.`,
-        data: staleDeals.map(d => ({ name: d.Deal_Name, closing: d.Closing_Date, amount: d.Amount })),
-      });
-    }
-
-    res.json(analysis);
-  } catch (err) {
-    console.error('ICP CRM analysis error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/icp/score', requireAuth, (req, res) => {
-  const { name, title, company, location, brand } = req.body;
-  if (!title || !brand) return res.status(400).json({ error: 'title and brand required' });
-
-  const config = ICP_CONFIGS[brand.toLowerCase()];
-  if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}` });
-
-  const t = title.toLowerCase();
-  let score = 0;
-  let matches = [];
-  let rejects = [];
-
-  // Check disqualifiers
-  const dqTitles = (config.disqualify_titles || []).map(d => d.toLowerCase());
-  for (const dq of dqTitles) {
-    if (t.includes(dq.toLowerCase())) {
-      rejects.push(`Disqualified title: "${dq}"`);
-      return res.json({ name, title, company, location, brand, score: 0, tier: 'DISQUALIFIED', matches: [], rejects, recommendation: 'Remove from pipeline. Title is not a buyer persona.' });
-    }
-  }
-
-  // Title scoring
-  const personas = config.target_personas || [];
-  for (const p of personas) {
-    const pTitle = p.title.toLowerCase().split('/').map(s => s.trim());
-    for (const pt of pTitle) {
-      if (t.includes(pt)) {
-        score = Math.max(score, p.score);
-        matches.push(`Title match: "${p.title}" (score ${p.score})`);
-        break;
-      }
-    }
-  }
-
-  // Keyword boosts
-  const combined = `${title} ${company || ''} ${location || ''}`.toLowerCase();
-  for (const [kw, boost] of Object.entries(config.keyword_boosts || {})) {
-    if (combined.includes(kw.toLowerCase())) {
-      score += boost;
-      matches.push(`Keyword boost: "${kw}" (+${boost})`);
-    }
-  }
-
-  // Determine tier
-  let tier = 'DISQUALIFIED';
-  if (score >= config.tier_thresholds.A) tier = 'A';
-  else if (score >= config.tier_thresholds.B) tier = 'B';
-  else if (score >= config.tier_thresholds.C) tier = 'C';
-
-  // Generate recommendation
-  let recommendation = '';
-  if (tier === 'A') recommendation = 'High-priority prospect. Assign to senior AE for personalized outreach.';
-  else if (tier === 'B') recommendation = 'Good prospect. Include in targeted campaign sequence.';
-  else if (tier === 'C') recommendation = 'Low-priority. Include in nurture campaigns only.';
-  else recommendation = 'Does not match ICP. Consider removing from pipeline.';
-
-  res.json({ name, title, company, location, brand, score, tier, matches, rejects, recommendation });
-});
-
-// ---------------------------------------------------------------------------
 // Claude API proxy
 // ---------------------------------------------------------------------------
 app.post('/api/ask', requireAuth, async (req, res) => {
@@ -1152,9 +821,4 @@ app.listen(PORT, () => {
   if (!process.env.GOOGLE_REFRESH_TOKEN) {
     console.log(`Auth: http://localhost:${PORT}/auth/google`);
   } else {
-    console.log('Google auth: configured via GOOGLE_REFRESH_TOKEN');
-  }
-  if (process.env.ZOHO_REFRESH_TOKEN) console.log('Zoho: configured');
-  if (process.env.GRANOLA_API_KEY) console.log('Granola: configured');
-  if (process.env.ANTHROPIC_API_KEY) console.log('Claude: configured');
-});
+    console.log('Google auth: configured via GOOGLE_REFR
