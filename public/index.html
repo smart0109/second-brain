@@ -190,6 +190,69 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .deal-select { font-size: 11px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-card); color: var(--text-primary); max-width: 160px; }
 .deal-save-ok { color: var(--green); font-size: 10px; margin-left: 4px; display: inline; }
 .deal-save-err { color: var(--red); font-size: 10px; margin-left: 4px; display: inline; }
+
+/* CRM Kanban Board */
+.crm-kanban { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; min-height: 400px; }
+.crm-kanban::-webkit-scrollbar { height: 6px; }
+.crm-kanban::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+.crm-kanban-col { min-width: 240px; max-width: 280px; flex: 1; background: var(--bg-surface); border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; }
+.crm-kanban-col.drag-over { border-color: var(--accent); background: rgba(201,162,39,0.05); box-shadow: 0 0 12px rgba(201,162,39,0.15); }
+.ckc-header { padding: 10px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
+.ckc-header .ckc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ckc-header .ckc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ckc-header .ckc-count { font-size: 10px; color: var(--text-muted); background: var(--bg-card); padding: 2px 8px; border-radius: 8px; }
+.ckc-header .ckc-value { font-size: 10px; color: var(--accent-text); font-weight: 600; }
+.ckc-header input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
+.ckc-cards { flex: 1; padding: 6px; overflow-y: auto; max-height: 600px; }
+.ckc-cards::-webkit-scrollbar { width: 4px; }
+.ckc-cards::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.crm-deal-card { background: var(--bg-card); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: grab; transition: all 0.15s; position: relative; }
+.crm-deal-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.crm-deal-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+.crm-deal-card.selected { border-color: var(--accent); background: rgba(201,162,39,0.08); box-shadow: 0 0 0 2px var(--accent-dim); }
+.crm-deal-card .cdc-check { position: absolute; top: 8px; right: 8px; cursor: pointer; accent-color: var(--accent); }
+.crm-deal-card .cdc-name { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; padding-right: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm-deal-card .cdc-account { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crm-deal-card .cdc-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.crm-deal-card .cdc-amount { font-size: 11px; font-weight: 700; color: var(--accent-text); }
+.crm-deal-card .cdc-prob { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: rgba(96,165,250,0.15); color: var(--blue); }
+.crm-deal-card .cdc-close { font-size: 9px; color: var(--text-muted); }
+.crm-deal-card .cdc-owner { font-size: 9px; color: var(--text-muted); margin-top: 4px; }
+.crm-deal-card .cdc-brand { font-size: 8px; padding: 1px 4px; border-radius: 3px; }
+.cdc-brand.cadient { background: rgba(96,165,250,0.15); color: var(--blue); }
+.cdc-brand.vorro { background: rgba(52,211,153,0.15); color: var(--green); }
+
+/* Bulk Toolbar */
+.bulk-toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: 10px; margin-bottom: 10px; flex-wrap: wrap; animation: slideDown 0.2s ease; }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.bulk-btn { font-size: 11px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--accent-dim); background: var(--accent-dim); color: var(--accent-text); cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.bulk-btn:hover { background: var(--accent); color: #0a0e17; }
+
+/* Deal Modal */
+.deal-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 500; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.deal-modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 700px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.deal-modal-header { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.deal-modal-header h3 { flex: 1; font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+.deal-modal-tabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.dmt-tab { padding: 10px 16px; font-size: 12px; font-weight: 600; color: var(--text-muted); background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.dmt-tab:hover { color: var(--text-secondary); }
+.dmt-tab.active { color: var(--accent-text); border-bottom-color: var(--accent); }
+.deal-tab-content { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.deal-tab-content.active { display: block; }
+.deal-detail-row { display: flex; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+.deal-detail-row .ddr-label { color: var(--text-muted); min-width: 120px; font-weight: 500; }
+.deal-detail-row .ddr-value { color: var(--text-primary); flex: 1; }
+.note-item { padding: 10px; background: var(--bg-surface); border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border); }
+.note-item .ni-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.note-item .ni-content { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.note-item .ni-meta { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+.add-note-area { margin-top: 12px; }
+.add-note-area textarea { width: 100%; min-height: 80px; padding: 10px; font-size: 12px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); resize: vertical; font-family: var(--font-body); }
+.add-note-area textarea:focus { outline: none; border-color: var(--accent); }
+.product-item { display: flex; gap: 12px; padding: 8px 10px; background: var(--bg-surface); border-radius: 6px; margin-bottom: 6px; border: 1px solid var(--border); align-items: center; }
+.product-item .pi-name { font-size: 12px; font-weight: 600; flex: 1; }
+.product-item .pi-price { font-size: 12px; color: var(--accent-text); font-weight: 600; }
+.product-item .pi-qty { font-size: 11px; color: var(--text-muted); }
 .notes-link { flex-shrink: 0; font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .notes-link.active { background: var(--accent-dim); color: var(--accent-text); }
 .notes-link.active:hover { background: rgba(201,162,39,0.25); }
@@ -494,29 +557,70 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- PIPELINE -->
     <div id="view-pipeline" class="view">
+      <!-- Top bar: brand toggle + view toggle + summary -->
       <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
         <button class="brand-toggle active" data-brand="cadient" onclick="switchPipelineBrand('cadient')">Cadient</button>
         <button class="brand-toggle" data-brand="vorro" onclick="switchPipelineBrand('vorro')">Vorro</button>
         <button class="brand-toggle" data-brand="combined" onclick="switchPipelineBrand('combined')">Combined</button>
         <span style="margin-left:8px;color:#475569">|</span>
-        <select id="stageFilter" onchange="applyStageFilter()" style="font-size:11px;padding:3px 6px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;color:#e2e8f0;cursor:pointer">
-          <option value="">All Stages</option>
-        </select>
+        <button class="brand-toggle" id="viewToggleKanban" onclick="togglePipelineView('kanban')" style="font-size:11px;padding:5px 12px">Board</button>
+        <button class="brand-toggle" id="viewToggleList" onclick="togglePipelineView('list')" style="font-size:11px;padding:5px 12px">List</button>
         <span id="pipelineSummary" style="margin-left:auto;font-size:11px;color:#94a3b8"></span>
       </div>
+
+      <!-- Bulk action toolbar (hidden until deals selected) -->
+      <div id="bulkToolbar" class="bulk-toolbar" style="display:none">
+        <span id="bulkCount" style="font-size:12px;font-weight:600;color:var(--accent-text)">0 selected</span>
+        <select id="bulkStageSelect" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary)">
+          <option value="">Move to Stage...</option>
+        </select>
+        <button onclick="bulkChangeStage()" class="bulk-btn">Apply Stage</button>
+        <select id="bulkOwnerSelect" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary)">
+          <option value="">Change Owner...</option>
+        </select>
+        <button onclick="bulkChangeOwner()" class="bulk-btn">Apply Owner</button>
+        <button onclick="bulkCloseDeals('Closed Won')" class="bulk-btn" style="background:rgba(52,211,153,0.2);color:var(--green)">Close Won</button>
+        <button onclick="bulkCloseDeals('Closed Lost')" class="bulk-btn" style="background:rgba(248,113,113,0.2);color:var(--red)">Close Lost</button>
+        <button onclick="clearBulkSelection()" class="bulk-btn" style="background:transparent;border-color:var(--border)">Clear</button>
+      </div>
+
+      <!-- Stage summary pills -->
       <div id="pipelineStages" class="stage-bar"></div>
-      <div class="grid-2">
-        <div>
-          <div class="section-header">Pipeline by Stage</div>
+
+      <!-- Charts (collapsible) -->
+      <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Pipeline Charts</div>
+      <div class="sh-collapsible-wrap">
+        <div class="grid-2" style="margin-bottom:14px">
           <div class="card"><div class="chart-wrap"><canvas id="pipelineChart"></canvas></div></div>
-        </div>
-        <div>
-          <div class="section-header">Pipeline by Owner</div>
           <div class="card"><div class="chart-wrap"><canvas id="ownerChart"></canvas></div></div>
         </div>
       </div>
-      <div class="section-header">All Deals</div>
-      <div class="card"><div class="card-body scroll-panel" id="allDeals"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+
+      <!-- Kanban Board view -->
+      <div id="pipelineKanban" class="crm-kanban"></div>
+
+      <!-- List view (hidden by default) -->
+      <div id="pipelineListView" style="display:none">
+        <div class="card"><div class="card-body scroll-panel" id="allDeals"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+      </div>
+
+      <!-- Deal Detail Modal -->
+      <div id="dealModal" class="deal-modal-overlay" style="display:none" onclick="if(event.target===this)closeDealModal()">
+        <div class="deal-modal">
+          <div class="deal-modal-header">
+            <h3 id="dealModalTitle">Deal Details</h3>
+            <button onclick="closeDealModal()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer">&times;</button>
+          </div>
+          <div class="deal-modal-tabs">
+            <button class="dmt-tab active" data-tab="details" onclick="switchDealTab('details')">Details</button>
+            <button class="dmt-tab" data-tab="notes" onclick="switchDealTab('notes')">Notes</button>
+            <button class="dmt-tab" data-tab="products" onclick="switchDealTab('products')">Products</button>
+          </div>
+          <div id="dealTabDetails" class="deal-tab-content active"></div>
+          <div id="dealTabNotes" class="deal-tab-content" style="display:none"></div>
+          <div id="dealTabProducts" class="deal-tab-content" style="display:none"></div>
+        </div>
+      </div>
     </div>
 
     <!-- TEAM -->
@@ -1982,35 +2086,53 @@ async function loadVorroPipelineCache(){
 
 async function loadPipeline(){
   window._pipeLoaded=true;
-  const [cadR,vorR]=await Promise.allSettled([
+  const [cadR,vorR,usersR]=await Promise.allSettled([
     call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner,Probability,Pipeline from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 200"}}),
-    loadVorroPipelineCache()
+    loadVorroPipelineCache(),
+    fetch('/api/crm/users').then(r=>r.json()).catch(()=>({users:[]}))
   ]);
   _cadientDeals=(cadR.status==='fulfilled'?(cadR.value?.data||[]):[]).map(d=>({...d,_brand:'cadient'}));
   const vorroRaw=vorR.status==='fulfilled'?vorR.value:[];
-  dbg('Vorro pipeline raw: status='+vorR.status+', type='+(typeof vorroRaw)+', isArray='+Array.isArray(vorroRaw)+', length='+(vorroRaw?.length||0)+(vorR.status==='rejected'?', reason='+vorR.reason:''));
   _vorroDeals=(Array.isArray(vorroRaw)?vorroRaw:vorroRaw?.data||vorroRaw?.deals||[]).map(d=>({...d,_brand:'vorro'}));
-  dbg(`Pipeline: Cadient ${_cadientDeals.length}, Vorro ${_vorroDeals.length} deals`,'ok');
+  _zohoUsers=usersR.status==='fulfilled'?(usersR.value?.users||[]):[];
+  dbg(`Pipeline: Cadient ${_cadientDeals.length}, Vorro ${_vorroDeals.length} deals, ${_zohoUsers.length} users`,'ok');
+  _pipeViewMode='kanban';
+  document.getElementById('viewToggleKanban')?.classList.add('active');
   renderPipelineView('cadient');
 }
 
 let _currentPipeBrand='cadient';
 let _currentStageFilter='';
-const CADIENT_STAGES=['Qualification','Needs Analysis','Proposal/Price Quote','Negotiation/Review','Closed Won','Closed Lost','In Progress','Delivered','Delivered without Meeting'];
+let _pipeViewMode='kanban';
+let _selectedDealIds=new Set();
+let _zohoUsers=[];
+const CADIENT_STAGES=['Qualification','Needs Analysis','Proposal/Price Quote','Negotiation/Review','In Progress','Delivered','Delivered without Meeting','Closed Won','Closed Lost'];
 const VORRO_STAGES=['S1: Qualification','S2: Discovery','S3: Solution Development/SOW','S3: Evaluation/Scoping','S4: Proposal','S5: Verbal/Negotiation','S6: Contracting','Closed Won','Closed Lost'];
+const STAGE_COLORS={'Qualification':'#60a5fa','Needs Analysis':'#38bdf8','Proposal/Price Quote':'#fbbf24','Negotiation/Review':'#fb923c','In Progress':'#a78bfa','Delivered':'#34d399','Delivered without Meeting':'#2dd4bf','Closed Won':'#22c55e','Closed Lost':'#ef4444',
+  'S1: Qualification':'#60a5fa','S2: Discovery':'#38bdf8','S3: Solution Development/SOW':'#fbbf24','S3: Evaluation/Scoping':'#e879f9','S4: Proposal':'#fb923c','S5: Verbal/Negotiation':'#f97316','S6: Contracting':'#a78bfa'};
+
+function togglePipelineView(mode){
+  _pipeViewMode=mode;
+  document.getElementById('viewToggleKanban')?.classList.toggle('active',mode==='kanban');
+  document.getElementById('viewToggleList')?.classList.toggle('active',mode==='list');
+  document.getElementById('pipelineKanban').style.display=mode==='kanban'?'flex':'none';
+  document.getElementById('pipelineListView').style.display=mode==='list'?'block':'none';
+  renderPipelineView(_currentPipeBrand);
+}
 
 function switchPipelineBrand(brand){
   _currentPipeBrand=brand;
-  document.querySelectorAll('.brand-toggle').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.brand-toggle[data-brand]').forEach(b=>b.classList.remove('active'));
   const btn=document.querySelector(`.brand-toggle[data-brand="${brand}"]`);
   if(btn)btn.classList.add('active');
   _currentStageFilter='';
+  _selectedDealIds.clear();
+  updateBulkToolbar();
   renderPipelineView(brand);
 }
 
 function applyStageFilter(){
-  const sel=document.getElementById('stageFilter');
-  _currentStageFilter=sel?sel.value:'';
+  _currentStageFilter='';
   renderPipelineView(_currentPipeBrand);
 }
 
@@ -2025,28 +2147,14 @@ function stageLabel(s){return safeStr(s).replace(/^S\d+:\s*/,'');}
 
 function renderPipelineView(brand){
   let allDeals=getDealsForBrand(brand);
-  // Ensure Stage is always a string
   allDeals.forEach(d=>{d.Stage=safeStr(d.Stage)||'Unknown';});
-
-  // Populate stage filter dropdown from current deals
-  const allStages=[...new Set(allDeals.map(d=>d.Stage))].sort();
-  const sf=document.getElementById('stageFilter');
-  if(sf){
-    const prev=_currentStageFilter;
-    sf.innerHTML='<option value="">All Stages ('+allDeals.length+')</option>'+allStages.map(s=>'<option value="'+esc(s)+'"'+(s===prev?' selected':'')+'>'+esc(stageLabel(s))+' ('+allDeals.filter(d=>d.Stage===s).length+')</option>').join('');
-  }
-
-  // Apply stage filter
-  let deals=_currentStageFilter?allDeals.filter(d=>d.Stage===_currentStageFilter):allDeals;
+  let deals=allDeals;
 
   const totalVal=deals.reduce((s,d)=>s+(d.Amount||0),0);
   const sumEl=document.getElementById('pipelineSummary');
-  if(sumEl){
-    let sumText=`${deals.length} deals | ${fmtMoney(totalVal)} total`;
-    if(_currentStageFilter)sumText+=` <a href="#" onclick="_currentStageFilter=\'\';renderPipelineView(\'${brand}\');return false" style="color:#60a5fa;margin-left:8px;font-size:11px">Show All</a>`;
-    sumEl.innerHTML=sumText;
-  }
+  if(sumEl) sumEl.innerHTML=`${deals.length} deals | ${fmtMoney(totalVal)} total`;
 
+  // Stage summary
   const stages={};const owners={};
   deals.forEach(d=>{
     const s=d.Stage;
@@ -2057,130 +2165,385 @@ function renderPipelineView(brand){
     owners[o].count++;owners[o].value+=(d.Amount||0);
   });
 
+  // Stage pills
   const psEl=document.getElementById('pipelineStages');
   if(psEl)psEl.innerHTML=Object.entries(stages).sort((a,b)=>b[1].value-a[1].value).slice(0,8).map(([s,d])=>{
-    const isActive=_currentStageFilter===s;
-    return `<div class="stage-pill" style="cursor:pointer;${isActive?'border:2px solid #c9a227;box-shadow:0 0 6px rgba(201,162,39,0.3)':''}" onclick="if(_currentStageFilter==='${escAttr(s)}'){_currentStageFilter=''}else{_currentStageFilter='${escAttr(s)}'};renderPipelineView('${brand}')"><div class="num">${d.count}</div><div class="lbl">${esc(stageLabel(s))}</div><div class="lbl">${fmtMoney(d.value)}</div></div>`;
+    return `<div class="stage-pill"><div class="num">${d.count}</div><div class="lbl">${esc(stageLabel(s))}</div><div class="lbl">${fmtMoney(d.value)}</div></div>`;
   }).join('');
 
+  // Charts
   if(_pipeChartInstance){_pipeChartInstance.destroy();_pipeChartInstance=null;}
   if(_ownerChartInstance){_ownerChartInstance.destroy();_ownerChartInstance=null;}
-
-  const stageLabels=Object.keys(stages);
-  const stageValues=stageLabels.map(s=>stages[s].value);
+  const sLabels=Object.keys(stages);
+  const sValues=sLabels.map(s=>stages[s].value);
   const pcEl=document.getElementById('pipelineChart');
-  if(pcEl)_pipeChartInstance=new Chart(pcEl,{type:'bar',data:{labels:stageLabels.map(s=>stageLabel(s)),datasets:[{label:'Pipeline Value',data:stageValues,backgroundColor:['#bbdefb','#c8e6c9','#fff9c4','#ffccbc','#d1c4e9','#f8bbd0','#b2dfdb','#ffe0b2']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMoney(v)}}}}});
-
-  const ownerLabels=Object.keys(owners);
-  const ownerValues=ownerLabels.map(o=>owners[o].value);
+  if(pcEl)_pipeChartInstance=new Chart(pcEl,{type:'bar',data:{labels:sLabels.map(s=>stageLabel(s)),datasets:[{label:'Pipeline Value',data:sValues,backgroundColor:sLabels.map(s=>STAGE_COLORS[s]||'#64748b')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMoney(v)}}}}});
+  const oLabels=Object.keys(owners);
+  const oValues=oLabels.map(o=>owners[o].value);
   const ocEl=document.getElementById('ownerChart');
-  if(ocEl)_ownerChartInstance=new Chart(ocEl,{type:'doughnut',data:{labels:ownerLabels,datasets:[{data:ownerValues,backgroundColor:['#42a5f5','#66bb6a','#ffa726','#ef5350','#ab47bc','#26c6da','#78909c','#8d6e63']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
+  if(ocEl)_ownerChartInstance=new Chart(ocEl,{type:'doughnut',data:{labels:oLabels,datasets:[{data:oValues,backgroundColor:['#42a5f5','#66bb6a','#ffa726','#ef5350','#ab47bc','#26c6da','#78909c','#8d6e63']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
 
-  // Collect unique owners for the owner dropdown
-  const ownerList=[...new Set(deals.map(d=>d.Owner?.name||d.Owner||'').filter(Boolean))].sort();
+  // Populate bulk toolbar dropdowns
+  const stageList=brand==='vorro'?VORRO_STAGES:(brand==='cadient'?CADIENT_STAGES:[...new Set([...CADIENT_STAGES,...VORRO_STAGES])]);
+  const bss=document.getElementById('bulkStageSelect');
+  if(bss)bss.innerHTML='<option value="">Move to Stage...</option>'+stageList.map(s=>'<option value="'+esc(s)+'">'+esc(s)+'</option>').join('');
+  const bos=document.getElementById('bulkOwnerSelect');
+  const ownerOpts=_zohoUsers.length?_zohoUsers:[...new Set(deals.map(d=>({name:d.Owner?.name||safeStr(d.Owner),id:d.Owner?.id})).filter(o=>o.name))];
+  if(bos)bos.innerHTML='<option value="">Change Owner...</option>'+(_zohoUsers.length?_zohoUsers:ownerOpts).map(u=>'<option value="'+esc(u.id||u.name)+'">'+esc(u.name)+'</option>').join('');
 
+  if(_pipeViewMode==='kanban'){
+    renderKanbanBoard(deals,brand);
+  } else {
+    renderDealsList(deals,brand);
+  }
+}
+
+// ── KANBAN BOARD ──
+function renderKanbanBoard(deals,brand){
+  const el=document.getElementById('pipelineKanban');if(!el)return;
+  const stageOrder=brand==='vorro'?VORRO_STAGES:(brand==='cadient'?CADIENT_STAGES:[...CADIENT_STAGES,...VORRO_STAGES.filter(s=>!CADIENT_STAGES.includes(s))]);
+  // Only show stages that have deals + always show open stages (exclude Closed)
+  const openStages=stageOrder.filter(s=>!s.startsWith('Closed'));
+  const closedStages=stageOrder.filter(s=>s.startsWith('Closed'));
+  const stagesWithDeals=[...new Set(deals.map(d=>d.Stage))];
+  const columnsToShow=[...openStages.filter(s=>stagesWithDeals.includes(s)||!s.startsWith('Closed')),...closedStages.filter(s=>stagesWithDeals.includes(s))];
+
+  el.innerHTML=columnsToShow.map(stage=>{
+    const stageDeals=deals.filter(d=>d.Stage===stage).sort((a,b)=>(b.Amount||0)-(a.Amount||0));
+    const stageVal=stageDeals.reduce((s,d)=>s+(d.Amount||0),0);
+    const color=STAGE_COLORS[stage]||'#64748b';
+    const cards=stageDeals.map(d=>{
+      const dealId=d.id||'';
+      const acctName=typeof d.Account_Name==='object'?(d.Account_Name?.name||''):safeStr(d.Account_Name);
+      const ownerName=typeof d.Owner==='object'?(d.Owner?.name||''):safeStr(d.Owner);
+      const isSelected=_selectedDealIds.has(dealId);
+      const brandTag=brand==='combined'?`<span class="cdc-brand ${d._brand}">${d._brand==='vorro'?'V':'C'}</span>`:'';
+      const isOverdue=d.Closing_Date&&new Date(d.Closing_Date)<new Date();
+      return `<div class="crm-deal-card${isSelected?' selected':''}" draggable="${dealId?'true':'false'}" data-deal-id="${esc(dealId)}" data-brand="${d._brand}"
+        ondragstart="onDealDragStart(event)" ondragend="onDealDragEnd(event)" onclick="openDealModal('${escAttr(dealId)}','${d._brand}')">
+        <input type="checkbox" class="cdc-check" ${isSelected?'checked':''} onclick="event.stopPropagation();toggleDealSelect('${escAttr(dealId)}',this.checked)">
+        <div class="cdc-name">${esc(d.Deal_Name||'Untitled')}</div>
+        <div class="cdc-account">${esc(acctName)}</div>
+        <div class="cdc-meta">
+          <span class="cdc-amount">${fmtMoney(d.Amount)}</span>
+          ${d.Probability?'<span class="cdc-prob">'+d.Probability+'%</span>':''}
+          ${brandTag}
+          ${isOverdue?'<span style="font-size:9px;color:var(--red)">Overdue</span>':''}
+        </div>
+        <div class="cdc-owner">${esc(ownerName)}${d.Closing_Date?' &middot; Close: '+esc(d.Closing_Date):''}</div>
+      </div>`;
+    }).join('');
+    return `<div class="crm-kanban-col" data-stage="${escAttr(stage)}"
+      ondragover="event.preventDefault();this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="onDealDrop(event,this)">
+      <div class="ckc-header">
+        <div class="ckc-dot" style="background:${color}"></div>
+        <div class="ckc-title" title="${esc(stage)}">${esc(stageLabel(stage))}</div>
+        <div class="ckc-count">${stageDeals.length}</div>
+        <div class="ckc-value">${fmtMoney(stageVal)}</div>
+        <input type="checkbox" title="Select all in column" onclick="toggleColumnSelect('${escAttr(stage)}',this.checked)">
+      </div>
+      <div class="ckc-cards">${cards||'<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:11px">No deals</div>'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── LIST VIEW (legacy) ──
+function renderDealsList(deals,brand){
   const el=document.getElementById('allDeals');if(!el)return;
-  if(!deals.length){el.innerHTML='<div class="empty-state">No deals found'+ (_currentStageFilter?' for this stage':'')+'</div>';return;}
+  if(!deals.length){el.innerHTML='<div class="empty-state">No deals found</div>';return;}
   el.innerHTML=deals.map((d,idx)=>{
     const tag=d._brand==='vorro'?'<span style="background:rgba(52,211,153,0.15);color:#34d399;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Vorro</span>':'<span style="background:rgba(96,165,250,0.15);color:#60a5fa;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Cadient</span>';
     const ownerName=typeof d.Owner==='object'?(d.Owner?.name||''):safeStr(d.Owner);
     const acctName=typeof d.Account_Name==='object'?(d.Account_Name?.name||''):safeStr(d.Account_Name);
-    const dealId=d.id||'';
-    const isCadient=d._brand==='cadient';
-    const stageList=isCadient?CADIENT_STAGES:VORRO_STAGES;
-    const stageSpanId='stg_'+idx;
-    const ownerSpanId='own_'+idx;
-
-    // Stage: clickable for Cadient, read-only for Vorro
-    const stageHtml=isCadient&&dealId
-      ?`<span id="${stageSpanId}" class="deal-editable" onclick="showDealStageEdit('${stageSpanId}','${escAttr(dealId)}','${escAttr(d.Stage||'')}',${idx})">${esc(d.Stage||'Unknown')}</span>`
-      :`<span class="deal-editable readonly">${esc(d.Stage||'Unknown')}</span>`;
-
-    // Owner: clickable for Cadient
-    const ownerHtml=isCadient&&dealId
-      ?`<span id="${ownerSpanId}" class="deal-editable" onclick="showDealOwnerEdit('${ownerSpanId}','${escAttr(dealId)}','${escAttr(ownerName)}',${idx})">${esc(ownerName||'Unassigned')}</span>`
-      :`<span class="deal-editable readonly">${esc(ownerName||'Unassigned')}</span>`;
-
-    return `<div class="item" data-deal-idx="${idx}"><div class="item-row">
+    return `<div class="item" onclick="openDealModal('${escAttr(d.id||'')}','${d._brand}')"><div class="item-row">
       <div class="item-icon deal">&#128176;</div>
       <div class="item-content"><div class="item-title">${esc(d.Deal_Name)}${tag}</div>
-      <div class="item-sub">${stageHtml} &middot; ${fmtMoney(d.Amount)} &middot; ${d.Probability||0}% &middot; Close: ${esc(d.Closing_Date||'TBD')}</div>
-      <div class="item-sub">${esc(acctName)} &middot; ${ownerHtml}</div></div></div></div>`;
+      <div class="item-sub">${esc(d.Stage||'Unknown')} &middot; ${fmtMoney(d.Amount)} &middot; ${d.Probability||0}% &middot; Close: ${esc(d.Closing_Date||'TBD')}</div>
+      <div class="item-sub">${esc(acctName)} &middot; ${esc(ownerName||'Unassigned')}</div></div></div></div>`;
   }).join('');
 }
 
-function showDealStageEdit(spanId,dealId,currentStage,idx){
-  const span=document.getElementById(spanId);if(!span)return;
-  const isCadient=_currentPipeBrand!=='vorro';
-  const stageList=isCadient?CADIENT_STAGES:VORRO_STAGES;
-  const sel=document.createElement('select');
-  sel.className='deal-select';
-  sel.innerHTML=stageList.map(s=>'<option value="'+esc(s)+'"'+(s===currentStage?' selected':'')+'>'+esc(s)+'</option>').join('');
-  sel.onchange=async function(){
-    const newStage=sel.value;
-    sel.disabled=true;
-    try{
-      await call(`${ZOHO}__updateRecord`,{path_variables:{module:'Deals',recordID:dealId},body:{data:[{id:dealId,Stage:newStage}]}});
-      // Update local data
-      const allDeals=getDealsForBrand(_currentPipeBrand);
-      const deal=allDeals.find(d=>d.id===dealId);
-      if(deal)deal.Stage=newStage;
-      sel.remove();
-      span.textContent=newStage;
-      span.style.display='';
-      const ok=document.createElement('span');ok.className='deal-save-ok';ok.textContent='Saved';
-      span.after(ok);setTimeout(()=>ok.remove(),2000);
-      dbg('Deal '+dealId+' stage updated to '+newStage,'ok');
-    }catch(e){
-      sel.disabled=false;
-      const err=document.createElement('span');err.className='deal-save-err';err.textContent='Failed';
-      sel.after(err);setTimeout(()=>err.remove(),3000);
-      dbg('Deal stage update failed: '+e.message,'err');
-    }
-  };
-  sel.onblur=function(){if(!sel.disabled){span.style.display='';sel.remove();}};
-  span.style.display='none';
-  span.parentNode.insertBefore(sel,span);
-  sel.focus();
+// ── DRAG AND DROP ──
+let _dragDealId=null;
+function onDealDragStart(e){
+  _dragDealId=e.target.dataset.dealId;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+}
+function onDealDragEnd(e){e.target.classList.remove('dragging');_dragDealId=null;}
+async function onDealDrop(e,col){
+  e.preventDefault();col.classList.remove('drag-over');
+  const newStage=col.dataset.stage;
+  if(!_dragDealId||!newStage)return;
+  const allDeals=getDealsForBrand(_currentPipeBrand);
+  const deal=allDeals.find(d=>d.id===_dragDealId);
+  if(!deal||deal.Stage===newStage)return;
+  const oldStage=deal.Stage;
+  deal.Stage=newStage;
+  renderPipelineView(_currentPipeBrand);
+  try{
+    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:[_dragDealId],updates:{Stage:newStage}})});
+    dbg(`Deal ${_dragDealId} moved ${oldStage} -> ${newStage}`,'ok');
+  }catch(err){
+    deal.Stage=oldStage;
+    renderPipelineView(_currentPipeBrand);
+    dbg('Drag-drop failed: '+err.message,'err');
+  }
 }
 
-function showDealOwnerEdit(spanId,dealId,currentOwner,idx){
-  const span=document.getElementById(spanId);if(!span)return;
-  // Collect owners from current dataset
+// ── BULK SELECTION ──
+function toggleDealSelect(dealId,checked){
+  if(checked)_selectedDealIds.add(dealId);
+  else _selectedDealIds.delete(dealId);
+  // Update card UI
+  const card=document.querySelector(`.crm-deal-card[data-deal-id="${dealId}"]`);
+  if(card)card.classList.toggle('selected',checked);
+  updateBulkToolbar();
+}
+function toggleColumnSelect(stage,checked){
   const allDeals=getDealsForBrand(_currentPipeBrand);
-  const ownerList=[...new Set(allDeals.map(d=>d.Owner?.name||d.Owner||'').filter(Boolean))].sort();
-  const sel=document.createElement('select');
-  sel.className='deal-select';
-  sel.innerHTML=ownerList.map(o=>'<option value="'+esc(o)+'"'+(o===currentOwner?' selected':'')+'>'+esc(o)+'</option>').join('');
-  sel.onchange=async function(){
-    const newOwner=sel.value;
-    sel.disabled=true;
-    // Find the owner's Zoho user ID from other deals
-    const refDeal=allDeals.find(d=>(d.Owner?.name||d.Owner)===newOwner&&d.Owner?.id);
-    const ownerId=refDeal?.Owner?.id;
-    try{
-      const updateData={id:dealId};
-      if(ownerId)updateData.Owner={id:ownerId};
-      else updateData.Owner=newOwner;
-      await call(`${ZOHO}__updateRecord`,{path_variables:{module:'Deals',recordID:dealId},body:{data:[updateData]}});
-      const deal=allDeals.find(d=>d.id===dealId);
-      if(deal){if(typeof deal.Owner==='object')deal.Owner.name=newOwner;else deal.Owner=newOwner;}
-      span.textContent=newOwner;
-      span.style.display='';sel.remove();
-      const ok=document.createElement('span');ok.className='deal-save-ok';ok.textContent='Saved';
-      span.after(ok);setTimeout(()=>ok.remove(),2000);
-      dbg('Deal '+dealId+' owner updated to '+newOwner,'ok');
-    }catch(e){
-      sel.disabled=false;
-      const err=document.createElement('span');err.className='deal-save-err';err.textContent='Failed';
-      sel.after(err);setTimeout(()=>err.remove(),3000);
-      dbg('Deal owner update failed: '+e.message,'err');
+  allDeals.filter(d=>d.Stage===stage&&d.id).forEach(d=>{
+    if(checked)_selectedDealIds.add(d.id);
+    else _selectedDealIds.delete(d.id);
+  });
+  // Update checkboxes in column
+  const col=document.querySelector(`.crm-kanban-col[data-stage="${stage}"]`);
+  if(col)col.querySelectorAll('.cdc-check').forEach(cb=>{cb.checked=checked;});
+  col?.querySelectorAll('.crm-deal-card').forEach(c=>c.classList.toggle('selected',checked));
+  updateBulkToolbar();
+}
+function clearBulkSelection(){
+  _selectedDealIds.clear();
+  document.querySelectorAll('.crm-deal-card.selected').forEach(c=>c.classList.remove('selected'));
+  document.querySelectorAll('.cdc-check').forEach(cb=>{cb.checked=false;});
+  document.querySelectorAll('.ckc-header input[type="checkbox"]').forEach(cb=>{cb.checked=false;});
+  updateBulkToolbar();
+}
+function updateBulkToolbar(){
+  const tb=document.getElementById('bulkToolbar');
+  const cnt=document.getElementById('bulkCount');
+  if(!tb)return;
+  const n=_selectedDealIds.size;
+  tb.style.display=n>0?'flex':'none';
+  if(cnt)cnt.textContent=n+' selected';
+}
+
+// ── BULK ACTIONS ──
+async function bulkChangeStage(){
+  const sel=document.getElementById('bulkStageSelect');
+  const newStage=sel?.value;
+  if(!newStage||_selectedDealIds.size===0)return;
+  const ids=[..._selectedDealIds];
+  // Optimistic update
+  const allDeals=getDealsForBrand(_currentPipeBrand);
+  ids.forEach(id=>{const d=allDeals.find(x=>x.id===id);if(d)d.Stage=newStage;});
+  _selectedDealIds.clear();
+  updateBulkToolbar();
+  renderPipelineView(_currentPipeBrand);
+  try{
+    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:{Stage:newStage}})});
+    dbg(`Bulk stage update: ${ids.length} deals -> ${newStage}`,'ok');
+  }catch(err){dbg('Bulk stage update failed: '+err.message,'err');}
+}
+
+async function bulkChangeOwner(){
+  const sel=document.getElementById('bulkOwnerSelect');
+  const val=sel?.value;
+  if(!val||_selectedDealIds.size===0)return;
+  const ids=[..._selectedDealIds];
+  const user=_zohoUsers.find(u=>u.id===val||u.name===val);
+  const ownerUpdate=user?.id?{Owner:{id:user.id}}:{Owner:val};
+  _selectedDealIds.clear();
+  updateBulkToolbar();
+  try{
+    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:ownerUpdate})});
+    // Reload to reflect changes
+    window._pipeLoaded=false;
+    loadPipeline();
+    dbg(`Bulk owner update: ${ids.length} deals -> ${user?.name||val}`,'ok');
+  }catch(err){dbg('Bulk owner update failed: '+err.message,'err');}
+}
+
+async function bulkCloseDeals(closeStage){
+  if(_selectedDealIds.size===0)return;
+  if(!confirm(`Close ${_selectedDealIds.size} deals as "${closeStage}"?`))return;
+  const ids=[..._selectedDealIds];
+  const allDeals=getDealsForBrand(_currentPipeBrand);
+  ids.forEach(id=>{const d=allDeals.find(x=>x.id===id);if(d)d.Stage=closeStage;});
+  _selectedDealIds.clear();
+  updateBulkToolbar();
+  renderPipelineView(_currentPipeBrand);
+  try{
+    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:{Stage:closeStage}})});
+    dbg(`Bulk close: ${ids.length} deals -> ${closeStage}`,'ok');
+  }catch(err){dbg('Bulk close failed: '+err.message,'err');}
+}
+
+// ── DEAL MODAL ──
+let _currentModalDeal=null;
+function openDealModal(dealId,brand){
+  if(!dealId)return;
+  const allDeals=[..._cadientDeals,..._vorroDeals];
+  const deal=allDeals.find(d=>d.id===dealId);
+  if(!deal)return;
+  _currentModalDeal=deal;
+  document.getElementById('dealModalTitle').textContent=deal.Deal_Name||'Deal Details';
+  switchDealTab('details');
+  document.getElementById('dealModal').style.display='flex';
+  renderDealDetails(deal);
+}
+function closeDealModal(){
+  document.getElementById('dealModal').style.display='none';
+  _currentModalDeal=null;
+}
+function switchDealTab(tab){
+  document.querySelectorAll('.dmt-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.getElementById('dealTabDetails').style.display=tab==='details'?'block':'none';
+  document.getElementById('dealTabNotes').style.display=tab==='notes'?'block':'none';
+  document.getElementById('dealTabProducts').style.display=tab==='products'?'block':'none';
+  if(tab==='notes'&&_currentModalDeal)loadDealNotes(_currentModalDeal.id);
+  if(tab==='products'&&_currentModalDeal)loadDealProducts(_currentModalDeal.id);
+}
+function renderDealDetails(d){
+  const el=document.getElementById('dealTabDetails');if(!el)return;
+  const ownerName=typeof d.Owner==='object'?(d.Owner?.name||''):safeStr(d.Owner);
+  const acctName=typeof d.Account_Name==='object'?(d.Account_Name?.name||''):safeStr(d.Account_Name);
+  const contactName=typeof d.Contact_Name==='object'?(d.Contact_Name?.name||d.Contact_Name?.Full_Name||''):safeStr(d.Contact_Name);
+  el.innerHTML=`
+    <div class="deal-detail-row"><div class="ddr-label">Deal Name</div><div class="ddr-value">${esc(d.Deal_Name)}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Stage</div><div class="ddr-value" style="color:${STAGE_COLORS[d.Stage]||'inherit'}">${esc(d.Stage)}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Amount</div><div class="ddr-value" style="color:var(--accent-text);font-weight:700">${fmtMoney(d.Amount)}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Probability</div><div class="ddr-value">${d.Probability||0}%</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Closing Date</div><div class="ddr-value">${esc(d.Closing_Date||'TBD')}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Account</div><div class="ddr-value">${esc(acctName)}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Contact</div><div class="ddr-value">${esc(contactName)}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Owner</div><div class="ddr-value">${esc(ownerName)}</div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Brand</div><div class="ddr-value"><span class="cdc-brand ${d._brand}" style="font-size:11px;padding:2px 8px">${d._brand==='vorro'?'Vorro':'Cadient'}</span></div></div>
+    <div class="deal-detail-row"><div class="ddr-label">Pipeline</div><div class="ddr-value">${esc(d.Pipeline||'')}</div></div>
+  `;
+}
+
+async function loadDealNotes(dealId){
+  const el=document.getElementById('dealTabNotes');if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading notes...</div>';
+  try{
+    const resp=await fetch(`/api/crm/deals/${dealId}/notes`);
+    const data=await resp.json();
+    const notes=data.notes||[];
+    let html=notes.length?notes.map(n=>`<div class="note-item">
+      ${n.Note_Title?'<div class="ni-title">'+esc(n.Note_Title)+'</div>':''}
+      <div class="ni-content">${esc(n.Note_Content||'').replace(/\\n/g,'<br>')}</div>
+      <div class="ni-meta">${n.Created_By?.name||''} &middot; ${n.Created_Time?new Date(n.Created_Time).toLocaleDateString():''}</div>
+    </div>`).join(''):'<div style="color:var(--text-muted);font-size:12px;padding:8px">No notes yet</div>';
+    html+=`<div class="add-note-area">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Add Note</div>
+      <input id="noteTitle" placeholder="Title (optional)" style="width:100%;padding:8px;font-size:12px;background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);margin-bottom:6px">
+      <textarea id="noteContent" placeholder="Type your note..."></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button onclick="addDealNote('${escAttr(dealId)}')" class="bulk-btn">Save Note</button>
+        <button onclick="addNoteFromEmail('${escAttr(dealId)}')" class="bulk-btn" style="background:rgba(96,165,250,0.15);color:var(--blue)">From Email</button>
+      </div>
+    </div>`;
+    el.innerHTML=html;
+  }catch(err){
+    el.innerHTML='<div style="color:var(--red);padding:8px">Failed to load notes: '+esc(err.message)+'</div>';
+  }
+}
+
+async function addDealNote(dealId){
+  const title=document.getElementById('noteTitle')?.value||'';
+  const content=document.getElementById('noteContent')?.value||'';
+  if(!content){alert('Note content is required');return;}
+  try{
+    await fetch(`/api/crm/deals/${dealId}/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
+    dbg('Note added to deal '+dealId,'ok');
+    loadDealNotes(dealId);
+  }catch(err){dbg('Note add failed: '+err.message,'err');}
+}
+
+async function addNoteFromEmail(dealId){
+  const deal=_currentModalDeal;if(!deal)return;
+  const acctName=typeof deal.Account_Name==='object'?(deal.Account_Name?.name||''):safeStr(deal.Account_Name);
+  const searchTerm=acctName||deal.Deal_Name||'';
+  if(!searchTerm){alert('No company name to search emails');return;}
+  try{
+    const resp=await call(`${GMAIL}__search_threads`,{query:searchTerm+' newer_than:30d',pageSize:5});
+    const threads=resp?.threads||[];
+    if(!threads.length){alert('No recent emails found for "'+searchTerm+'"');return;}
+    // Show email picker
+    const el=document.getElementById('dealTabNotes');
+    const pickerHtml=`<div style="margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--blue)">Select email to attach as note:</div>
+      ${threads.map((t,i)=>{
+        const lastMsg=t.messages?.[t.messages.length-1]||{};
+        return `<div class="item" style="padding:8px;cursor:pointer" onclick="attachEmailAsNote('${escAttr(dealId)}',${i})">
+          <div class="item-title" style="font-size:12px">${esc(lastMsg.subject||'No subject')}</div>
+          <div class="item-sub">${esc(lastMsg.sender||'')} &middot; ${esc(lastMsg.date||'')}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+    // Store threads for selection
+    window._emailPickerThreads=threads;
+    el.insertAdjacentHTML('beforeend',pickerHtml);
+  }catch(err){alert('Email search failed: '+err.message);}
+}
+
+async function attachEmailAsNote(dealId,threadIdx){
+  const threads=window._emailPickerThreads||[];
+  const thread=threads[threadIdx];if(!thread)return;
+  const lastMsg=thread.messages?.[thread.messages.length-1]||{};
+  const title='Email: '+(lastMsg.subject||'No subject');
+  const body=(lastMsg.plaintextBody||lastMsg.snippet||'').substring(0,2000);
+  const content=`From: ${lastMsg.sender||''}\nDate: ${lastMsg.date||''}\n\n${body}`;
+  try{
+    await fetch(`/api/crm/deals/${dealId}/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
+    dbg('Email note attached to deal '+dealId,'ok');
+    loadDealNotes(dealId);
+  }catch(err){dbg('Email note attach failed: '+err.message,'err');}
+}
+
+async function loadDealProducts(dealId){
+  const el=document.getElementById('dealTabProducts');if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading products...</div>';
+  try{
+    const [prodResp,allProdResp]=await Promise.all([
+      fetch(`/api/crm/deals/${dealId}/products`).then(r=>r.json()),
+      fetch('/api/crm/products').then(r=>r.json()).catch(()=>({products:[]}))
+    ]);
+    const products=prodResp.products||[];
+    const allProducts=allProdResp.products||[];
+    let html=products.length?products.map(p=>`<div class="product-item">
+      <div class="pi-name">${esc(p.Product_Name||p.product?.name||'Product')}</div>
+      <div class="pi-qty">Qty: ${p.quantity||1}</div>
+      <div class="pi-price">${fmtMoney(p.list_price||p.Unit_Price||0)}</div>
+    </div>`).join(''):'<div style="color:var(--text-muted);font-size:12px;padding:8px">No products linked</div>';
+    if(allProducts.length){
+      html+=`<div style="margin-top:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Add Product</div>
+        <select id="addProductSelect" style="width:100%;padding:8px;font-size:12px;background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;color:var(--text-primary)">
+          <option value="">Select product...</option>
+          ${allProducts.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.Product_Name)+' ('+fmtMoney(p.Unit_Price||0)+')</option>').join('')}
+        </select>
+        <button onclick="addProductToDeal('${escAttr(dealId)}')" class="bulk-btn" style="margin-top:6px">Add Product</button>
+      </div>`;
     }
-  };
-  sel.onblur=function(){if(!sel.disabled){span.style.display='';sel.remove();}};
-  span.style.display='none';
-  span.parentNode.insertBefore(sel,span);
-  sel.focus();
+    el.innerHTML=html;
+  }catch(err){
+    el.innerHTML='<div style="color:var(--red);padding:8px">Failed to load products: '+esc(err.message)+'</div>';
+  }
+}
+
+async function addProductToDeal(dealId){
+  const sel=document.getElementById('addProductSelect');
+  const productId=sel?.value;
+  if(!productId){alert('Select a product');return;}
+  try{
+    await fetch(`/api/crm/deals/${dealId}/products`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId})});
+    dbg('Product added to deal '+dealId,'ok');
+    loadDealProducts(dealId);
+  }catch(err){dbg('Product add failed: '+err.message,'err');}
 }
 
 // ══════════════════════════════════════

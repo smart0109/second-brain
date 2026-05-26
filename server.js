@@ -1081,6 +1081,195 @@ app.post('/api/icp/score', requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// CRM Kanban: Bulk update deals
+// ---------------------------------------------------------------------------
+app.put('/api/crm/deals/bulk', requireAuth, async (req, res) => {
+  const { dealIds, updates } = req.body;
+  if (!dealIds || !Array.isArray(dealIds) || dealIds.length === 0) {
+    return res.status(400).json({ error: 'dealIds array required' });
+  }
+  if (!updates || typeof updates !== 'object') {
+    return res.status(400).json({ error: 'updates object required' });
+  }
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const data = dealIds.map(id => ({ id, ...updates }));
+    // Zoho allows max 100 records per call
+    const results = [];
+    for (let i = 0; i < data.length; i += 100) {
+      const batch = data.slice(i, i + 100);
+      const resp = await fetch(`${domain}/crm/v2/Deals`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Zoho-oauthtoken ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: batch }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Zoho bulk update failed: ${resp.status} ${text}`);
+      }
+      const result = await resp.json();
+      results.push(...(result.data || []));
+    }
+    res.json({ success: true, updated: results.length, results });
+  } catch (err) {
+    console.error('Bulk deal update error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// CRM: Deal Notes (read + create)
+// ---------------------------------------------------------------------------
+app.get('/api/crm/deals/:id/notes', requireAuth, async (req, res) => {
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const resp = await fetch(`${domain}/crm/v2/Deals/${req.params.id}/Notes?per_page=50`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Zoho notes fetch failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ notes: data.data || [] });
+  } catch (err) {
+    console.error('Deal notes error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/crm/deals/:id/notes', requireAuth, async (req, res) => {
+  const { content, title } = req.body;
+  if (!content) return res.status(400).json({ error: 'content required' });
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const noteData = { Note_Content: content };
+    if (title) noteData.Note_Title = title;
+    const resp = await fetch(`${domain}/crm/v2/Deals/${req.params.id}/Notes`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: [noteData] }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Zoho note create failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ success: true, note: data.data?.[0] });
+  } catch (err) {
+    console.error('Deal note create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// CRM: Deal Products (read + add)
+// ---------------------------------------------------------------------------
+app.get('/api/crm/deals/:id/products', requireAuth, async (req, res) => {
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const resp = await fetch(`${domain}/crm/v2/Deals/${req.params.id}/Products?per_page=50`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok) {
+      // 204 = no products, not an error
+      if (resp.status === 204) return res.json({ products: [] });
+      const text = await resp.text();
+      throw new Error(`Zoho products fetch failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ products: data.data || [] });
+  } catch (err) {
+    console.error('Deal products error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/crm/products', requireAuth, async (req, res) => {
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const resp = await fetch(`${domain}/crm/v2/Products?per_page=200&fields=Product_Name,Unit_Price,Product_Code,Product_Active`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok) {
+      if (resp.status === 204) return res.json({ products: [] });
+      const text = await resp.text();
+      throw new Error(`Zoho products list failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ products: data.data || [] });
+  } catch (err) {
+    console.error('Products list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/crm/deals/:id/products', requireAuth, async (req, res) => {
+  const { productId, quantity, listPrice } = req.body;
+  if (!productId) return res.status(400).json({ error: 'productId required' });
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const prodData = {
+      id: productId,
+      quantity: quantity || 1,
+      list_price: listPrice || 0,
+    };
+    const resp = await fetch(`${domain}/crm/v2/Deals/${req.params.id}/Products/${productId}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ data: [prodData] }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Zoho product add failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ success: true, result: data.data?.[0] });
+  } catch (err) {
+    console.error('Deal product add error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// CRM: Zoho Users (for owner assignment)
+// ---------------------------------------------------------------------------
+app.get('/api/crm/users', requireAuth, async (req, res) => {
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const resp = await fetch(`${domain}/crm/v2/users?type=ActiveUsers`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Zoho users fetch failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    const users = (data.users || []).map(u => ({ id: u.id, name: u.full_name || u.name, email: u.email, role: u.role?.name }));
+    res.json({ users });
+  } catch (err) {
+    console.error('Users fetch error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Claude API proxy
 // ---------------------------------------------------------------------------
 app.post('/api/ask', requireAuth, async (req, res) => {
