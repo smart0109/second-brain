@@ -4703,4 +4703,194 @@ function renderFuGroup(cat,items,meta){
 }
 
 function toggleFuPreview(id){
-  const card=
+  const card=document.getElementById('fu-'+id);
+  if(card)card.classList.toggle('expanded');
+}
+
+function markFuSent(id,btn){
+  const card=document.getElementById('fu-'+id);
+  if(card){
+    card.style.opacity='0.4';
+    card.style.borderColor='rgba(52,211,153,0.3)';
+    btn.textContent='Sent';
+    btn.disabled=true;
+    btn.style.background='rgba(52,211,153,0.15)';
+  }
+  // Remove from internal list
+  _fuDrafts=_fuDrafts.filter(d=>d.id!==id);
+  // Update stats
+  const groups={warmly:0,linkedin:0,prospect:0,report:0,other:0};
+  _fuDrafts.forEach(d=>groups[d.cat]=(groups[d.cat]||0)+1);
+  const statsEl=document.getElementById('fuStats');
+  if(statsEl){
+    statsEl.innerHTML=`
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#fb923c">${_fuDrafts.length}</div><div class="fu-stat-label">Total Drafts</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#f87171">${groups.warmly}</div><div class="fu-stat-label">Warmly Visitors</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#60a5fa">${groups.linkedin}</div><div class="fu-stat-label">LinkedIn DMs</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#34d399">${groups.prospect}</div><div class="fu-stat-label">Prospect Emails</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#a78bfa">${groups.report}</div><div class="fu-stat-label">Reports</div></div>
+    `;
+  }
+}
+
+// ══════════════════════════════════════
+// ── ICP CHECKER ──
+// ══════════════════════════════════════
+async function loadICPChecker(forceRefresh){
+  if(window._icpLoaded&&!forceRefresh)return;
+  window._icpLoaded=true;
+
+  // Universe stats
+  document.getElementById('icpStatProspects').textContent='19,843';
+  document.getElementById('icpStatATier').textContent='372';
+  document.getElementById('icpStatBTier').textContent='305';
+  document.getElementById('icpStatDiscard').textContent='13,878';
+
+  // Load ICP config and render personas
+  try{
+    const cfgRes=await fetch('/api/icp',{credentials:'same-origin'});
+    const configs=await cfgRes.json();
+    renderPersonas('icpCadientPersonas',configs.cadient);
+    renderPersonas('icpVorroPersonas',configs.vorro);
+  }catch(e){
+    document.getElementById('icpCadientPersonas').innerHTML='<div class="empty-state" style="color:#f87171">Failed to load ICP configs: '+esc(e.message)+'</div>';
+  }
+
+  // Load CRM analysis
+  try{
+    const crmRes=await fetch('/api/icp/crm-analysis',{credentials:'same-origin'});
+    const analysis=await crmRes.json();
+    renderCrmRecommendations(analysis);
+    renderStaleDeals(analysis);
+  }catch(e){
+    document.getElementById('icpCrmRecommendations').innerHTML='<div class="empty-state" style="color:#f87171">CRM analysis failed: '+esc(e.message)+'</div>';
+  }
+}
+
+function renderPersonas(containerId,config){
+  const el=document.getElementById(containerId);
+  if(!el||!config)return;
+  const tierColors={A:'#34d399',B:'#60a5fa',C:'#fb923c'};
+  let html='<div style="margin-bottom:14px"><div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">'+esc(config.brand)+' — '+esc(config.product)+'</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">'+esc(config.focus)+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(167,139,250,0.15);color:#a78bfa">Min '+config.min_employees+'+ employees</span><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(96,165,250,0.15);color:#60a5fa">'+esc(config.geo)+'</span><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(251,146,60,0.15);color:#fb923c">Min title score: '+config.min_title_score+'</span></div></div>';
+  html+='<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Target Personas</div>';
+  (config.target_personas||[]).forEach(function(p){
+    var tc=tierColors[p.tier]||'#64748b';
+    html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid var(--border)"><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+tc+'22;color:'+tc+'">'+p.tier+'</span><span style="flex:1;font-size:12px;color:var(--text-primary)">'+esc(p.title)+'</span><span style="font-size:11px;color:var(--text-muted)">Score '+p.score+'</span></div>';
+  });
+  html+='<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Target Industries</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+  (config.industries||[]).forEach(function(i){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.2)">'+esc(i)+'</span>';});
+  html+='</div><div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Competitor Exclusions</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+  (config.competitors||[]).forEach(function(c){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2)">'+esc(c)+'</span>';});
+  html+='</div><div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Auto-Disqualified Titles</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+  (config.disqualify_titles||[]).forEach(function(t){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(248,113,113,0.05);color:#f87171;text-decoration:line-through">'+esc(t)+'</span>';});
+  html+='</div><div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Keyword Score Boosts</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+  Object.entries(config.keyword_boosts||{}).forEach(function(e){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(167,139,250,0.1);color:#a78bfa">'+esc(e[0])+' <strong>+'+e[1]+'</strong></span>';});
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function renderCrmRecommendations(analysis){
+  var el=document.getElementById('icpCrmRecommendations');
+  if(!el)return;
+  var priorityColors={urgent:'#f87171',high:'#fb923c',medium:'#60a5fa',low:'#34d399'};
+  var html='';
+  if(!analysis.recommendations||!analysis.recommendations.length){
+    el.innerHTML='<div class="empty-state" style="color:var(--text-muted)">No CRM data available for analysis. Connect Zoho CRM to see recommendations.</div>';
+    return;
+  }
+  html+='<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"><div style="padding:10px 14px;border-radius:8px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#34d399">'+(analysis.won?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Won Deals</div></div><div style="padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f87171">'+(analysis.lost?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Lost Deals</div></div><div style="padding:10px 14px;border-radius:8px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#60a5fa">'+(analysis.open?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Open Pipeline</div></div></div>';
+  analysis.recommendations.forEach(function(rec){
+    var color=priorityColors[rec.priority]||'#64748b';
+    html+='<div style="padding:12px 14px;border-radius:10px;border:1px solid '+color+'33;background:'+color+'08;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:'+color+'">'+esc(rec.priority)+' — '+esc(rec.type.replace(/_/g,' '))+'</span></div><div style="font-size:12px;color:var(--text-primary);line-height:1.5">'+esc(rec.message)+'</div></div>';
+  });
+  el.innerHTML=html;
+}
+
+function renderStaleDeals(analysis){
+  var el=document.getElementById('icpStaleDeals');
+  if(!el)return;
+  var staleRec=(analysis.recommendations||[]).find(function(r){return r.type==='stale_deals';});
+  if(!staleRec||!staleRec.data||!staleRec.data.length){
+    el.innerHTML='<div class="empty-state" style="color:#34d399;padding:14px">No stale deals detected. Pipeline is clean.</div>';
+    return;
+  }
+  var html='<div style="font-size:12px;color:#f87171;font-weight:600;margin-bottom:10px">'+staleRec.data.length+' deals with past closing dates need attention:</div>';
+  staleRec.data.forEach(function(d){
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid rgba(248,113,113,0.2);background:rgba(248,113,113,0.05);margin-bottom:6px"><span style="font-size:12px;color:var(--text-primary);flex:1;font-weight:500">'+esc(d.name)+'</span><span style="font-size:11px;color:#f87171">'+(d.closing||'no date')+'</span><span style="font-size:11px;color:var(--text-muted)">'+(d.amount?fmtMoney(d.amount):'')+'</span></div>';
+  });
+  el.innerHTML=html;
+}
+
+async function scoreProspect(){
+  var name=document.getElementById('icpName').value.trim();
+  var title=document.getElementById('icpTitle').value.trim();
+  var company=document.getElementById('icpCompany').value.trim();
+  var location=document.getElementById('icpLocation').value.trim();
+  var brand=document.getElementById('icpBrand').value;
+  var resultEl=document.getElementById('icpScoreResult');
+  if(!title){resultEl.style.display='block';resultEl.innerHTML='<div style="color:#f87171;padding:10px">Title is required</div>';return;}
+  resultEl.style.display='block';
+  resultEl.innerHTML='<div class="loading"><div class="spinner"></div> Scoring...</div>';
+  try{
+    var res=await fetch('/api/icp/score',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({name:name,title:title,company:company,location:location,brand:brand})});
+    var result=await res.json();
+    var tierColors={A:'#34d399',B:'#60a5fa',C:'#fb923c',DISQUALIFIED:'#f87171'};
+    var tierBg={A:'rgba(52,211,153,0.15)',B:'rgba(96,165,250,0.15)',C:'rgba(251,146,60,0.15)',DISQUALIFIED:'rgba(248,113,113,0.15)'};
+    var tc=tierColors[result.tier]||'#64748b';
+    var tb=tierBg[result.tier]||'rgba(100,116,139,0.15)';
+    var html='<div style="padding:16px;border-radius:12px;border:1px solid '+tc+'44;background:'+tb+'"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:12px;background:'+tb+';display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:'+tc+';border:2px solid '+tc+'44">'+result.tier+'</div><div style="flex:1"><div style="font-size:15px;font-weight:700;color:var(--text-primary)">'+esc(result.name||'Prospect')+'</div><div style="font-size:12px;color:var(--text-secondary)">'+esc(result.title)+(result.company?' at '+esc(result.company):'')+'</div></div><div style="text-align:right"><div style="font-size:28px;font-weight:800;color:'+tc+'">'+result.score+'</div><div style="font-size:10px;color:var(--text-muted)">ICP Score</div></div></div><div style="font-size:12px;color:var(--text-primary);padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);margin-bottom:10px">'+esc(result.recommendation)+'</div>';
+    if(result.matches&&result.matches.length){
+      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Score Breakdown</div>';
+      result.matches.forEach(function(m){html+='<div style="font-size:11px;color:#34d399;padding:2px 0">+ '+esc(m)+'</div>';});
+    }
+    if(result.rejects&&result.rejects.length){
+      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin:6px 0 4px">Disqualification Reasons</div>';
+      result.rejects.forEach(function(r){html+='<div style="font-size:11px;color:#f87171;padding:2px 0">✗ '+esc(r)+'</div>';});
+    }
+    html+='</div>';
+    resultEl.innerHTML=html;
+  }catch(e){
+    resultEl.innerHTML='<div style="color:#f87171;padding:10px">Scoring failed: '+esc(e.message)+'</div>';
+  }
+}
+
+// ── INIT: Auth check then load dashboard ──
+dbg('INIT started. Checking DOM elements...');
+const _st=document.getElementById('sbStatus');
+const _criticalIds=['searchInput','searchResults','statsBar','statEvents','statThreads','statDrafts','statDeals','statPipeline','todayCalendar','priorityThreads','draftsList','closingDeals','automationStatus','staleAlerts'];
+const _missing=_criticalIds.filter(id=>!document.getElementById(id));
+if(_missing.length)dbg('MISSING DOM: '+_missing.join(', '),'err');
+else dbg('All '+_criticalIds.length+' critical DOM elements found','ok');
+dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADED'));
+
+// Check auth status then load
+(async function(){
+  if(_st)_st.textContent='v5.0 | checking auth...';
+  try{
+    const res=await fetch('/auth/status',{credentials:'same-origin'});
+    const status=await res.json();
+    dbg('Auth status: '+JSON.stringify(status));
+    if(!status.authenticated){
+      if(_st)_st.textContent='v5.0 | not authenticated';
+      const main=document.querySelector('.main');
+      if(main)main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Manish\'s HQ</h2><p style="color:#94a3b8;margin-bottom:20px">Sign in with Google to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Sign in with Google</a><p style="color:#64748b;margin-top:16px;font-size:11px">Requires Gmail, Calendar, and Drive permissions</p></div>';
+      return;
+    }
+    if(_st)_st.textContent='v5.0 | loading dashboard...';
+    await loadDashboard();
+    wireCollapsibleHeaders();
+    initHeroBar();
+    if(_st)_st.textContent='v5.0 | ready';
+    dbg('Dashboard loaded successfully!','ok');
+    _tabStatus.dashboard='ok';
+    flushLogs();
+  }catch(e){
+    dbg('Init failed: '+e.message,'err');
+    if(_st)_st.textContent='v5.0 | error';
+    const sb=document.getElementById('statsBar');
+    if(sb)sb.innerHTML='<div class="stat-card" style="flex:none;width:100%"><div class="stat-label" style="color:#f87171">Connection error: '+e.message+'. <a href="#" onclick="location.reload();return false" style="color:#60a5fa">Retry</a></div></div>';
+  }
+})();
+</script>
+</body>
+</html>
