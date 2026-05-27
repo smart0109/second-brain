@@ -399,6 +399,40 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .prod-add-form input:focus, .prod-add-form select:focus, .prod-add-form textarea:focus { border-color: var(--accent); outline: none; }
 .prod-add-form .paf-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .prod-add-form .paf-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+/* Follow-ups tab */
+.fu-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.fu-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+.fu-stat-num { font-size: 26px; font-weight: 800; }
+.fu-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.fu-group { margin-bottom: 22px; }
+.fu-group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.fu-group-icon { font-size: 18px; }
+.fu-group-title { font-size: 13px; font-weight: 700; }
+.fu-group-count { font-size: 11px; color: var(--text-muted); background: var(--bg-elevated); padding: 1px 7px; border-radius: 10px; }
+.fu-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s; }
+.fu-card:hover { border-color: var(--border-hover); }
+.fu-card-top { display: flex; align-items: flex-start; gap: 10px; }
+.fu-card-badge { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; }
+.fu-card-badge.warmly { background: rgba(251,146,60,0.15); color: #fb923c; }
+.fu-card-badge.linkedin { background: rgba(96,165,250,0.15); color: #60a5fa; }
+.fu-card-badge.email { background: rgba(52,211,153,0.15); color: #34d399; }
+.fu-card-badge.report { background: rgba(167,139,250,0.15); color: #a78bfa; }
+.fu-card-badge.cadient { background: rgba(96,165,250,0.15); color: #60a5fa; }
+.fu-card-badge.vorro { background: rgba(52,211,153,0.15); color: #34d399; }
+.fu-card-subj { font-size: 12px; font-weight: 600; color: var(--text-primary); flex: 1; line-height: 1.4; }
+.fu-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.fu-card-meta span { font-size: 10px; color: var(--text-muted); }
+.fu-card-to { color: var(--text-secondary) !important; font-weight: 500; }
+.fu-card-actions { display: flex; gap: 6px; margin-top: 8px; }
+.fu-card-actions a, .fu-card-actions button { font-size: 10px; padding: 3px 10px; border-radius: 4px; text-decoration: none; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.fu-card-actions a:hover, .fu-card-actions button:hover { border-color: var(--accent); color: var(--accent-text); }
+.fu-card-preview { margin-top: 8px; padding: 8px 10px; background: var(--bg-base); border-radius: 6px; font-size: 11px; color: var(--text-muted); line-height: 1.5; max-height: 80px; overflow: hidden; display: none; }
+.fu-card.expanded .fu-card-preview { display: block; max-height: none; }
+.fu-filter-bar { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.fu-filter { font-size: 11px; padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.fu-filter.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-text); }
+.fu-filter:hover { border-color: var(--border-hover); }
+
 /* Memory panel */
 .memory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 900px) { .memory-grid { grid-template-columns: 1fr; } }
@@ -474,6 +508,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="tab" data-view="legal" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
     <div class="tab" data-view="newsfeed" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
     <div class="tab" data-view="icpchecker" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Checker</div>
+    <div class="tab" data-view="followups" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
   </div>
   <div id="debugPanel" style="display:none;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:10px;padding:8px 12px;max-height:200px;overflow-y:auto;border-bottom:2px solid #4caf50">
     <div style="display:flex;justify-content:space-between;margin-bottom:4px"><strong style="color:#4caf50">Debug Log v5.0</strong><button onclick="navigator.clipboard.writeText(document.getElementById('debugLog').textContent)" style="font-size:9px;background:#1e2a3a;color:#0f0;border:1px solid #0f0;padding:1px 4px;cursor:pointer">Copy</button></div>
@@ -982,6 +1017,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       </div>
     </div>
 
+    <div id="view-followups" class="view">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <h2 style="font-size:16px;font-weight:700;flex:1;color:#fb923c">Follow-ups &amp; Outreach Drafts</h2>
+        <button class="prod-btn" onclick="window._followupsLoaded=false;loadFollowups()" style="background:rgba(251,146,60,0.15);color:#fb923c;border-color:rgba(251,146,60,0.3)">Refresh</button>
+      </div>
+      <div class="fu-stats" id="fuStats"></div>
+      <div class="fu-filter-bar" id="fuFilterBar"></div>
+      <div id="fuDraftsList"><div class="loading"><div class="spinner"></div><br>Loading drafts...</div></div>
+    </div>
+
     <div id="view-newsfeed" class="view">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
         <h2 style="font-size:16px;font-weight:700;flex:1">Competitor &amp; Industry News</h2>
@@ -1242,6 +1287,7 @@ function switchView(v){
   // Legal tab is static — no data load needed on switch
   if(v==='newsfeed'&&!window._newsLoaded)safeLoad(loadNewsFeed,'News Feed');
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
+  if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
 }
 
 // ══════════════════════════════════════
@@ -4469,163 +4515,193 @@ async function loadNewsFeed(forceRefresh){
 }
 
 // ══════════════════════════════════════
-// ── ICP CHECKER ──
+// ── FOLLOW-UPS ──
 // ══════════════════════════════════════
-async function loadICPChecker(forceRefresh){
-  if(window._icpLoaded&&!forceRefresh)return;
-  window._icpLoaded=true;
+let _fuDrafts=[];
+let _fuFilter='all';
 
-  // Universe stats
-  document.getElementById('icpStatProspects').textContent='19,843';
-  document.getElementById('icpStatATier').textContent='372';
-  document.getElementById('icpStatBTier').textContent='305';
-  document.getElementById('icpStatDiscard').textContent='13,878';
-
-  // Load ICP config and render personas
+async function loadFollowups(){
+  dbg('loadFollowups() started');
+  window._followupsLoaded=true;
+  const el=document.getElementById('fuDraftsList');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading drafts...</div>';
   try{
-    const cfgRes=await fetch('/api/icp',{credentials:'same-origin'});
-    const configs=await cfgRes.json();
-    renderPersonas('icpCadientPersonas',configs.cadient);
-    renderPersonas('icpVorroPersonas',configs.vorro);
+    const res=await call(GMAIL+'__list_drafts',{pageSize:80});
+    let drafts=res?.drafts||res||[];
+    if(!Array.isArray(drafts))drafts=[];
+    // Filter out telemetry
+    drafts=drafts.filter(d=>{
+      const subj=(d.subject||d.message?.subject||'').toString();
+      return !subj.includes('[SB-TELEMETRY]');
+    });
+    _fuDrafts=drafts.map(d=>{
+      const subj=(d.subject||d.message?.subject||'(no subject)').toString();
+      const to=(d.toRecipients||d.message?.toRecipients||[]);
+      const snippet=(d.snippet||d.message?.snippet||'').toString();
+      const body=(d.message?.plaintextBody||d.message?.body||snippet||'').toString();
+      const id=d.id||'';
+      // Categorize
+      let cat='other';
+      let catLabel='Other';
+      let catIcon='&#128233;';
+      let catBadge='email';
+      let brand='';
+      if(subj.includes('[Pipeline Report]')){
+        cat='report';catLabel='Pipeline Report';catIcon='&#128202;';catBadge='report';
+      } else if(subj.includes('[LinkedIn DM]')){
+        cat='linkedin';catLabel='LinkedIn DM';catIcon='&#128101;';catBadge='linkedin';
+        if(subj.toLowerCase().includes('cadient')||body.toLowerCase().includes('cadienttalent'))brand='cadient';
+        else if(subj.toLowerCase().includes('vorro')||body.toLowerCase().includes('vorro.net'))brand='vorro';
+      } else if(subj.toLowerCase().includes('warmly')||subj.includes('[WARMLY]')||body.toLowerCase().includes('warmly visitor')||body.toLowerCase().includes('warmly outreach')){
+        cat='warmly';catLabel='Warmly Visitor';catIcon='&#128293;';catBadge='warmly';
+        if(body.toLowerCase().includes('cadient'))brand='cadient';
+        else if(body.toLowerCase().includes('vorro'))brand='vorro';
+      } else {
+        // Check if it's a prospect follow-up (has a real recipient email, not manish696)
+        const toStr=to.join(',').toLowerCase();
+        if(toStr&&!toStr.includes('manish696@gmail.com')){
+          cat='prospect';catLabel='Prospect Email';catIcon='&#128236;';catBadge='email';
+          if(body.toLowerCase().includes('cadient')||body.toLowerCase().includes('smartsuite')||body.toLowerCase().includes('smarthire'))brand='cadient';
+          else if(body.toLowerCase().includes('vorro')||body.toLowerCase().includes('bridgegate'))brand='vorro';
+        }
+      }
+      // Extract assigned team member from LinkedIn DM subjects
+      let assignee='';
+      const assignMatch=subj.match(/assigned to (\w+)/i);
+      if(assignMatch)assignee=assignMatch[1];
+      // Extract stage/variant from LinkedIn DM subjects
+      let stageInfo='';
+      const stageMatch=subj.match(/Stage (\d+)\s*V(\d+)/i);
+      if(stageMatch)stageInfo='S'+stageMatch[1]+' V'+stageMatch[2];
+      return {id,subj,to,snippet:snippet.slice(0,200),body,cat,catLabel,catIcon,catBadge,brand,assignee,stageInfo};
+    });
+    renderFollowups();
   }catch(e){
-    document.getElementById('icpCadientPersonas').innerHTML='<div class="empty-state" style="color:#f87171">Failed to load ICP configs: '+esc(e.message)+'</div>';
-  }
-
-  // Load CRM analysis
-  try{
-    const crmRes=await fetch('/api/icp/crm-analysis',{credentials:'same-origin'});
-    const analysis=await crmRes.json();
-    renderCrmRecommendations(analysis);
-    renderStaleDeals(analysis);
-  }catch(e){
-    document.getElementById('icpCrmRecommendations').innerHTML='<div class="empty-state" style="color:#f87171">CRM analysis failed: '+esc(e.message)+'</div>';
+    dbg('loadFollowups FAILED: '+e.message,'err');
+    el.innerHTML='<div class="empty-state" style="color:#f87171">Failed to load drafts: '+esc(e.message)+'. <a href="#" onclick="window._followupsLoaded=false;loadFollowups();return false" style="color:#60a5fa">Retry</a></div>';
+    throw e;
   }
 }
 
-function renderPersonas(containerId,config){
-  const el=document.getElementById(containerId);
-  if(!el||!config)return;
-  const tierColors={A:'#34d399',B:'#60a5fa',C:'#fb923c'};
-  let html='<div style="margin-bottom:14px"><div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">'+esc(config.brand)+' — '+esc(config.product)+'</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">'+esc(config.focus)+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(167,139,250,0.15);color:#a78bfa">Min '+config.min_employees+'+ employees</span><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(96,165,250,0.15);color:#60a5fa">'+esc(config.geo)+'</span><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(251,146,60,0.15);color:#fb923c">Min title score: '+config.min_title_score+'</span></div></div>';
-  html+='<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Target Personas</div>';
-  (config.target_personas||[]).forEach(function(p){
-    var tc=tierColors[p.tier]||'#64748b';
-    html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid var(--border)"><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+tc+'22;color:'+tc+'">'+p.tier+'</span><span style="flex:1;font-size:12px;color:var(--text-primary)">'+esc(p.title)+'</span><span style="font-size:11px;color:var(--text-muted)">Score '+p.score+'</span></div>';
-  });
-  html+='<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Target Industries</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
-  (config.industries||[]).forEach(function(i){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.2)">'+esc(i)+'</span>';});
-  html+='</div><div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Competitor Exclusions</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
-  (config.competitors||[]).forEach(function(c){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2)">'+esc(c)+'</span>';});
-  html+='</div><div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Auto-Disqualified Titles</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
-  (config.disqualify_titles||[]).forEach(function(t){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(248,113,113,0.05);color:#f87171;text-decoration:line-through">'+esc(t)+'</span>';});
-  html+='</div><div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Keyword Score Boosts</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
-  Object.entries(config.keyword_boosts||{}).forEach(function(e){html+='<span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(167,139,250,0.1);color:#a78bfa">'+esc(e[0])+' <strong>+'+e[1]+'</strong></span>';});
+function renderFollowups(){
+  const el=document.getElementById('fuDraftsList');
+  if(!el)return;
+  const filtered=_fuFilter==='all'?_fuDrafts:_fuDrafts.filter(d=>d.cat===_fuFilter);
+  // Stats
+  const groups={warmly:0,linkedin:0,prospect:0,report:0,other:0};
+  _fuDrafts.forEach(d=>groups[d.cat]=(groups[d.cat]||0)+1);
+  const statsEl=document.getElementById('fuStats');
+  if(statsEl){
+    statsEl.innerHTML=`
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#fb923c">${_fuDrafts.length}</div><div class="fu-stat-label">Total Drafts</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#f87171">${groups.warmly}</div><div class="fu-stat-label">Warmly Visitors</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#60a5fa">${groups.linkedin}</div><div class="fu-stat-label">LinkedIn DMs</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#34d399">${groups.prospect}</div><div class="fu-stat-label">Prospect Emails</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#a78bfa">${groups.report}</div><div class="fu-stat-label">Reports</div></div>
+    `;
+  }
+  // Filter bar
+  const filterEl=document.getElementById('fuFilterBar');
+  if(filterEl){
+    const cats=[
+      {key:'all',label:'All ('+_fuDrafts.length+')'},
+      {key:'warmly',label:'Warmly ('+groups.warmly+')'},
+      {key:'linkedin',label:'LinkedIn DMs ('+groups.linkedin+')'},
+      {key:'prospect',label:'Prospect Emails ('+groups.prospect+')'},
+      {key:'report',label:'Reports ('+groups.report+')'},
+      {key:'other',label:'Other ('+groups.other+')'}
+    ];
+    filterEl.innerHTML=cats.map(c=>
+      `<button class="fu-filter${_fuFilter===c.key?' active':''}" onclick="_fuFilter='${c.key}';renderFollowups()">${c.label}</button>`
+    ).join('');
+  }
+  if(!filtered.length){
+    el.innerHTML='<div class="empty-state" style="padding:32px;color:var(--text-muted)">No drafts in this category</div>';
+    return;
+  }
+  // Group by category for display
+  const catOrder=['warmly','prospect','linkedin','report','other'];
+  const catMeta={
+    warmly:{title:'Warmly Visitor Outreach',icon:'&#128293;',color:'#fb923c'},
+    linkedin:{title:'LinkedIn DMs to Send',icon:'&#128101;',color:'#60a5fa'},
+    prospect:{title:'Prospect Email Follow-ups',icon:'&#128236;',color:'#34d399'},
+    report:{title:'Pipeline Reports',icon:'&#128202;',color:'#a78bfa'},
+    other:{title:'Other Drafts',icon:'&#128233;',color:'var(--text-secondary)'}
+  };
+  if(_fuFilter!=='all'){
+    // Single category view
+    const meta=catMeta[_fuFilter]||catMeta.other;
+    el.innerHTML=renderFuGroup(_fuFilter,filtered,meta);
+  } else {
+    // Grouped view
+    let html='';
+    for(const cat of catOrder){
+      const items=filtered.filter(d=>d.cat===cat);
+      if(!items.length)continue;
+      const meta=catMeta[cat];
+      html+=renderFuGroup(cat,items,meta);
+    }
+    el.innerHTML=html;
+  }
+}
+
+function renderFuGroup(cat,items,meta){
+  let html=`<div class="fu-group">
+    <div class="fu-group-header">
+      <span class="fu-group-icon">${meta.icon}</span>
+      <span class="fu-group-title" style="color:${meta.color}">${meta.title}</span>
+      <span class="fu-group-count">${items.length}</span>
+    </div>`;
+  for(const d of items){
+    const toDisplay=d.to.length?d.to.map(t=>esc(truncate(t,30))).join(', '):'(self)';
+    const brandBadge=d.brand?`<span class="fu-card-badge ${d.brand==='cadient'?'cadient':'vorro'}">${d.brand==='cadient'?'Cadient':'Vorro'}</span>`:'';
+    const stageBadge=d.stageInfo?`<span style="font-size:9px;color:var(--text-muted);background:var(--bg-elevated);padding:1px 6px;border-radius:3px">${esc(d.stageInfo)}</span>`:'';
+    const assigneeBadge=d.assignee?`<span style="font-size:9px;color:var(--text-muted)">&#8594; ${esc(d.assignee)}</span>`:'';
+    html+=`<div class="fu-card" id="fu-${esc(d.id)}">
+      <div class="fu-card-top">
+        <span class="fu-card-badge ${d.catBadge}">${d.catLabel}</span>
+        ${brandBadge}${stageBadge}${assigneeBadge}
+        <span class="fu-card-subj">${esc(d.subj)}</span>
+      </div>
+      <div class="fu-card-meta">
+        <span class="fu-card-to">To: ${toDisplay}</span>
+      </div>
+      <div class="fu-card-actions">
+        <a href="${draftUrl(d.id)}" target="_blank">Open in Gmail</a>
+        <button onclick="toggleFuPreview('${escAttr(d.id)}')">Preview</button>
+        <button onclick="markFuSent('${escAttr(d.id)}',this)" style="color:#34d399;border-color:rgba(52,211,153,0.3)">Mark Sent</button>
+      </div>
+      <div class="fu-card-preview">${esc(d.snippet||d.body?.slice(0,300)||'(no preview)')}</div>
+    </div>`;
+  }
   html+='</div>';
-  el.innerHTML=html;
+  return html;
 }
 
-function renderCrmRecommendations(analysis){
-  var el=document.getElementById('icpCrmRecommendations');
-  if(!el)return;
-  var priorityColors={urgent:'#f87171',high:'#fb923c',medium:'#60a5fa',low:'#34d399'};
-  var html='';
-  if(!analysis.recommendations||!analysis.recommendations.length){
-    el.innerHTML='<div class="empty-state" style="color:var(--text-muted)">No CRM data available for analysis. Connect Zoho CRM to see recommendations.</div>';
-    return;
-  }
-  html+='<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"><div style="padding:10px 14px;border-radius:8px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#34d399">'+(analysis.won?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Won Deals</div></div><div style="padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f87171">'+(analysis.lost?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Lost Deals</div></div><div style="padding:10px 14px;border-radius:8px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#60a5fa">'+(analysis.open?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Open Pipeline</div></div></div>';
-  analysis.recommendations.forEach(function(rec){
-    var color=priorityColors[rec.priority]||'#64748b';
-    html+='<div style="padding:12px 14px;border-radius:10px;border:1px solid '+color+'33;background:'+color+'08;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:'+color+'">'+esc(rec.priority)+' — '+esc(rec.type.replace(/_/g,' '))+'</span></div><div style="font-size:12px;color:var(--text-primary);line-height:1.5">'+esc(rec.message)+'</div></div>';
-  });
-  el.innerHTML=html;
+function toggleFuPreview(id){
+  const card=document.getElementById('fu-'+id);
+  if(card)card.classList.toggle('expanded');
 }
 
-function renderStaleDeals(analysis){
-  var el=document.getElementById('icpStaleDeals');
-  if(!el)return;
-  var staleRec=(analysis.recommendations||[]).find(function(r){return r.type==='stale_deals';});
-  if(!staleRec||!staleRec.data||!staleRec.data.length){
-    el.innerHTML='<div class="empty-state" style="color:#34d399;padding:14px">No stale deals detected. Pipeline is clean.</div>';
-    return;
+function markFuSent(id,btn){
+  const card=document.getElementById('fu-'+id);
+  if(card){
+    card.style.opacity='0.4';
+    card.style.borderColor='rgba(52,211,153,0.3)';
+    btn.textContent='Sent';
+    btn.disabled=true;
+    btn.style.background='rgba(52,211,153,0.15)';
   }
-  var html='<div style="font-size:12px;color:#f87171;font-weight:600;margin-bottom:10px">'+staleRec.data.length+' deals with past closing dates need attention:</div>';
-  staleRec.data.forEach(function(d){
-    html+='<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid rgba(248,113,113,0.2);background:rgba(248,113,113,0.05);margin-bottom:6px"><span style="font-size:12px;color:var(--text-primary);flex:1;font-weight:500">'+esc(d.name)+'</span><span style="font-size:11px;color:#f87171">'+(d.closing||'no date')+'</span><span style="font-size:11px;color:var(--text-muted)">'+(d.amount?fmtMoney(d.amount):'')+'</span></div>';
-  });
-  el.innerHTML=html;
-}
-
-async function scoreProspect(){
-  var name=document.getElementById('icpName').value.trim();
-  var title=document.getElementById('icpTitle').value.trim();
-  var company=document.getElementById('icpCompany').value.trim();
-  var location=document.getElementById('icpLocation').value.trim();
-  var brand=document.getElementById('icpBrand').value;
-  var resultEl=document.getElementById('icpScoreResult');
-  if(!title){resultEl.style.display='block';resultEl.innerHTML='<div style="color:#f87171;padding:10px">Title is required</div>';return;}
-  resultEl.style.display='block';
-  resultEl.innerHTML='<div class="loading"><div class="spinner"></div> Scoring...</div>';
-  try{
-    var res=await fetch('/api/icp/score',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({name:name,title:title,company:company,location:location,brand:brand})});
-    var result=await res.json();
-    var tierColors={A:'#34d399',B:'#60a5fa',C:'#fb923c',DISQUALIFIED:'#f87171'};
-    var tierBg={A:'rgba(52,211,153,0.15)',B:'rgba(96,165,250,0.15)',C:'rgba(251,146,60,0.15)',DISQUALIFIED:'rgba(248,113,113,0.15)'};
-    var tc=tierColors[result.tier]||'#64748b';
-    var tb=tierBg[result.tier]||'rgba(100,116,139,0.15)';
-    var html='<div style="padding:16px;border-radius:12px;border:1px solid '+tc+'44;background:'+tb+'"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:12px;background:'+tb+';display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:'+tc+';border:2px solid '+tc+'44">'+result.tier+'</div><div style="flex:1"><div style="font-size:15px;font-weight:700;color:var(--text-primary)">'+esc(result.name||'Prospect')+'</div><div style="font-size:12px;color:var(--text-secondary)">'+esc(result.title)+(result.company?' at '+esc(result.company):'')+'</div></div><div style="text-align:right"><div style="font-size:28px;font-weight:800;color:'+tc+'">'+result.score+'</div><div style="font-size:10px;color:var(--text-muted)">ICP Score</div></div></div><div style="font-size:12px;color:var(--text-primary);padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);margin-bottom:10px">'+esc(result.recommendation)+'</div>';
-    if(result.matches&&result.matches.length){
-      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Score Breakdown</div>';
-      result.matches.forEach(function(m){html+='<div style="font-size:11px;color:#34d399;padding:2px 0">+ '+esc(m)+'</div>';});
-    }
-    if(result.rejects&&result.rejects.length){
-      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin:6px 0 4px">Disqualification Reasons</div>';
-      result.rejects.forEach(function(r){html+='<div style="font-size:11px;color:#f87171;padding:2px 0">✗ '+esc(r)+'</div>';});
-    }
-    html+='</div>';
-    resultEl.innerHTML=html;
-  }catch(e){
-    resultEl.innerHTML='<div style="color:#f87171;padding:10px">Scoring failed: '+esc(e.message)+'</div>';
-  }
-}
-
-// ── INIT: Auth check then load dashboard ──
-dbg('INIT started. Checking DOM elements...');
-const _st=document.getElementById('sbStatus');
-const _criticalIds=['searchInput','searchResults','statsBar','statEvents','statThreads','statDrafts','statDeals','statPipeline','todayCalendar','priorityThreads','draftsList','closingDeals','automationStatus','staleAlerts'];
-const _missing=_criticalIds.filter(id=>!document.getElementById(id));
-if(_missing.length)dbg('MISSING DOM: '+_missing.join(', '),'err');
-else dbg('All '+_criticalIds.length+' critical DOM elements found','ok');
-dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADED'));
-
-// Check auth status then load
-(async function(){
-  if(_st)_st.textContent='v5.0 | checking auth...';
-  try{
-    const res=await fetch('/auth/status',{credentials:'same-origin'});
-    const status=await res.json();
-    dbg('Auth status: '+JSON.stringify(status));
-    if(!status.authenticated){
-      if(_st)_st.textContent='v5.0 | not authenticated';
-      const main=document.querySelector('.main');
-      if(main)main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Manish\'s HQ</h2><p style="color:#94a3b8;margin-bottom:20px">Sign in with Google to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Sign in with Google</a><p style="color:#64748b;margin-top:16px;font-size:11px">Requires Gmail, Calendar, and Drive permissions</p></div>';
-      return;
-    }
-    if(_st)_st.textContent='v5.0 | loading dashboard...';
-    await loadDashboard();
-    wireCollapsibleHeaders();
-    initHeroBar();
-    if(_st)_st.textContent='v5.0 | ready';
-    dbg('Dashboard loaded successfully!','ok');
-    _tabStatus.dashboard='ok';
-    flushLogs();
-  }catch(e){
-    dbg('Init failed: '+e.message,'err');
-    if(_st)_st.textContent='v5.0 | error';
-    const sb=document.getElementById('statsBar');
-    if(sb)sb.innerHTML='<div class="stat-card" style="flex:none;width:100%"><div class="stat-label" style="color:#f87171">Connection error: '+e.message+'. <a href="#" onclick="location.reload();return false" style="color:#60a5fa">Retry</a></div></div>';
-  }
-})();
-</script>
-</body>
-</html>
+  // Remove from internal list
+  _fuDrafts=_fuDrafts.filter(d=>d.id!==id);
+  // Update stats
+  const groups={warmly:0,linkedin:0,prospect:0,report:0,other:0};
+  _fuDrafts.forEach(d=>groups[d.cat]=(groups[d.cat]||0)+1);
+  const statsEl=document.getElementById('fuStats');
+  if(statsEl){
+    statsEl.innerHTML=`
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#fb923c">${_fuDrafts.length}</div><div class="fu-stat-label">Total Drafts</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#f87171">${groups.warmly}</div><div class="fu-stat-label">Warmly Visitors</div></div>
+      <div class="fu-stat"><div class="fu-stat-num" style="color:#60a5fa">${groups.linkedin}</div><div class="fu-stat-label">LinkedIn DMs</div></div>
+  
