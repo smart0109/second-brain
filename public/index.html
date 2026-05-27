@@ -2113,9 +2113,19 @@ let _pipeChartInstance=null;let _ownerChartInstance=null;
 
 async function loadVorroPipelineCache(){
   try{
+    // Try direct Vorro Zoho API first (India DC)
+    const resp=await fetch('/api/crm/vorro/deals',{credentials:'same-origin'});
+    if(resp.ok){
+      const data=await resp.json();
+      if(data.data&&data.data.length>0){
+        dbg('Vorro deals from Zoho India DC: '+data.data.length,'ok');
+        return data.data;
+      }
+    }
+    dbg('Vorro Zoho direct empty/failed, falling back to Gmail cache');
+    // Fallback to Gmail cache
     const threads=await call(`${GMAIL}__search_threads`,{query:'subject:[VORRO-PIPELINE-CACHE] in:draft',pageSize:3});
     if(!threads?.threads?.length){
-      // Fallback: search without in:draft
       const t2=await call(`${GMAIL}__search_threads`,{query:'subject:[VORRO-PIPELINE-CACHE]',pageSize:3});
       if(!t2?.threads?.length){dbg('No Vorro pipeline cache found','err');return [];}
       const thread=await call(`${GMAIL}__get_thread`,{threadId:t2.threads[0].id});
@@ -2127,7 +2137,7 @@ async function loadVorroPipelineCache(){
     const msg=thread?.messages?.[0];
     const body=msg?.plaintextBody||msg?.body||msg?.snippet||'';
     try{const data=JSON.parse(body);return data?.data||data?.deals||[];}catch(e){const m=body.match(/\{[\s\S]*\}/);if(m){const d=JSON.parse(m[0]);return d?.data||d?.deals||[];}return [];}
-  }catch(e){dbg('Vorro cache read failed: '+e.message,'err');return [];}
+  }catch(e){dbg('Vorro pipeline load failed: '+e.message,'err');return [];}
 }
 
 async function loadPipeline(){
@@ -2186,6 +2196,15 @@ function getDealsForBrand(brand){
   if(brand==='cadient')return _cadientDeals;
   if(brand==='vorro')return _vorroDeals;
   return[..._cadientDeals,..._vorroDeals];
+}
+function crmApi(path,brand){
+  // Route to Vorro India DC endpoints when brand is vorro
+  if(brand==='vorro'||_currentPipeBrand==='vorro')return '/api/crm/vorro'+path;
+  return '/api/crm'+path;
+}
+function getDealBrand(dealId){
+  if(_vorroDeals.some(d=>d.id===dealId))return 'vorro';
+  return 'cadient';
 }
 
 function safeStr(v){return typeof v==='string'?v:(v==null?'':String(v));}
@@ -2330,8 +2349,9 @@ async function onDealDrop(e,col){
   deal.Stage=newStage;
   renderPipelineView(_currentPipeBrand);
   try{
-    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:[_dragDealId],updates:{Stage:newStage}})});
-    dbg(`Deal ${_dragDealId} moved ${oldStage} -> ${newStage}`,'ok');
+    const brand=getDealBrand(_dragDealId);
+    await fetch(crmApi('/deals/bulk',brand),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:[_dragDealId],updates:{Stage:newStage}})});
+    dbg(`Deal ${_dragDealId} moved ${oldStage} -> ${newStage} (${brand})`,'ok');
   }catch(err){
     deal.Stage=oldStage;
     renderPipelineView(_currentPipeBrand);
@@ -2389,8 +2409,8 @@ async function bulkChangeStage(){
   updateBulkToolbar();
   renderPipelineView(_currentPipeBrand);
   try{
-    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:{Stage:newStage}})});
-    dbg(`Bulk stage update: ${ids.length} deals -> ${newStage}`,'ok');
+    await fetch(crmApi('/deals/bulk',_currentPipeBrand),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:{Stage:newStage}})});
+    dbg(`Bulk stage update: ${ids.length} deals -> ${newStage} (${_currentPipeBrand})`,'ok');
   }catch(err){dbg('Bulk stage update failed: '+err.message,'err');}
 }
 
@@ -2404,11 +2424,10 @@ async function bulkChangeOwner(){
   _selectedDealIds.clear();
   updateBulkToolbar();
   try{
-    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:ownerUpdate})});
-    // Reload to reflect changes
+    await fetch(crmApi('/deals/bulk',_currentPipeBrand),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:ownerUpdate})});
     window._pipeLoaded=false;
     loadPipeline();
-    dbg(`Bulk owner update: ${ids.length} deals -> ${user?.name||val}`,'ok');
+    dbg(`Bulk owner update: ${ids.length} deals -> ${user?.name||val} (${_currentPipeBrand})`,'ok');
   }catch(err){dbg('Bulk owner update failed: '+err.message,'err');}
 }
 
@@ -2422,8 +2441,8 @@ async function bulkCloseDeals(closeStage){
   updateBulkToolbar();
   renderPipelineView(_currentPipeBrand);
   try{
-    await fetch('/api/crm/deals/bulk',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:{Stage:closeStage}})});
-    dbg(`Bulk close: ${ids.length} deals -> ${closeStage}`,'ok');
+    await fetch(crmApi('/deals/bulk',_currentPipeBrand),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dealIds:ids,updates:{Stage:closeStage}})});
+    dbg(`Bulk close: ${ids.length} deals -> ${closeStage} (${_currentPipeBrand})`,'ok');
   }catch(err){dbg('Bulk close failed: '+err.message,'err');}
 }
 
@@ -2475,7 +2494,8 @@ async function loadDealNotes(dealId){
   const el=document.getElementById('dealTabNotes');if(!el)return;
   el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading notes...</div>';
   try{
-    const resp=await fetch(`/api/crm/deals/${dealId}/notes`);
+    const brand=getDealBrand(dealId);
+    const resp=await fetch(crmApi(`/deals/${dealId}/notes`,brand));
     const data=await resp.json();
     const notes=data.notes||[];
     let html=notes.length?notes.map(n=>`<div class="note-item">
@@ -2503,8 +2523,9 @@ async function addDealNote(dealId){
   const content=document.getElementById('noteContent')?.value||'';
   if(!content){alert('Note content is required');return;}
   try{
-    await fetch(`/api/crm/deals/${dealId}/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
-    dbg('Note added to deal '+dealId,'ok');
+    const brand=getDealBrand(dealId);
+    await fetch(crmApi(`/deals/${dealId}/notes`,brand),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
+    dbg('Note added to deal '+dealId+' ('+brand+')','ok');
     loadDealNotes(dealId);
   }catch(err){dbg('Note add failed: '+err.message,'err');}
 }
@@ -2544,8 +2565,9 @@ async function attachEmailAsNote(dealId,threadIdx){
   const body=(lastMsg.plaintextBody||lastMsg.snippet||'').substring(0,2000);
   const content=`From: ${lastMsg.sender||''}\nDate: ${lastMsg.date||''}\n\n${body}`;
   try{
-    await fetch(`/api/crm/deals/${dealId}/notes`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
-    dbg('Email note attached to deal '+dealId,'ok');
+    const brand=getDealBrand(dealId);
+    await fetch(crmApi(`/deals/${dealId}/notes`,brand),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content})});
+    dbg('Email note attached to deal '+dealId+' ('+brand+')','ok');
     loadDealNotes(dealId);
   }catch(err){dbg('Email note attach failed: '+err.message,'err');}
 }
@@ -2555,7 +2577,7 @@ async function loadDealProducts(dealId){
   el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading products...</div>';
   try{
     const [prodResp,allProdResp]=await Promise.all([
-      fetch(`/api/crm/deals/${dealId}/products`).then(r=>r.json()),
+      fetch(crmApi(`/deals/${dealId}/products`,getDealBrand(dealId))).then(r=>r.json()).catch(()=>({products:[]})),
       fetch('/api/crm/products').then(r=>r.json()).catch(()=>({products:[]}))
     ]);
     const products=prodResp.products||[];
@@ -2586,8 +2608,9 @@ async function addProductToDeal(dealId){
   const productId=sel?.value;
   if(!productId){alert('Select a product');return;}
   try{
-    await fetch(`/api/crm/deals/${dealId}/products`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId})});
-    dbg('Product added to deal '+dealId,'ok');
+    const brand=getDealBrand(dealId);
+    await fetch(crmApi(`/deals/${dealId}/products`,brand),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId})});
+    dbg('Product added to deal '+dealId+' ('+brand+')','ok');
     loadDealProducts(dealId);
   }catch(err){dbg('Product add failed: '+err.message,'err');}
 }
@@ -4680,28 +4703,4 @@ function renderFuGroup(cat,items,meta){
 }
 
 function toggleFuPreview(id){
-  const card=document.getElementById('fu-'+id);
-  if(card)card.classList.toggle('expanded');
-}
-
-function markFuSent(id,btn){
-  const card=document.getElementById('fu-'+id);
-  if(card){
-    card.style.opacity='0.4';
-    card.style.borderColor='rgba(52,211,153,0.3)';
-    btn.textContent='Sent';
-    btn.disabled=true;
-    btn.style.background='rgba(52,211,153,0.15)';
-  }
-  // Remove from internal list
-  _fuDrafts=_fuDrafts.filter(d=>d.id!==id);
-  // Update stats
-  const groups={warmly:0,linkedin:0,prospect:0,report:0,other:0};
-  _fuDrafts.forEach(d=>groups[d.cat]=(groups[d.cat]||0)+1);
-  const statsEl=document.getElementById('fuStats');
-  if(statsEl){
-    statsEl.innerHTML=`
-      <div class="fu-stat"><div class="fu-stat-num" style="color:#fb923c">${_fuDrafts.length}</div><div class="fu-stat-label">Total Drafts</div></div>
-      <div class="fu-stat"><div class="fu-stat-num" style="color:#f87171">${groups.warmly}</div><div class="fu-stat-label">Warmly Visitors</div></div>
-      <div class="fu-stat"><div class="fu-stat-num" style="color:#60a5fa">${groups.linkedin}</div><div class="fu-stat-label">LinkedIn DMs</div></div>
-  
+  const card=

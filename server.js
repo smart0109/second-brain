@@ -85,9 +85,13 @@ function requireAuth(req, res, next) {
 }
 
 // ---------------------------------------------------------------------------
-// Zoho token cache
+// Zoho token cache — Cadient (US DC) + Vorro (India DC)
 // ---------------------------------------------------------------------------
 let zohoTokenCache = { accessToken: null, expiresAt: 0 };
+let vorroTokenCache = { accessToken: null, expiresAt: 0 };
+
+const VORRO_ZOHO_API_DOMAIN = process.env.VORRO_ZOHO_API_DOMAIN || 'https://www.zohoapis.in';
+const VORRO_ZOHO_TOKEN_URL = process.env.VORRO_ZOHO_TOKEN_URL || 'https://accounts.zoho.in/oauth/v2/token';
 
 async function getZohoAccessToken() {
   if (zohoTokenCache.accessToken && Date.now() < zohoTokenCache.expiresAt - 60_000) {
@@ -114,6 +118,36 @@ async function getZohoAccessToken() {
     expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
   };
   return zohoTokenCache.accessToken;
+}
+
+async function getVorroZohoAccessToken() {
+  if (vorroTokenCache.accessToken && Date.now() < vorroTokenCache.expiresAt - 60_000) {
+    return vorroTokenCache.accessToken;
+  }
+  if (!process.env.VORRO_ZOHO_REFRESH_TOKEN) {
+    throw new Error('Vorro Zoho not configured. Set VORRO_ZOHO_CLIENT_ID, VORRO_ZOHO_CLIENT_SECRET, and VORRO_ZOHO_REFRESH_TOKEN.');
+  }
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: process.env.VORRO_ZOHO_CLIENT_ID,
+    client_secret: process.env.VORRO_ZOHO_CLIENT_SECRET,
+    refresh_token: process.env.VORRO_ZOHO_REFRESH_TOKEN,
+  });
+  const resp = await fetch(VORRO_ZOHO_TOKEN_URL, {
+    method: 'POST',
+    body: params,
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Vorro Zoho token refresh failed: ${resp.status} ${text}`);
+  }
+  const data = await resp.json();
+  if (data.error) throw new Error(`Vorro Zoho token error: ${data.error}`);
+  vorroTokenCache = {
+    accessToken: data.access_token,
+    expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
+  };
+  return vorroTokenCache.accessToken;
 }
 
 // ---------------------------------------------------------------------------
@@ -1267,6 +1301,90 @@ app.get('/api/crm/users', requireAuth, async (req, res) => {
     console.error('Users fetch error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Vorro Zoho CRM (India DC) — direct query for Vorro deals
+// ---------------------------------------------------------------------------
+app.get('/api/crm/vorro/deals', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const query = req.query.query || "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner,Probability,Pipeline from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 200";
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v5/coql`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Zoho-oauthtoken ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ select_query: query }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Vorro Zoho COQL failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ data: data.data || [], info: data.info });
+  } catch (err) {
+    console.error('Vorro deals error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/crm/vorro/deals/bulk', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const { dealIds, updates } = req.body;
+    if (!dealIds?.length || !updates) return res.status(400).json({ error: 'dealIds and updates required' });
+    const results = [];
+    const batches = [];
+    for (let i = 0; i < dealIds.length; i += 100) {
+      batches.push(dealIds.slice(i, i + 100));
+    }
+    for (const batch of batches) {
+      const records = batch.map(id => ({ id, ...updates }));
+      const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Deals`, {
+        method: 'PUT',
+        headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: records }),
+      });
+      const data = await resp.json();
+      results.push(...(data.data || []));
+    }
+    res.json({ success: true, updated: results.length, results });
+  } catch (err) {
+    console.error('Vorro bulk update error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/crm/vorro/deals/:id/notes', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Deals/${req.params.id}/Notes?per_page=50`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok && resp.status !== 204) throw new Error(`Vorro notes fetch: ${resp.status}`);
+    if (resp.status === 204) return res.json({ notes: [] });
+    const data = await resp.json();
+    res.json({ notes: data.data || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/crm/vorro/deals/:id/notes', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const { content, title } = req.body;
+    if (!content) return res.status(400).json({ error: 'content required' });
+    const noteData = { Note_Content: content };
+    if (title) noteData.Note_Title = title;
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Deals/${req.params.id}/Notes`, {
+      method: 'POST',
+      headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [noteData] }),
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ---------------------------------------------------------------------------
