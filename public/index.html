@@ -405,12 +405,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .fu-stat-num { font-size: 26px; font-weight: 800; }
 .fu-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
 .fu-group { margin-bottom: 22px; }
-.fu-group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.fu-group-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+.fu-group-header:hover { border-color: var(--border-hover); }
+.fu-group-header .fu-chevron { font-size: 12px; color: var(--text-muted); transition: transform 0.2s; }
+.fu-group.collapsed .fu-group-header .fu-chevron { transform: rotate(-90deg); }
+.fu-group.collapsed .fu-card { display: none; }
 .fu-group-icon { font-size: 18px; }
 .fu-group-title { font-size: 13px; font-weight: 700; }
 .fu-group-count { font-size: 11px; color: var(--text-muted); background: var(--bg-elevated); padding: 1px 7px; border-radius: 10px; }
-.fu-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s; }
-.fu-card:hover { border-color: var(--border-hover); }
+.fu-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s; cursor: pointer; }
+.fu-card:hover { border-color: var(--border-hover); background: var(--bg-elevated); }
 .fu-card-top { display: flex; align-items: flex-start; gap: 10px; }
 .fu-card-badge { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; }
 .fu-card-badge.warmly { background: rgba(251,146,60,0.15); color: #fb923c; }
@@ -432,6 +436,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .fu-filter { font-size: 11px; padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .fu-filter.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-text); }
 .fu-filter:hover { border-color: var(--border-hover); }
+/* Asset links */
+.asset-link { display: block; font-size: 12px; color: var(--text-secondary); text-decoration: none; padding: 6px 10px; border-radius: 6px; transition: all 0.15s; margin-bottom: 2px; }
+.asset-link:hover { background: var(--bg-elevated); color: var(--accent-text); }
+.asset-link::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: middle; opacity: 0.5; }
 
 /* Memory panel */
 .memory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -801,6 +809,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
       <div class="prod-tabs">
         <button class="prod-tab active" onclick="switchProdView('board',this)">Board</button>
+        <button class="prod-tab" onclick="switchProdView('assets',this)">Sales Assets</button>
         <button class="prod-tab" onclick="switchProdView('memory',this)">Memory</button>
         <button class="prod-tab" onclick="switchProdView('glossary',this)">Glossary</button>
       </div>
@@ -826,6 +835,81 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <div class="kanban-col done" id="colDone">
             <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Done</div><div class="kch-count" id="cntDone">0</div></div>
             <div id="cardsDone"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sales Assets view -->
+      <div id="prodAssetsView" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- Cadient Assets -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px">
+            <h3 style="color:#60a5fa;font-size:14px;margin:0 0 14px;display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#128188;</span> Cadient SmartSuite</h3>
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">One Pagers</div>
+              <a href="https://drive.google.com/file/d/170l_zc3Y8tUbNatai4ldMZXqAdg0eat-/view" target="_blank" class="asset-link">SmartSuite + CEM (Exec/Director)</a>
+              <a href="https://drive.google.com/file/d/1ZY5OiGSX4ZM-D3ZJsY2SBShktAR5YO_g/view" target="_blank" class="asset-link">SmartSource (TA/Sourcing)</a>
+              <a href="https://drive.google.com/file/d/1Gx_gawGmxobqKLkigngqx3vqq_O9QcLK/view" target="_blank" class="asset-link">SmartScreen (Recruiter/Ops)</a>
+              <a href="https://drive.google.com/file/d/1i7zB35EBSZFTMkb2BIapeiVLXEWq11PH/view" target="_blank" class="asset-link">SmartHire (HR Manager)</a>
+              <a href="https://drive.google.com/file/d/1nZLAN0E1IloIHfYVVuFYHSLVYo40Erib/view" target="_blank" class="asset-link">SmartSuite Full Overview</a>
+            </div>
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Videos / Demos</div>
+              <a href="https://drive.google.com/file/d/18kV5WPL8nyackgynuPXNRZIaMpQZPJEF/view" target="_blank" class="asset-link">SmartSuite Explainer (Exec/Director)</a>
+              <a href="https://drive.google.com/file/d/1DQqqpyefqW8mDcl6LZ3rM81GQrhaG0I9/view" target="_blank" class="asset-link">SmartMatch Promo (TA/Sourcing)</a>
+              <a href="https://drive.google.com/file/d/1J_FjkeaGAtACRHDMib1677zhb6blssNr/view" target="_blank" class="asset-link">SmartScreen Promo (Recruiter/Ops)</a>
+              <a href="https://drive.google.com/file/d/1kSGx0qWC9grkTZ2IFtJ9fpQMlz3eI863/view" target="_blank" class="asset-link">SmartSuite Overview (HR/Default)</a>
+            </div>
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">CEM / Hiring Journey PDFs</div>
+              <a href="https://drive.google.com/file/d/1SSQSCc55KsiYZoO_WTqsSrpeQjXrHXwS/view" target="_blank" class="asset-link">Grocery</a>
+              <a href="https://drive.google.com/file/d/11IVZ1Pj3BgY9FOtl1a2XgLjGii8fslz9/view" target="_blank" class="asset-link">Healthcare &amp; Nursing</a>
+              <a href="https://drive.google.com/file/d/1dVpO0fSPI3G-ZR5vsPqEv0JZ7z1kvvbM/view" target="_blank" class="asset-link">Generic / Automotive</a>
+              <a href="https://drive.google.com/file/d/1JN49IUxb5ak7nTTMAB5rqhuN5SND9SXy/view" target="_blank" class="asset-link">Manufacturing</a>
+              <a href="https://drive.google.com/file/d/1xjXu9hSUTZnVemgZYqiPKpyP1tDCtzfV/view" target="_blank" class="asset-link">Logistics &amp; Warehousing</a>
+              <a href="https://drive.google.com/file/d/1CMw-UQ1q6KvGC4sqGIjmzcPNCKiu7GXg/view" target="_blank" class="asset-link">Hospitality</a>
+              <a href="https://drive.google.com/file/d/1_4B2DrjdFPj4NVeUS7Zrjv9ivmsmIx0N/view" target="_blank" class="asset-link">Food &amp; Beverage</a>
+              <a href="https://drive.google.com/file/d/12QvuVwJ_FjTRWZ3P39dAy-xAKA-RgeEM/view" target="_blank" class="asset-link">Delivery</a>
+              <a href="https://drive.google.com/file/d/1qfUFyqKAX3-gxJCwItpgANRqr8sXj81S/view" target="_blank" class="asset-link">Financial Services</a>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Case Studies</div>
+              <a href="https://drive.google.com/file/d/1PpXwvv1sM6ljI-XdepjlsaVL0XXikwtu/view" target="_blank" class="asset-link">Mini Case Study (Grocery/Auto)</a>
+              <a href="https://drive.google.com/file/d/13JLKPTiQvy0h14hHbmucTp4a71_H-tjG/view" target="_blank" class="asset-link">Mini Proof Point (Healthcare/Default)</a>
+            </div>
+          </div>
+          <!-- Vorro Assets -->
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px">
+            <h3 style="color:#34d399;font-size:14px;margin:0 0 14px;display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#127973;</span> Vorro BridgeGate</h3>
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Product Overview</div>
+              <a href="https://vorro.net" target="_blank" class="asset-link">Vorro.net (Main Site)</a>
+              <a href="https://vorro.net/bridgegate" target="_blank" class="asset-link">BridgeGate EiPaaS Platform</a>
+            </div>
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Key Capabilities</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;padding:4px 0">
+                Integration (FHIR, HL7, EDI X12, NCPDP, C-CDA)<br>
+                AI Data Hub (unified patient data)<br>
+                Workflow Automation (AI-driven)<br>
+                Real-time Monitoring + Auto-healing<br>
+                Self-managed, Hybrid, or Fully Managed
+              </div>
+            </div>
+            <div style="margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Pricing Reference</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;padding:4px 0">
+                Platform: $20K to $90K+/yr<br>
+                Per-connection fees on top<br>
+                100+ enterprises, 5000+ apps, 10M daily transactions
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">EHR Partners</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;padding:4px 0">
+                Epic, Cerner, Athena, AllScripts, eClinicalWorks, NextGen, Meditech, CPSI
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3838,6 +3922,7 @@ function switchProdView(view,btn){
   document.querySelectorAll('.prod-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('prodBoardView').style.display=view==='board'?'block':'none';
+  document.getElementById('prodAssetsView').style.display=view==='assets'?'block':'none';
   document.getElementById('prodMemoryView').style.display=view==='memory'?'block':'none';
   document.getElementById('prodGlossaryView').style.display=view==='glossary'?'block':'none';
 }
@@ -4550,9 +4635,17 @@ async function loadFollowups(){
   if(!el)return;
   el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading drafts...</div>';
   try{
-    const res=await call(GMAIL+'__list_drafts',{pageSize:80});
-    let drafts=res?.drafts||res||[];
-    if(!Array.isArray(drafts))drafts=[];
+    let drafts=[];
+    let pageToken=null;
+    for(let page=0;page<5;page++){
+      const params={pageSize:200};
+      if(pageToken)params.pageToken=pageToken;
+      const res=await call(GMAIL+'__list_drafts',params);
+      const batch=res?.drafts||res||[];
+      if(Array.isArray(batch))drafts=drafts.concat(batch);
+      pageToken=res?.nextPageToken;
+      if(!pageToken)break;
+    }
     // Filter out telemetry
     drafts=drafts.filter(d=>{
       const subj=(d.subject||d.message?.subject||'').toString();
@@ -4669,9 +4762,13 @@ function renderFollowups(){
   }
 }
 
+function toggleFuGroup(el){
+  el.closest('.fu-group').classList.toggle('collapsed');
+}
 function renderFuGroup(cat,items,meta){
   let html=`<div class="fu-group">
-    <div class="fu-group-header">
+    <div class="fu-group-header" onclick="toggleFuGroup(this)">
+      <span class="fu-chevron">&#9660;</span>
       <span class="fu-group-icon">${meta.icon}</span>
       <span class="fu-group-title" style="color:${meta.color}">${meta.title}</span>
       <span class="fu-group-count">${items.length}</span>
@@ -4681,7 +4778,7 @@ function renderFuGroup(cat,items,meta){
     const brandBadge=d.brand?`<span class="fu-card-badge ${d.brand==='cadient'?'cadient':'vorro'}">${d.brand==='cadient'?'Cadient':'Vorro'}</span>`:'';
     const stageBadge=d.stageInfo?`<span style="font-size:9px;color:var(--text-muted);background:var(--bg-elevated);padding:1px 6px;border-radius:3px">${esc(d.stageInfo)}</span>`:'';
     const assigneeBadge=d.assignee?`<span style="font-size:9px;color:var(--text-muted)">&#8594; ${esc(d.assignee)}</span>`:'';
-    html+=`<div class="fu-card" id="fu-${esc(d.id)}">
+    html+=`<div class="fu-card" id="fu-${esc(d.id)}" onclick="if(!event.target.closest('.fu-card-actions'))window.open('${draftUrl(d.id)}','_blank')">
       <div class="fu-card-top">
         <span class="fu-card-badge ${d.catBadge}">${d.catLabel}</span>
         ${brandBadge}${stageBadge}${assigneeBadge}
@@ -4692,8 +4789,8 @@ function renderFuGroup(cat,items,meta){
       </div>
       <div class="fu-card-actions">
         <a href="${draftUrl(d.id)}" target="_blank">Open in Gmail</a>
-        <button onclick="toggleFuPreview('${escAttr(d.id)}')">Preview</button>
-        <button onclick="markFuSent('${escAttr(d.id)}',this)" style="color:#34d399;border-color:rgba(52,211,153,0.3)">Mark Sent</button>
+        <button onclick="event.stopPropagation();toggleFuPreview('${escAttr(d.id)}')">Preview</button>
+        <button onclick="event.stopPropagation();markFuSent('${escAttr(d.id)}',this)" style="color:#34d399;border-color:rgba(52,211,153,0.3)">Mark Sent</button>
       </div>
       <div class="fu-card-preview">${esc(d.snippet||d.body?.slice(0,300)||'(no preview)')}</div>
     </div>`;
