@@ -742,8 +742,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
             <div class="empty-state">Type or paste meeting conversation below to get real-time AI analysis, rebuttals, and coaching.</div>
           </div>
           <div class="copilot-input-wrap">
+            <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+              <label style="font-size:10px;color:var(--text-muted);font-weight:600">Speaker:</label>
+              <select id="copilotSpeaker" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--bg-elevated);color:var(--text-primary);min-width:120px">
+                <option value="Manish">Manish (Me)</option>
+              </select>
+              <button onclick="addCopilotSpeaker()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer">+ Add Speaker</button>
+              <span style="font-size:9px;color:var(--text-muted);margin-left:auto">Speakers auto-populate from meeting attendees</span>
+            </div>
             <textarea id="copilotManualInput" placeholder="Type what you hear or paste meeting notes here..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();addManualTranscript()}"></textarea>
-            <div class="ci-hint">Press Enter to add to transcript. Shift+Enter for new line.</div>
+            <div class="ci-hint">Press Enter to add to transcript (tagged with selected speaker). Shift+Enter for new line.</div>
           </div>
           <div id="copilotAutoRebuttal"></div>
         </div>
@@ -3332,8 +3340,16 @@ function toggleListening(){
 
 function renderCopilotTranscript(){
   const el=document.getElementById('copilotTranscript');
-  if(!copilotTranscriptLines.length){el.innerHTML='<div class="empty-state">Transcript will appear here</div>';return}
-  el.innerHTML=copilotTranscriptLines.map(l=>`<div class="ct-line"><span class="ct-time">${l.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}</span>${esc(l.text)}</div>`).join('');
+  if(!copilotTranscriptLines.length){el.innerHTML='<div class="empty-state">Transcript will appear here. Select a speaker, type what they said, press Enter.</div>';return}
+  const speakerColors={};const palette=['#60a5fa','#34d399','#fb923c','#a78bfa','#f87171','#fbbf24','#2dd4bf','#e879f9'];
+  let ci=0;
+  copilotTranscriptLines.forEach(l=>{if(l.speaker&&!speakerColors[l.speaker])speakerColors[l.speaker]=palette[ci++%palette.length];});
+  el.innerHTML=copilotTranscriptLines.map(l=>{
+    const spk=l.speaker||'';
+    const color=speakerColors[spk]||'var(--text-muted)';
+    const spkTag=spk?`<span style="color:${color};font-weight:700;font-size:11px;margin-right:6px">${esc(spk)}:</span>`:'';
+    return `<div class="ct-line"><span class="ct-time">${l.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}</span>${spkTag}${esc(l.text)}</div>`;
+  }).join('');
   el.scrollTop=el.scrollHeight;
 }
 
@@ -3352,19 +3368,44 @@ function addManualTranscript(){
   const ta=document.getElementById('copilotManualInput');
   const text=ta.value.trim();
   if(!text)return;
-  copilotTranscriptLines.push({text,time:new Date(),confidence:1,manual:true});
+  const speaker=document.getElementById('copilotSpeaker')?.value||'Unknown';
+  copilotTranscriptLines.push({text,time:new Date(),confidence:1,manual:true,speaker});
   ta.value='';
   renderCopilotTranscript();
   checkObjections(text);
 }
+function addCopilotSpeaker(){
+  const name=prompt('Enter speaker name:');
+  if(!name||!name.trim())return;
+  const sel=document.getElementById('copilotSpeaker');
+  if(!sel)return;
+  // Check if already exists
+  for(let o of sel.options){if(o.value===name.trim())return;}
+  const opt=document.createElement('option');
+  opt.value=name.trim();opt.textContent=name.trim();
+  sel.appendChild(opt);sel.value=name.trim();
+}
+function populateSpeakersFromAttendees(attendees){
+  const sel=document.getElementById('copilotSpeaker');
+  if(!sel||!attendees)return;
+  const existing=new Set([...sel.options].map(o=>o.value));
+  attendees.forEach(a=>{
+    const name=a.displayName||a.email?.split('@')[0]||'';
+    if(name&&!existing.has(name)){
+      const opt=document.createElement('option');
+      opt.value=name;opt.textContent=name;
+      sel.appendChild(opt);existing.add(name);
+    }
+  });
+}
 
 function getRecentTranscript(minutes){
   const cutoff=Date.now()-(minutes||10)*60000;
-  return copilotTranscriptLines.filter(l=>l.time.getTime()>cutoff).map(l=>l.text).join(' ');
+  return copilotTranscriptLines.filter(l=>l.time.getTime()>cutoff).map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
 }
 
 function getFullTranscript(){
-  return copilotTranscriptLines.map(l=>l.text).join(' ');
+  return copilotTranscriptLines.map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
 }
 
 // ── Objection Detection ──
@@ -3588,6 +3629,8 @@ async function loadCopilot(){
       const joinHtml=joinUrl?` <a href="${joinUrl}" target="_blank" style="color:#4caf50;font-weight:600;text-decoration:none;margin-left:8px">Join ${platform}</a>`:'';
       const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.innerHTML=`${fmt(start)} | ${attendees.length} attendees: ${esc(names)}${joinHtml}`;
 
+      // Populate speaker dropdown from meeting attendees
+      populateSpeakersFromAttendees(attendees);
       // Load context for attendees in parallel
       await loadAttendeeContext(attendees);
     } else {
@@ -3612,7 +3655,8 @@ async function loadCopilotStripMeeting(idx){
   // Highlight active strip item
   const strip=document.getElementById('copilotMeetingStrip');
   if(strip){strip.querySelectorAll('div[onclick]').forEach((d,i)=>{d.style.borderColor=i===idx?'var(--accent)':'var(--border)';d.style.opacity=i===idx?'1':events[i]._past?'0.6':'1'});}
-  // Load context
+  // Populate speakers + load context
+  populateSpeakersFromAttendees(attendees);
   if(attendees.length)await loadAttendeeContext(attendees);
   // Try to load Granola notes for this meeting
   try{
