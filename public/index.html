@@ -2831,7 +2831,7 @@ function renderGranolaMeetings(raw,targetId){
 async function probeTranscript(notesId,meetingId){
   if(!meetingId){greyOutNotes(notesId);return;}
   try{
-    const t=await call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId});
+    const t=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId});
     const text=t?(typeof t==='string'?t:(t?.transcript||t?.text||'')):'' ;
     if(!text||text.length<20)greyOutNotes(notesId);
   }catch(e){greyOutNotes(notesId);}
@@ -2851,7 +2851,7 @@ async function toggleMeetingNotes(notesId,meetingId){
   contentEl.style.display='block';
   contentEl.innerHTML='<div class="loading" style="padding:6px"><div class="spinner"></div> Loading transcript...</div>';
   try{
-    const t=await call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId});
+    const t=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId});
     const text=t?(typeof t==='string'?t:(t?.transcript||t?.text||JSON.stringify(t))):'';
     if(text&&text.length>20){
       contentEl.innerHTML='<div class="notes-content">'+renderMarkdown(text.slice(0,3000))+'</div>';
@@ -2887,7 +2887,7 @@ async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
   // Fetch email threads, meeting transcript, and past history in parallel
   const [emailR,transcriptR,historyR]=await Promise.allSettled([
     gmailQ?call(`${GMAIL}__search_threads`,{query:gmailQ,pageSize:5}).catch(()=>null):Promise.resolve(null),
-    call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId}).catch(()=>null),
+    call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null),
     names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, relationship context.'}).catch(()=>null):Promise.resolve(null)
   ]);
 
@@ -3002,8 +3002,9 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const companyGuess=domains[0]?domains[0].replace('.com','').replace('.net','').replace('.org',''):'';
 
   // Fetch all prep data in parallel
-  const [transcriptR,historyR,emailR,crmR,driveR]=await Promise.allSettled([
-    call(`${GRAN}__get_meeting_transcript`,{meetingId:meetingId}).catch(()=>null),
+  const [transcriptR,meetingDetailR,historyR,emailR,crmR,driveR]=await Promise.allSettled([
+    call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null),
+    meetingId?call(`${GRAN}__get_meetings`,{meeting_ids:[meetingId]}).catch(()=>null):Promise.resolve(null),
     names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, and outcomes.'}).catch(()=>null):Promise.resolve(null),
     emails.length?call(`${GMAIL}__search_threads`,{query:emails.map(e=>'from:'+e+' OR to:'+e).join(' OR ')+' newer_than:30d',pageSize:10}).catch(()=>null):Promise.resolve(null),
     names[0]?call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:names[0],per_page:5,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner'}}).catch(()=>null):Promise.resolve(null),
@@ -3011,10 +3012,29 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   ]);
 
   const isExternal=domains.length>0;
-  const assetBtn=isExternal?`<div style="display:flex;gap:6px;margin-top:8px">
-    <button onclick="if(window.sendPrompt)sendPrompt('Create a Vorro sales asset for ${escAttr(companyGuess)} - ${escAttr(names.join(', '))}')" style="padding:5px 12px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34d399;border-radius:6px;font-size:11px;cursor:pointer">Create Vorro Asset</button>
-    <button onclick="if(window.sendPrompt)sendPrompt('Create a Cadient hiring audit for ${escAttr(companyGuess)}')" style="padding:5px 12px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;border-radius:6px;font-size:11px;cursor:pointer">Create Cadient Audit</button>
-  </div>`:'';
+  // Detect brand from internal attendees on the call
+  const allEmails=emails.map(e=>e.toLowerCase());
+  const cadientTeam=['anjali.garg@cadienttalent.com','anshu.bisht@cadienttalent.com','kashif@cadienttalent.com','bmastin@cadienttalent.com'];
+  const vorroTeam=['tpaul@vorro.net','abaker@vorro.net','ssirdevan@vorro.net'];
+  const cv3Team=['david@commercev3.com','yara@basisvectors.com','girija@basisvectors.com','aakriti@basisvectors.com'];
+  const hasCadient=allEmails.some(e=>cadientTeam.includes(e))||title.toLowerCase().includes('cadient')||title.toLowerCase().includes('smartsuite')||title.toLowerCase().includes('hiring');
+  const hasVorro=allEmails.some(e=>vorroTeam.includes(e))||title.toLowerCase().includes('vorro')||title.toLowerCase().includes('bridgegate')||title.toLowerCase().includes('integration')||title.toLowerCase().includes('fhir');
+  const hasCV3=allEmails.some(e=>cv3Team.includes(e))||title.toLowerCase().includes('cv3')||title.toLowerCase().includes('commercev3')||title.toLowerCase().includes('ecommerce');
+  let assetBtn='';
+  if(isExternal){
+    const prospectInfo=escAttr(companyGuess+' - '+names.join(', '));
+    let btns=[];
+    if(hasVorro||(!hasCadient&&!hasCV3)){
+      btns.push(`<button onclick="if(window.sendPrompt)sendPrompt('Create a Vorro sales asset for ${prospectInfo}. Use the vorro-sales-asset skill.')" style="padding:5px 12px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34d399;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Create Vorro Asset</button>`);
+    }
+    if(hasCadient||(!hasVorro&&!hasCV3)){
+      btns.push(`<button onclick="if(window.sendPrompt)sendPrompt('Create a Cadient hiring process audit for ${escAttr(companyGuess)}. Use the hiring-process-audit skill.')" style="padding:5px 12px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Create Cadient Audit</button>`);
+    }
+    if(hasCV3){
+      btns.push(`<button onclick="if(window.sendPrompt)sendPrompt('Create a CV3 competitive intelligence report for ${escAttr(companyGuess)}. Use the competitive-intelligence skill.')" style="padding:5px 12px;border:1px solid rgba(251,146,60,0.3);background:rgba(251,146,60,0.1);color:#fb923c;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Create CV3 Report</button>`);
+    }
+    assetBtn=btns.length?`<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${btns.join('')}</div>`:'';
+  }
   let html=`<div style="background:#1e2a3a;border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:16px;margin-bottom:12px">
     <h2 style="font-size:16px;margin-bottom:4px">${esc(title)}</h2>
     <div style="font-size:12px;color:#94a3b8">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}</div>
@@ -3032,6 +3052,23 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
       </div></div></div>`;
     });
     html+='</div></div>';
+  }
+
+  // Granola meeting notes/summary (from get_meetings)
+  const meetingDetail=meetingDetailR.status==='fulfilled'?meetingDetailR.value:null;
+  if(meetingDetail){
+    const meetings=meetingDetail?.meetings||meetingDetail?.data||(Array.isArray(meetingDetail)?meetingDetail:[meetingDetail]);
+    const md=meetings[0];
+    if(md){
+      const notes=md.private_notes||md.notes||md.privateNotes||'';
+      const summary=md.summary||md.ai_summary||md.aiSummary||'';
+      const actionItems=md.action_items||md.actionItems||[];
+      let notesHtml='';
+      if(summary)notesHtml+=`<div style="margin-bottom:10px"><strong style="color:var(--accent-text)">AI Summary:</strong><div style="margin-top:4px">${renderMarkdown(summary.slice(0,3000))}</div></div>`;
+      if(notes)notesHtml+=`<div style="margin-bottom:10px"><strong style="color:#fb923c">Your Notes:</strong><div style="margin-top:4px">${renderMarkdown(notes.slice(0,2000))}</div></div>`;
+      if(actionItems.length)notesHtml+=`<div><strong style="color:#34d399">Action Items:</strong><div style="margin-top:4px">${actionItems.map(a=>typeof a==='string'?esc(a):esc(a.text||a.description||JSON.stringify(a))).map(t=>'<div style="padding:2px 0">'+t+'</div>').join('')}</div></div>`;
+      if(notesHtml)html+='<div class="section-header">Granola Meeting Notes</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+notesHtml+'</div></div>';
+    }
   }
 
   // Previous meeting notes
@@ -3570,41 +3607,68 @@ async function loadCopilot(){
   initCopilotSpeech();
   populateCopilotMeetings().catch(()=>{});
 
-  // Get past 5 + next 5 meetings for the strip
+  // Get today's full calendar + recent past for the strip
   const now=new Date();
-  const pastStart=new Date(now.getTime()-7*86400000); // 7 days back
-  const futureEnd=new Date(now.getTime()+3*86400000); // 3 days ahead
-  const twoHours=new Date(now.getTime()+7200000);
+  const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
+  const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
+  const pastStart=new Date(now.getTime()-14*86400000); // 14 days back
+  const futureEnd=new Date(now.getTime()+7*86400000); // 7 days ahead
   try{
-    const [pastR,futR]=await Promise.allSettled([
-      call(`${CAL}__list_events`,{startTime:pastStart.toISOString(),endTime:now.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
-      call(`${CAL}__list_events`,{startTime:now.toISOString(),endTime:futureEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
+    const [pastR,todayR,futR]=await Promise.allSettled([
+      call(`${CAL}__list_events`,{startTime:pastStart.toISOString(),endTime:todayStart.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+      call(`${CAL}__list_events`,{startTime:todayStart.toISOString(),endTime:todayEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+      call(`${CAL}__list_events`,{startTime:todayEnd.toISOString(),endTime:futureEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
     ]);
-    const pastEvents=(pastR.status==='fulfilled'?(pastR.value?.events||[]):[]).slice(-5);
-    const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,5);
+    const pastEvents=(pastR.status==='fulfilled'?(pastR.value?.events||[]):[]).slice(-10);
+    const todayEvents=todayR.status==='fulfilled'?(todayR.value?.events||[]):[];
+    const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,10);
 
-    // Build meeting strip
+    // Build meeting strip: past + today + future
     const stripEl=document.getElementById('copilotMeetingStrip');
     if(stripEl){
-      const allStrip=[...pastEvents.map(e=>({...e,_past:true})),...futureEvents.map(e=>({...e,_past:false}))];
+      const allStrip=[
+        ...pastEvents.map(e=>({...e,_tag:'past'})),
+        ...todayEvents.map(e=>({...e,_tag:'today'})),
+        ...futureEvents.map(e=>({...e,_tag:'future'}))
+      ];
+      // Find the next upcoming meeting (first today meeting that hasn't ended, or first future)
+      let currentIdx=-1;
+      for(let i=0;i<allStrip.length;i++){
+        const st=allStrip[i].start?.dateTime||allStrip[i].start?.date||'';
+        const et=allStrip[i].end?.dateTime||allStrip[i].end?.date||'';
+        if(st){
+          const startD=new Date(st);
+          const endD=et?new Date(et):new Date(startD.getTime()+3600000);
+          if(endD>now){currentIdx=i;break;}
+        }
+      }
       stripEl.innerHTML=allStrip.map((e,i)=>{
         const t=e.start?.dateTime||e.start?.date||'';
         const d=t?new Date(t):null;
         const timeStr=d?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';
         const dayStr=d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'';
-        const isCurrent=!e._past&&i===pastEvents.length;
-        const opacity=e._past?'0.6':'1';
-        const border=isCurrent?'border-color:var(--accent)':'';
-        return `<div onclick="loadCopilotStripMeeting(${i})" style="min-width:140px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;opacity:${opacity};background:var(--bg-card);transition:all 0.15s;${border}" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${isCurrent?'var(--accent)':'var(--border)'}'">
+        const isCurrent=i===currentIdx;
+        const isToday=e._tag==='today';
+        const isPast=e._tag==='past';
+        const opacity=isPast?'0.5':isToday?'1':'0.8';
+        const bg=isCurrent?'var(--accent-dim)':isToday?'rgba(251,146,60,0.08)':'var(--bg-card)';
+        const border=isCurrent?'border-color:var(--accent)':isToday?'border-color:rgba(251,146,60,0.3)':'';
+        const label=isCurrent?'Now':isPast?'Past':isToday?'Today':'Upcoming';
+        const labelColor=isCurrent?'var(--accent-text)':isToday?'#fb923c':'var(--text-muted)';
+        return `<div onclick="loadCopilotStripMeeting(${i})" style="min-width:150px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;opacity:${opacity};background:${bg};transition:all 0.15s;${border}" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${isCurrent?'var(--accent)':isToday?'rgba(251,146,60,0.3)':'var(--border)'}'">
           <div style="font-size:10px;color:var(--text-muted)">${dayStr}</div>
-          <div style="font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">${esc(e.summary||'(no title)')}</div>
-          <div style="font-size:10px;color:${isCurrent?'var(--accent-text)':'var(--text-muted)'}">${timeStr}${isCurrent?' (Now)':e._past?' (Past)':''}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${esc(e.summary||'(no title)')}</div>
+          <div style="font-size:10px;color:${labelColor}">${timeStr} (${label})</div>
         </div>`;
       }).join('');
       window._copilotStripEvents=allStrip;
+      // Auto-scroll to current meeting
+      if(currentIdx>0){const cards=stripEl.children;if(cards[currentIdx])cards[currentIdx].scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});}
     }
 
-    const events=futureEvents;
+    // Pick the current/next meeting for the main bar
+    const allToday=[...todayEvents,...futureEvents];
+    const events=allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;});
     if(events.length){
       copilotCurrentMeeting=events[0];
       const m=copilotCurrentMeeting;
@@ -3660,18 +3724,11 @@ async function loadCopilotStripMeeting(idx){
   if(attendees.length)await loadAttendeeContext(attendees);
   // Try to load Granola notes for this meeting
   try{
-    const gR=await call(`${GRAN}__query_granola_meetings`,{query:m.summary||'',time_range:'last_30_days'});
-    const gMeetings=gR?.meetings||[];
-    if(gMeetings.length){
-      const best=gMeetings[0];
-      try{
-        const tr=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:best.id||best.meeting_id});
-        const transcript=tr?.transcript||tr?.text||tr?.content||'';
-        if(transcript){
-          const tEl=document.getElementById('copilotTranscript');
-          if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Notes from Granola:</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap">${esc(transcript.slice(0,2000))}</div>`;
-        }
-      }catch(e){}
+    const gR=await call(`${GRAN}__query_granola_meetings`,{query:'Meeting: '+(m.summary||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
+    const gText=typeof gR==='string'?gR:(gR?.answer||gR?.text||gR?.content||'');
+    if(gText&&gText.length>20){
+      const tEl=document.getElementById('copilotTranscript');
+      if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "${esc(m.summary||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`;
     }
   }catch(e){}
 }
@@ -3819,7 +3876,7 @@ async function loadCopilotMeetingFromFilter(){
 
     // Load transcript if available
     try{
-      const t=await call(`${GRAN}__get_meeting_transcript`,{meetingId:meeting.id});
+      const t=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:meeting.id});
       if(t){
         const tText=typeof t==='string'?t:(t?.transcript||t?.text||JSON.stringify(t));
         if(tText&&tText.length>20){
@@ -3837,13 +3894,21 @@ async function populateCopilotMeetings(){
   try{
     const r=await call(`${GRAN}__list_meetings`,{time_range:'last_30_days'});
     const ms=parseMeetings(r);
+    // Sort by date descending (newest first)
+    ms.sort((a,b)=>{
+      const da=a.date?new Date(a.date):new Date(0);
+      const db=b.date?new Date(b.date):new Date(0);
+      return db-da;
+    });
     const sel=document.getElementById('copilotMeetingFilter');
     if(sel&&ms.length){
-      sel.innerHTML='<option value="">Select past meeting...</option>'+ms.map(m=>
-        `<option value='${escAttr(JSON.stringify({id:m.id,title:m.title,date:m.date,parts:m.parts}))}'>${esc(truncate(m.title,40))} (${esc(m.date)})</option>`
-      ).join('');
+      sel.innerHTML='<option value="">Select past meeting ('+ms.length+' total)...</option>'+ms.map(m=>{
+        const d=m.date?new Date(m.date):null;
+        const dateLabel=d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):m.date;
+        return `<option value='${escAttr(JSON.stringify({id:m.id,title:m.title,date:m.date,parts:m.parts}))}'>${esc(truncate(m.title,35))} | ${dateLabel}</option>`;
+      }).join('');
     }
-  }catch(e){}
+  }catch(e){dbg('populateCopilotMeetings failed: '+e.message,'err');}
 }
 
 // ══════════════════════════════════════
