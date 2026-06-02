@@ -472,6 +472,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .auto-last { font-size: 9px; color: var(--green); }
 .auto-last.stale { color: var(--orange); }
 .auto-last.old { color: var(--red); }
+.auto-run-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--accent-text); font-size: 10px; cursor: pointer; flex-shrink: 0; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+.auto-run-btn:hover { background: var(--accent-dim); border-color: var(--accent); transform: scale(1.1); }
 
 /* Stale thread alerts */
 .stale-banner { background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.2); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
@@ -511,7 +513,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="tab" data-view="team" onclick="switchView('team')">Team</div>
     <div class="tab" data-view="meetings" onclick="switchView('meetings')">Meetings</div>
     <div class="tab" data-view="intelligence" onclick="switchView('intelligence')">Intelligence</div>
-    <div class="tab" data-view="copilot" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">Copilot</div>
+    <div class="tab" data-view="copilot" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
     <div class="tab" data-view="productivity" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
     <div class="tab" data-view="legal" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
     <div class="tab" data-view="newsfeed" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
@@ -725,6 +727,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <button class="cmb-btn" onclick="clearCopilotSession()">Clear Session</button>
         </div>
       </div>
+
+      <div id="copilotMeetingStrip" style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px"></div>
 
       <div class="copilot-layout">
         <div>
@@ -1233,13 +1237,17 @@ const ASSET_LIB = {
 
 // ── Team Members ──
 const TEAM = [
+  {name:'Bill Mastin',email:'bmastin@cadienttalent.com',company:'Cadient',role:'CEO'},
   {name:'Anjali Garg',email:'anjali.garg@cadienttalent.com',company:'Cadient',role:'Talent Acquisition Lead'},
   {name:'Anshu Bisht',email:'anshu.bisht@cadienttalent.com',company:'Cadient',role:'Talent Acquisition Lead'},
   {name:'Kashif Sultan',email:'kashif@cadienttalent.com',company:'Cadient',role:'Talent Acquisition Lead'},
-  {name:'Toiba Paul',email:'tpaul@vorro.net',company:'Vorro',role:'Healthcare Integration Lead'},
   {name:'Andrew Baker',email:'abaker@vorro.net',company:'Vorro',role:'VP Sales'},
   {name:'Scott Sirdevan',email:'ssirdevan@vorro.net',company:'Vorro',role:'VP Operations'},
-  {name:'Bill Mastin',email:'bmastin@cadienttalent.com',company:'Cadient',role:'CEO'},
+  {name:'Toiba Paul',email:'tpaul@vorro.net',company:'Vorro',role:'Healthcare Integration Lead'},
+  {name:'David Bonthrone',email:'david@commercev3.com',company:'CV3',role:'Chief Client Officer'},
+  {name:'Yara Chepa',email:'yara@basisvectors.com',company:'CV3 BDR',role:'Business Development Rep'},
+  {name:'Girija Gowda',email:'girija@basisvectors.com',company:'CV3 BDR',role:'Business Development Rep'},
+  {name:'Aakriti Nagpal',email:'aakriti@basisvectors.com',company:'CV3 BDR',role:'Business Development Rep'},
   {name:'Ambarish Gupta',email:'ambarish@basisvectors.com',company:'Basis Vectors',role:'Managing Partner'}
 ];
 
@@ -2994,9 +3002,15 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
     companyGuess?call(`${DRIVE}__search_files`,{query:`fullText contains '${companyGuess}'`,pageSize:10}).catch(()=>null):Promise.resolve(null)
   ]);
 
+  const isExternal=domains.length>0;
+  const assetBtn=isExternal?`<div style="display:flex;gap:6px;margin-top:8px">
+    <button onclick="if(window.sendPrompt)sendPrompt('Create a Vorro sales asset for ${escAttr(companyGuess)} - ${escAttr(names.join(', '))}')" style="padding:5px 12px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34d399;border-radius:6px;font-size:11px;cursor:pointer">Create Vorro Asset</button>
+    <button onclick="if(window.sendPrompt)sendPrompt('Create a Cadient hiring audit for ${escAttr(companyGuess)}')" style="padding:5px 12px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;border-radius:6px;font-size:11px;cursor:pointer">Create Cadient Audit</button>
+  </div>`:'';
   let html=`<div style="background:#1e2a3a;border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:16px;margin-bottom:12px">
     <h2 style="font-size:16px;margin-bottom:4px">${esc(title)}</h2>
     <div style="font-size:12px;color:#94a3b8">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}</div>
+    ${assetBtn}
   </div>`;
 
   // CRM data
@@ -3444,11 +3458,12 @@ async function copilotAction(type){
   const brand=detectBrandFromContext();
   const kb=KNOWLEDGE_BASE[brand];
 
+  const sessionTone=`IMPORTANT: Maintain a consistent, professional yet warm tone throughout this entire session. You are Manish's real-time meeting intelligence layer. Be direct, data-driven, and actionable. Never generic. Always reference specific things from the transcript, attendee data, and product knowledge. If previous responses were given in this session, maintain continuity.`;
   const prompts={
-    explain:`You are a CRO's real-time meeting assistant. Explain what the client/prospect just said in the last few minutes of conversation. Break it down into: (1) what they literally said, (2) what they actually mean (read between the lines), (3) what concern or need this reveals. Be concise and direct. Use the meeting context and product knowledge to frame your explanation.`,
-    rebuttal:`You are a CRO's real-time meeting coach for ${kb.company}. The prospect said something that needs a counter-argument. Generate a strong, data-driven rebuttal that Manish can use right now. Include specific metrics, client results, and competitive advantages. Make it conversational (not a script). Under 100 words.`,
-    tone:`You are a CRO's emotional intelligence coach. Analyze the tone and emotional state of the conversation based on the transcript. Report: (1) Overall tone (interested/skeptical/hostile/engaged/confused/excited), (2) Specific signals you detected, (3) Whether the deal is trending positive or negative, (4) What emotional levers to pull next. Be specific about what words/phrases indicate the tone.`,
-    advise:`You are a CRO's real-time meeting strategist for ${kb.company}. Based on the full conversation so far, tell Manish exactly what to say next. Consider: (1) where the conversation is heading, (2) any objections or concerns raised, (3) opportunities to advance the deal, (4) the right product/feature to highlight next. Give a specific, word-for-word suggestion Manish can use. Under 100 words.`
+    explain:`${sessionTone}\n\nExplain what the client/prospect just said. Break it down into: (1) what they literally said, (2) what they actually mean (read between the lines), (3) what concern or need this reveals. Be concise. Use the meeting context and ${kb.company} product knowledge. If web research would help, note what to look up.`,
+    rebuttal:`${sessionTone}\n\nThe prospect said something that needs a counter-argument for ${kb.company}. Generate a strong, data-driven rebuttal Manish can use right now. Include specific metrics, client results, and competitive advantages from the knowledge base. Make it conversational. Under 100 words. If the objection relates to a competitor, reference specific differentiators.`,
+    tone:`${sessionTone}\n\nAnalyze the emotional state of the conversation. Report: (1) Overall tone (interested/skeptical/hostile/engaged/confused/excited), (2) Specific signals from the transcript, (3) Deal trending positive or negative, (4) What emotional levers to pull next. Be specific about which words/phrases signal the tone.`,
+    advise:`${sessionTone}\n\nBased on the full conversation so far, tell Manish exactly what to say next for ${kb.company}. Consider: (1) conversation direction, (2) objections raised, (3) opportunities to advance, (4) the right product/feature to highlight. Give a specific, word-for-word suggestion. Under 100 words. Reference attendee data and past meeting history if available.`
   };
 
   const data=[
@@ -3514,12 +3529,41 @@ async function loadCopilot(){
   initCopilotSpeech();
   populateCopilotMeetings().catch(()=>{});
 
-  // Get current/upcoming meetings
+  // Get past 5 + next 5 meetings for the strip
   const now=new Date();
+  const pastStart=new Date(now.getTime()-7*86400000); // 7 days back
+  const futureEnd=new Date(now.getTime()+3*86400000); // 3 days ahead
   const twoHours=new Date(now.getTime()+7200000);
   try{
-    const calR=await call(`${CAL}__list_events`,{startTime:now.toISOString(),endTime:twoHours.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
-    const events=calR?.events||[];
+    const [pastR,futR]=await Promise.allSettled([
+      call(`${CAL}__list_events`,{startTime:pastStart.toISOString(),endTime:now.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+      call(`${CAL}__list_events`,{startTime:now.toISOString(),endTime:futureEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
+    ]);
+    const pastEvents=(pastR.status==='fulfilled'?(pastR.value?.events||[]):[]).slice(-5);
+    const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,5);
+
+    // Build meeting strip
+    const stripEl=document.getElementById('copilotMeetingStrip');
+    if(stripEl){
+      const allStrip=[...pastEvents.map(e=>({...e,_past:true})),...futureEvents.map(e=>({...e,_past:false}))];
+      stripEl.innerHTML=allStrip.map((e,i)=>{
+        const t=e.start?.dateTime||e.start?.date||'';
+        const d=t?new Date(t):null;
+        const timeStr=d?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+        const dayStr=d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'';
+        const isCurrent=!e._past&&i===pastEvents.length;
+        const opacity=e._past?'0.6':'1';
+        const border=isCurrent?'border-color:var(--accent)':'';
+        return `<div onclick="loadCopilotStripMeeting(${i})" style="min-width:140px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;opacity:${opacity};background:var(--bg-card);transition:all 0.15s;${border}" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='${isCurrent?'var(--accent)':'var(--border)'}'">
+          <div style="font-size:10px;color:var(--text-muted)">${dayStr}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">${esc(e.summary||'(no title)')}</div>
+          <div style="font-size:10px;color:${isCurrent?'var(--accent-text)':'var(--text-muted)'}">${timeStr}${isCurrent?' (Now)':e._past?' (Past)':''}</div>
+        </div>`;
+      }).join('');
+      window._copilotStripEvents=allStrip;
+    }
+
+    const events=futureEvents;
     if(events.length){
       copilotCurrentMeeting=events[0];
       const m=copilotCurrentMeeting;
@@ -3553,6 +3597,39 @@ async function loadCopilot(){
   }catch(e){
     const _cmm3=document.getElementById('copilotMeetingMeta');if(_cmm3)_cmm3.textContent='Calendar sync failed. Use manual input.';
   }
+}
+
+async function loadCopilotStripMeeting(idx){
+  const events=window._copilotStripEvents||[];
+  if(!events[idx])return;
+  const m=events[idx];
+  copilotCurrentMeeting=m;
+  const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=(m.summary||'Meeting')+(m._past?' (Past)':' (Upcoming)');
+  const start=m.start?.dateTime||m.start?.date||'';
+  const attendees=(m.attendees||[]).filter(a=>!a.self);
+  const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
+  const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.innerHTML=`${fmt(start)} | ${attendees.length} attendees: ${esc(names)}`;
+  // Highlight active strip item
+  const strip=document.getElementById('copilotMeetingStrip');
+  if(strip){strip.querySelectorAll('div[onclick]').forEach((d,i)=>{d.style.borderColor=i===idx?'var(--accent)':'var(--border)';d.style.opacity=i===idx?'1':events[i]._past?'0.6':'1'});}
+  // Load context
+  if(attendees.length)await loadAttendeeContext(attendees);
+  // Try to load Granola notes for this meeting
+  try{
+    const gR=await call(`${GRAN}__query_granola_meetings`,{query:m.summary||'',time_range:'last_30_days'});
+    const gMeetings=gR?.meetings||[];
+    if(gMeetings.length){
+      const best=gMeetings[0];
+      try{
+        const tr=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:best.id||best.meeting_id});
+        const transcript=tr?.transcript||tr?.text||tr?.content||'';
+        if(transcript){
+          const tEl=document.getElementById('copilotTranscript');
+          if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Notes from Granola:</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap">${esc(transcript.slice(0,2000))}</div>`;
+        }
+      }catch(e){}
+    }
+  }catch(e){}
 }
 
 async function loadAttendeeContext(attendees){
@@ -3732,13 +3809,22 @@ let prodTasks={active:[],waiting:[],someday:[],done:[]};
 let prodMemory={people:[],projects:[],preferences:[],decisions:[]};
 let prodGlossary=[];
 async function ask(p,d){
+  // Try Cowork askClaude first (fast Haiku model, works in artifact context)
+  if(window.cowork&&window.cowork.askClaude){
+    try{
+      const dataItems=(d||[]).filter(x=>x&&x.value).map(x=>({label:x.label||'',value:typeof x.value==='string'?x.value:JSON.stringify(x.value)}));
+      const r=await window.cowork.askClaude(p,dataItems);
+      if(r)return typeof r==='string'?r:(r.text||r.content||JSON.stringify(r));
+    }catch(e){dbg('cowork.askClaude fallback to server: '+e.message,'warn');}
+  }
+  // Fallback to server API
   try{
     const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[]})});
     if(!res.ok)throw new Error('HTTP '+res.status);
     return await res.json();
   }catch(e){
     dbg('askClaude failed: '+e.message,'err');
-    return 'AI response unavailable';
+    return 'AI response unavailable. Access via Cowork or set ANTHROPIC_API_KEY on server.';
   }
 }
 
@@ -4346,16 +4432,22 @@ async function legalSearchExamples(){
 // ── AUTOMATION STATUS ──
 // ══════════════════════════════════════
 const CORE_AUTOMATIONS=[
-  {name:'Pre-Meeting Prep',schedule:'M-F 8:18am',desc:'Calendar scan, research, prep drafts + sales assets',failSubject:'[FAILED] Prospect prep'},
-  {name:'Morning Outreach',schedule:'M-F 7:47am',desc:'Stage 1-5 campaign drafts from prospect queue',failSubject:'Morning Outreach Pipeline'},
-  {name:'Post-Meeting CRM',schedule:'M-F every 3hrs',desc:'Granola transcript to CRM (Cadient Zoho + Vorro cache)',failSubject:'[FAILED]'},
-  {name:'Meeting Outcome Router',schedule:'M-F every 3hrs',desc:'yes/maybe/no detection, auto-route follow-ups',failSubject:'Meeting Outcomes'},
-  {name:'Warmly Outreach',schedule:'On demand',desc:'Website visitors to embedded HTML email assets',failSubject:'Warmly'},
-  {name:'Intent Signal Scan',schedule:'M-F 6:54am + Mon 6:30am',desc:'Reddit, HN, Apollo job signals for Cadient + Vorro',failSubject:'Intent'},
-  {name:'ATS Detection',schedule:'Daily 10pm + every 2hrs',desc:'Company ATS detection via DuckDuckGo + careers pages',failSubject:'ATS'},
-  {name:'Draft Approval Queue',schedule:'M-F 9:05am',desc:'Surfaces drafts needing review before send',failSubject:'Draft Approval'},
-  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'HQ Digest'}
+  {name:'Pre-Meeting Prep',schedule:'M-F 8:18am',desc:'Calendar scan, research, prep drafts + sales assets',failSubject:'[FAILED] Prospect prep',runPrompt:'Run pre-meeting prep for today\'s meetings'},
+  {name:'Morning Outreach',schedule:'M-F 7:47am',desc:'Stage 1-5 campaign drafts from prospect queue',failSubject:'Morning Outreach Pipeline',runPrompt:'Run morning outreach pipeline now'},
+  {name:'Post-Meeting CRM',schedule:'M-F every 3hrs',desc:'Granola transcript to CRM (Cadient Zoho + Vorro cache)',failSubject:'[FAILED]',runPrompt:'Sync recent Granola meeting transcripts to CRM now'},
+  {name:'Meeting Outcome Router',schedule:'M-F every 3hrs',desc:'yes/maybe/no detection, auto-route follow-ups',failSubject:'Meeting Outcomes',runPrompt:'Run meeting outcome router on recent meetings'},
+  {name:'Warmly Outreach',schedule:'On demand',desc:'Website visitors to embedded HTML email assets',failSubject:'Warmly',runPrompt:'Run the Warmly pipeline'},
+  {name:'Intent Signal Scan',schedule:'M-F 6:54am + Mon 6:30am',desc:'Reddit, HN, Apollo job signals for Cadient + Vorro',failSubject:'Intent',runPrompt:'Run intent signal scan now'},
+  {name:'ATS Detection',schedule:'Daily 10pm + every 2hrs',desc:'Company ATS detection via DuckDuckGo + careers pages',failSubject:'ATS',runPrompt:'Run ATS detection scan now'},
+  {name:'Draft Approval Queue',schedule:'M-F 9:05am',desc:'Surfaces drafts needing review before send',failSubject:'Draft Approval',runPrompt:'Run draft approval queue scan'},
+  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'HQ Digest',runPrompt:'Send my briefing now'}
 ];
+function kickOffJob(prompt,btn){
+  btn.textContent='...';btn.disabled=true;btn.style.opacity='0.5';
+  try{if(window.sendPrompt)window.sendPrompt(prompt);else if(window.cowork&&window.cowork.sendPrompt)window.cowork.sendPrompt(prompt);else alert('Copy this to Claude: '+prompt);}
+  catch(e){alert('Copy this to Claude: '+prompt);}
+  setTimeout(()=>{btn.textContent='▶';btn.disabled=false;btn.style.opacity='1';},3000);
+}
 
 async function loadAutomationStatus(){
   const el=document.getElementById('automationStatus');
@@ -4384,6 +4476,7 @@ async function loadAutomationStatus(){
     else if(a.name==='Morning Outreach'&&!outreachOk){dot='warn';lastText='No recent run';}
     else if(a.schedule==='On demand'){dot='ok';lastText='On demand';}
 
+    const runCmd=a.runPrompt||('Run '+a.name+' now');
     return `<div class="auto-card">
       <div class="auto-dot ${dot}"></div>
       <div class="auto-info">
@@ -4391,6 +4484,7 @@ async function loadAutomationStatus(){
         <div class="auto-schedule">${esc(a.schedule)}</div>
       </div>
       <div class="auto-last ${dot==='fail'?'old':dot==='warn'?'stale':''}">${lastText}</div>
+      <button class="auto-run-btn" onclick="event.stopPropagation();kickOffJob('${escAttr(runCmd)}',this)" title="Run now">&#9654;</button>
     </div>`;
   }).join('');
 
