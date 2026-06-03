@@ -2783,17 +2783,32 @@ function loadTeamMember(name,email){loadContact(name,email)}
 // ══════════════════════════════════════
 function parseMeetings(raw){
   if(!raw)return[];
-  // Handle JSON cache format (array of meeting objects)
-  if(raw.meetings&&Array.isArray(raw.meetings)){
-    return raw.meetings.map(m=>({id:m.id,title:m.title,date:m.date,parts:(m.participants||[]).join(', '),summary:m.summary||''}));
-  }
-  if(Array.isArray(raw)){
-    return raw.map(m=>({id:m.id,title:m.title,date:m.date,parts:(m.participants||[]).join(', '),summary:m.summary||''}));
+  // Normalize: find the array of meetings regardless of wrapper
+  let arr=null;
+  if(raw.meetings&&Array.isArray(raw.meetings))arr=raw.meetings;
+  else if(raw.data&&Array.isArray(raw.data))arr=raw.data;
+  else if(raw.results&&Array.isArray(raw.results))arr=raw.results;
+  else if(Array.isArray(raw))arr=raw;
+  if(arr){
+    return arr.map(m=>{
+      const id=m.id||m.meeting_id||m.uuid||'';
+      const title=m.title||m.name||m.summary||m.subject||'';
+      const date=m.date||m.started_at||m.start_time||m.created_at||m.startTime||'';
+      const parts=(m.participants||m.attendees||m.known_participants||[])
+        .map(p=>typeof p==='string'?p:(p.name||p.displayName||p.email||'')).filter(Boolean).join(', ');
+      const summary=m.summary||m.ai_summary||m.notes||'';
+      return {id,title,date,parts,summary};
+    }).filter(m=>m.title||m.id);
   }
   // Fallback: XML parsing for live Granola API
   const s=typeof raw==='string'?raw:JSON.stringify(raw);const ms=[];
   const re=/<meeting id="([^"]*)" title="([^"]*)" date="([^"]*)">\s*<known_participants>\s*([\s\S]*?)\s*<\/known_participants>/g;
-  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim(),summary:''})}return ms;
+  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim(),summary:''})}
+  // If XML parsing fails and it's a string, try as plain text with meeting references
+  if(!ms.length&&typeof raw==='string'&&raw.length>10){
+    dbg('parseMeetings: raw string response, length='+raw.length);
+  }
+  return ms;
 }
 
 function renderGranolaMeetings(raw,targetId){
@@ -3002,9 +3017,11 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const companyGuess=domains[0]?domains[0].replace('.com','').replace('.net','').replace('.org',''):'';
 
   // Fetch all prep data in parallel
+  // Use Granola query for meeting-specific notes (works even without meetingId)
+  const granolaQuery=`Notes and summary for the meeting "${title}" with ${names.join(', ')}. Include key decisions, action items, and outcomes.`;
   const [transcriptR,meetingDetailR,historyR,emailR,crmR,driveR]=await Promise.allSettled([
-    call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null),
-    meetingId?call(`${GRAN}__get_meetings`,{meeting_ids:[meetingId]}).catch(()=>null):Promise.resolve(null),
+    meetingId?call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null):Promise.resolve(null),
+    meetingId?call(`${GRAN}__get_meetings`,{meeting_ids:[meetingId]}).catch(()=>null):call(`${GRAN}__query_granola_meetings`,{query:granolaQuery}).catch(()=>null),
     names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, and outcomes.'}).catch(()=>null):Promise.resolve(null),
     emails.length?call(`${GMAIL}__search_threads`,{query:emails.map(e=>'from:'+e+' OR to:'+e).join(' OR ')+' newer_than:30d',pageSize:10}).catch(()=>null):Promise.resolve(null),
     names[0]?call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:names[0],per_page:5,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner'}}).catch(()=>null):Promise.resolve(null),
@@ -3054,21 +3071,28 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
     html+='</div></div>';
   }
 
-  // Granola meeting notes/summary (from get_meetings)
+  // Granola meeting notes/summary
   const meetingDetail=meetingDetailR.status==='fulfilled'?meetingDetailR.value:null;
   if(meetingDetail){
-    const meetings=meetingDetail?.meetings||meetingDetail?.data||(Array.isArray(meetingDetail)?meetingDetail:[meetingDetail]);
-    const md=meetings[0];
-    if(md){
-      const notes=md.private_notes||md.notes||md.privateNotes||'';
-      const summary=md.summary||md.ai_summary||md.aiSummary||'';
-      const actionItems=md.action_items||md.actionItems||[];
-      let notesHtml='';
-      if(summary)notesHtml+=`<div style="margin-bottom:10px"><strong style="color:var(--accent-text)">AI Summary:</strong><div style="margin-top:4px">${renderMarkdown(summary.slice(0,3000))}</div></div>`;
-      if(notes)notesHtml+=`<div style="margin-bottom:10px"><strong style="color:#fb923c">Your Notes:</strong><div style="margin-top:4px">${renderMarkdown(notes.slice(0,2000))}</div></div>`;
-      if(actionItems.length)notesHtml+=`<div><strong style="color:#34d399">Action Items:</strong><div style="margin-top:4px">${actionItems.map(a=>typeof a==='string'?esc(a):esc(a.text||a.description||JSON.stringify(a))).map(t=>'<div style="padding:2px 0">'+t+'</div>').join('')}</div></div>`;
-      if(notesHtml)html+='<div class="section-header">Granola Meeting Notes</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+notesHtml+'</div></div>';
+    let notesHtml='';
+    // If it's a text response from query_granola_meetings (no meetingId case)
+    const textResponse=typeof meetingDetail==='string'?meetingDetail:(meetingDetail?.answer||meetingDetail?.text||meetingDetail?.content||'');
+    if(textResponse&&textResponse.length>20){
+      notesHtml=renderMarkdown(textResponse.slice(0,4000));
+    } else {
+      // Structured response from get_meetings
+      const meetings=meetingDetail?.meetings||meetingDetail?.data||(Array.isArray(meetingDetail)?meetingDetail:[meetingDetail]);
+      const md=meetings?.[0];
+      if(md&&typeof md==='object'){
+        const notes=md.private_notes||md.notes||md.privateNotes||'';
+        const summary=md.summary||md.ai_summary||md.aiSummary||md.content||'';
+        const actionItems=md.action_items||md.actionItems||[];
+        if(summary)notesHtml+=`<div style="margin-bottom:10px"><strong style="color:var(--accent-text)">AI Summary:</strong><div style="margin-top:4px">${renderMarkdown(summary.slice(0,3000))}</div></div>`;
+        if(notes)notesHtml+=`<div style="margin-bottom:10px"><strong style="color:#fb923c">Your Notes:</strong><div style="margin-top:4px">${renderMarkdown(notes.slice(0,2000))}</div></div>`;
+        if(actionItems.length)notesHtml+=`<div><strong style="color:#34d399">Action Items:</strong><div style="margin-top:4px">${actionItems.map(a=>typeof a==='string'?esc(a):esc(a.text||a.description||JSON.stringify(a))).map(t=>'<div style="padding:2px 0">'+t+'</div>').join('')}</div></div>`;
+      }
     }
+    if(notesHtml)html+='<div class="section-header">Granola Meeting Notes</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+notesHtml+'</div></div>';
   }
 
   // Previous meeting notes
@@ -3080,12 +3104,14 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
     }
   }
 
-  // Meeting transcript/notes
+  // Meeting transcript/notes (skip if error response)
   const transcript=transcriptR.status==='fulfilled'?transcriptR.value:null;
   if(transcript){
-    const tText=typeof transcript==='string'?transcript:(transcript?.transcript||transcript?.text||JSON.stringify(transcript));
-    if(tText&&tText.length>20){
-      html+='<div class="section-header">Meeting Notes / Transcript</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+renderMarkdown(tText.slice(0,5000))+'</div></div>';
+    const tText=typeof transcript==='string'?transcript:(transcript?.transcript||transcript?.text||'');
+    // Filter out error responses like {"error":"No transcript in cache"}
+    const isError=tText.includes('"error"')||tText.includes('No transcript')||tText.includes('not found');
+    if(tText&&tText.length>20&&!isError){
+      html+='<div class="section-header">Meeting Transcript</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+renderMarkdown(tText.slice(0,5000))+'</div></div>';
     }
   }
 
@@ -3115,24 +3141,56 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
     html+='</div></div>';
   }
 
-  // AI Prep briefing
-  if(names.length){
-    html+='<div class="section-header">AI Meeting Prep Briefing</div><div class="card"><div class="card-body" id="meetingPrepBriefing"><div class="loading"><div class="spinner"></div> Generating...</div></div></div>';
-  }
+  // AI Meeting Prep Asset (brand-specific, auto-generated)
+  html+='<div class="section-header">Meeting Prep Asset</div><div class="card"><div class="card-body" id="meetingPrepBriefing"><div class="loading"><div class="spinner"></div> Generating meeting prep...</div></div></div>';
+  html+=assetBtn;
 
   el.innerHTML=html;
 
-  // Generate AI briefing async
-  if(names.length){
-    try{
-      const briefCtx=[];
-      if(crmData.length)briefCtx.push({label:'CRM',value:JSON.stringify(crmData[0])});
-      if(history){const ht=typeof history==='string'?history:JSON.stringify(history);briefCtx.push({label:'Past meetings',value:ht.slice(0,2000)});}
-      if(threads.length)briefCtx.push({label:'Recent emails',value:threads.slice(0,5).map(t=>t.messages?.[t.messages.length-1]?.subject).filter(Boolean).join('; ')});
-      const brief=await ask(`You are a CRO's executive assistant. Generate a meeting prep briefing for "${title}" with ${names.join(', ')}${companyGuess?' at '+companyGuess:''}. Cover: who they are, relationship history, what was discussed before, deals in play, and suggested talking points for this meeting. Be specific and actionable. 4-6 sentences.`,briefCtx);
-      const bEl=document.getElementById('meetingPrepBriefing');
-      if(bEl)bEl.innerHTML=`<div style="padding:14px;font-size:12px;line-height:1.7">${esc(typeof brief==='string'?brief:JSON.stringify(brief))}</div>`;
-    }catch(e){}
+  // Generate comprehensive AI prep asset
+  try{
+    const briefCtx=[];
+    if(crmData.length)briefCtx.push({label:'CRM Records',value:JSON.stringify(crmData.slice(0,3))});
+    // Include Granola notes
+    if(meetingDetail){
+      const mdText=typeof meetingDetail==='string'?meetingDetail:(meetingDetail?.answer||meetingDetail?.text||'');
+      if(mdText)briefCtx.push({label:'Granola meeting notes',value:mdText.slice(0,3000)});
+      else{
+        const mds=meetingDetail?.meetings||meetingDetail?.data||(Array.isArray(meetingDetail)?meetingDetail:[]);
+        const md0=mds?.[0];
+        if(md0)briefCtx.push({label:'Granola meeting notes',value:JSON.stringify({summary:md0.summary||md0.ai_summary||'',notes:md0.private_notes||md0.notes||'',action_items:md0.action_items||[]}).slice(0,3000)});
+      }
+    }
+    if(history){const ht=typeof history==='string'?history:(history?.answer||history?.text||JSON.stringify(history));briefCtx.push({label:'Past meeting history',value:ht.slice(0,2000)});}
+    if(transcript){const tt=typeof transcript==='string'?transcript:(transcript?.transcript||'');if(tt&&!tt.includes('"error"'))briefCtx.push({label:'Meeting transcript',value:tt.slice(0,2000)});}
+    if(threads.length)briefCtx.push({label:'Recent email threads',value:threads.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return (m.subject||'')+'|'+(m.sender||'');}).join('\n')});
+    if(files.length)briefCtx.push({label:'Related files',value:files.slice(0,5).map(f=>f.title).join(', ')});
+
+    // Detect brand for tailored prep
+    const brand=hasCadient?'Cadient (SmartSuite - AI talent optimization)':hasVorro?'Vorro (BridgeGate - healthcare integration EiPaaS)':hasCV3?'CV3 (eCommerce optimization, AI site diagnostics)':'General';
+    briefCtx.push({label:'Brand/Product',value:brand});
+    briefCtx.push({label:'Company',value:companyGuess||'Unknown'});
+
+    const brief=await ask(
+      `You are a CRO's executive assistant preparing a meeting prep asset for "${title}" with ${names.join(', ')}${companyGuess?' at '+companyGuess:''}. Brand: ${brand}.
+
+Generate a comprehensive prep document with these sections:
+1. ATTENDEE PROFILE: Who they are, their role, company context
+2. RELATIONSHIP STATUS: Past meetings summary, last discussions, open action items, any commitments
+3. DEALS IN PLAY: Active deals, stage, next steps
+4. KEY TALKING POINTS: 3-5 specific points for this meeting based on all context
+5. OBJECTION PREP: Likely objections and data-driven responses
+6. SUGGESTED NEXT STEPS: What to propose at end of meeting
+
+Use ALL the context data provided. Be specific with names, dates, and numbers. No generic filler.`,briefCtx);
+    const bEl=document.getElementById('meetingPrepBriefing');
+    if(bEl){
+      const briefText=typeof brief==='string'?brief:JSON.stringify(brief);
+      bEl.innerHTML=`<div style="padding:14px;font-size:12px;line-height:1.7">${renderMarkdown(briefText)}</div>`;
+    }
+  }catch(e){
+    const bEl=document.getElementById('meetingPrepBriefing');
+    if(bEl)bEl.innerHTML='<div class="empty-state">Prep generation failed. Use the asset buttons above to create manually.</div>';
   }
 }
 
