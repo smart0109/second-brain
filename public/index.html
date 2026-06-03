@@ -2971,6 +2971,7 @@ async function loadMeetingsView(){
       if(titlePart)prepMap[titlePart]={id:t.id||msg.id,subject:subj,body:msg.plaintextBody||msg.body||msg.snippet||'',draftId:t.draftId||t.id};
     }
   });
+  window._prepDraftMap=prepMap;
   dbg('Prep drafts found: '+Object.keys(prepMap).length+' | keys: '+Object.keys(prepMap).slice(0,5).join(', '));
 
   // Render calendar events with matched Granola notes + prep drafts
@@ -3036,7 +3037,29 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const expView=document.getElementById('meetingExpandedView');
   expView.style.display='block';
   const el=document.getElementById('meetingExpandedContent');
-  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading full meeting prep...</div>';
+
+  // Check for pre-generated prep draft first
+  const titleLow=(title||'').toLowerCase();
+  const pm=window._prepDraftMap||{};
+  const prepDraft=pm[titleLow]||Object.entries(pm).find(([k])=>k.includes(titleLow)||titleLow.includes(k))?.[1]||null;
+  if(prepDraft&&prepDraft.body&&prepDraft.body.length>100){
+    // Show pre-generated prep directly (no loading spinner, instant)
+    const draftLink=draftUrl(prepDraft.draftId||prepDraft.id);
+    el.innerHTML=`<div style="background:#1e2a3a;border-radius:8px;border:1px solid rgba(52,211,153,0.3);padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">&#9989;</span>
+        <div>
+          <h2 style="font-size:16px;margin:0">${esc(title)}</h2>
+          <div style="font-size:12px;color:#34d399;margin-top:2px">Pre-generated prep ready</div>
+        </div>
+        <a href="${draftLink}" target="_blank" style="margin-left:auto;padding:6px 14px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);border-radius:6px;color:#34d399;text-decoration:none;font-size:11px;font-weight:600">Open in Gmail</a>
+      </div>
+    </div>
+    <div class="card"><div class="card-body" style="padding:16px;font-size:12px;line-height:1.7">${renderMarkdown(prepDraft.body)}</div></div>`;
+    return;
+  }
+
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>No pre-generated prep found. Building live...</div>';
 
   const emails=emailsStr?emailsStr.split(',').filter(Boolean):[];
   const names=namesStr?namesStr.split(',').filter(Boolean):[];
@@ -3058,7 +3081,7 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   ]);
 
   const isExternal=domains.length>0;
-  // Detect brand from internal attendees on the call
+  // Detect brand from internal attendees
   const allEmails=emails.map(e=>e.toLowerCase());
   const cadientTeam=['anjali.garg@cadienttalent.com','anshu.bisht@cadienttalent.com','kashif@cadienttalent.com','bmastin@cadienttalent.com'];
   const vorroTeam=['tpaul@vorro.net','abaker@vorro.net','ssirdevan@vorro.net'];
@@ -3066,21 +3089,8 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const hasCadient=allEmails.some(e=>cadientTeam.includes(e))||title.toLowerCase().includes('cadient')||title.toLowerCase().includes('smartsuite')||title.toLowerCase().includes('hiring');
   const hasVorro=allEmails.some(e=>vorroTeam.includes(e))||title.toLowerCase().includes('vorro')||title.toLowerCase().includes('bridgegate')||title.toLowerCase().includes('integration')||title.toLowerCase().includes('fhir');
   const hasCV3=allEmails.some(e=>cv3Team.includes(e))||title.toLowerCase().includes('cv3')||title.toLowerCase().includes('commercev3')||title.toLowerCase().includes('ecommerce');
-  let assetBtn='';
-  if(isExternal){
-    const prospectInfo=escAttr(companyGuess+' - '+names.join(', '));
-    let btns=[];
-    if(hasVorro||(!hasCadient&&!hasCV3)){
-      btns.push(`<button onclick="if(window.sendPrompt)sendPrompt('Create a Vorro sales asset for ${prospectInfo}. Use the vorro-sales-asset skill.')" style="padding:5px 12px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34d399;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Create Vorro Asset</button>`);
-    }
-    if(hasCadient||(!hasVorro&&!hasCV3)){
-      btns.push(`<button onclick="if(window.sendPrompt)sendPrompt('Create a Cadient hiring process audit for ${escAttr(companyGuess)}. Use the hiring-process-audit skill.')" style="padding:5px 12px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Create Cadient Audit</button>`);
-    }
-    if(hasCV3){
-      btns.push(`<button onclick="if(window.sendPrompt)sendPrompt('Create a CV3 competitive intelligence report for ${escAttr(companyGuess)}. Use the competitive-intelligence skill.')" style="padding:5px 12px;border:1px solid rgba(251,146,60,0.3);background:rgba(251,146,60,0.1);color:#fb923c;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit">Create CV3 Report</button>`);
-    }
-    assetBtn=btns.length?`<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${btns.join('')}</div>`:'';
-  }
+  const brandLabel=hasCadient?'Cadient':hasVorro?'Vorro':hasCV3?'CV3':'';
+  const assetBtn='';
   let html=`<div style="background:#1e2a3a;border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:16px;margin-bottom:12px">
     <h2 style="font-size:16px;margin-bottom:4px">${esc(title)}</h2>
     <div style="font-size:12px;color:#94a3b8">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}</div>
