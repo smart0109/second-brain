@@ -3711,14 +3711,14 @@ async function loadCopilotStripMeeting(idx){
   if(!events[idx])return;
   const m=events[idx];
   copilotCurrentMeeting=m;
-  const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=(m.summary||'Meeting')+(m._past?' (Past)':' (Upcoming)');
+  const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=(m.summary||'Meeting')+(m._tag==='past'?' (Past)':m._tag==='today'?' (Today)':' (Upcoming)');
   const start=m.start?.dateTime||m.start?.date||'';
   const attendees=(m.attendees||[]).filter(a=>!a.self);
   const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
   const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.innerHTML=`${fmt(start)} | ${attendees.length} attendees: ${esc(names)}`;
   // Highlight active strip item
   const strip=document.getElementById('copilotMeetingStrip');
-  if(strip){strip.querySelectorAll('div[onclick]').forEach((d,i)=>{d.style.borderColor=i===idx?'var(--accent)':'var(--border)';d.style.opacity=i===idx?'1':events[i]._past?'0.6':'1'});}
+  if(strip){strip.querySelectorAll('div[onclick]').forEach((d,i)=>{d.style.borderColor=i===idx?'var(--accent)':'var(--border)';d.style.opacity=i===idx?'1':events[i]?._tag==='past'?'0.5':'1'});}
   // Populate speakers + load context
   populateSpeakersFromAttendees(attendees);
   if(attendees.length)await loadAttendeeContext(attendees);
