@@ -2952,12 +2952,28 @@ async function loadMeetingsView(){
   const now=new Date();
   const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay());weekStart.setHours(0,0,0,0);
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+7);
-  const [calR,wR,mR]=await Promise.allSettled([
+  const [calR,wR,mR,prepDraftsR]=await Promise.allSettled([
     call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
     call(`${GRAN}__list_meetings`,{time_range:'this_week'}),
-    call(`${GRAN}__list_meetings`,{time_range:'last_30_days'})
+    call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}),
+    call(`${GMAIL}__search_threads`,{query:'subject:(Prep:) newer_than:7d in:draft',pageSize:30})
   ]);
-  // Render calendar events with matched Granola notes
+  // Build prep draft lookup (subject "Prep: meeting_title — date — company")
+  const prepDrafts=(prepDraftsR.status==='fulfilled'?(prepDraftsR.value?.threads||[]):[]);
+  const prepMap={};
+  prepDrafts.forEach(t=>{
+    const msg=t.messages?.[t.messages.length-1]||t;
+    const subj=(msg.subject||t.subject||'').toString();
+    if(subj.startsWith('Prep:')){
+      // Extract meeting title from "Prep: <title> — <date> — <company>"
+      const afterPrep=subj.slice(5).trim();
+      const titlePart=afterPrep.split(/\s*[—-]\s*/)[0].trim().toLowerCase();
+      if(titlePart)prepMap[titlePart]={id:t.id||msg.id,subject:subj,body:msg.plaintextBody||msg.body||msg.snippet||'',draftId:t.draftId||t.id};
+    }
+  });
+  dbg('Prep drafts found: '+Object.keys(prepMap).length+' | keys: '+Object.keys(prepMap).slice(0,5).join(', '));
+
+  // Render calendar events with matched Granola notes + prep drafts
   const calEl=document.getElementById('weekCalMeetings');
   const granolaMeetings=wR.status==='fulfilled'?parseMeetings(wR.value):[];
   if(calR.status==='fulfilled'){
@@ -2968,7 +2984,7 @@ async function loadMeetingsView(){
         const attendees=(e.attendees||[]).filter(a=>!a.self);
         const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4);
         const emails=attendees.map(a=>a.email).filter(Boolean);
-        // Try to match with Granola meeting by title similarity
+        // Match with Granola meeting
         const titleLow=(e.summary||'').toLowerCase();
         const matched=granolaMeetings.find(g=>{
           const gLow=(g.title||'').toLowerCase();
@@ -2976,15 +2992,28 @@ async function loadMeetingsView(){
         });
         const hasNotes=!!matched;
         const meetId=matched?matched.id:'';
+        // Match with pre-generated prep draft
+        const prepMatch=prepMap[titleLow]||Object.entries(prepMap).find(([k])=>k.includes(titleLow)||titleLow.includes(k))?.[1]||null;
+        const hasPrepReady=!!prepMatch;
         const uid='calMtg_'+i;
-        return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="${hasNotes?"expandMeeting('"+escAttr(meetId)+"','"+escAttr(e.summary||'')+"','"+escAttr(emails.join(','))+"','"+escAttr(names.join(','))+"','"+escAttr(fmt(start))+"')":"toggleMeetingContext('"+uid+"','"+escAttr(e.summary||'')+"','"+escAttr(emails.join(','))+"','"+escAttr(names.join(','))+"','')"}">
+        // Badge: Prep Ready (green link) > Notes Available > No Notes
+        let statusBadge='';
+        if(hasPrepReady){
+          statusBadge=`<a href="${draftUrl(prepMatch.draftId||prepMatch.id)}" target="_blank" onclick="event.stopPropagation()" style="color:#34d399;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;background:rgba(52,211,153,0.15);margin-right:4px;text-decoration:none;border:1px solid rgba(52,211,153,0.3)">Prep Ready</a>`;
+        } else if(hasNotes){
+          statusBadge='<span style="color:#fb923c;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.15);margin-right:4px">Notes Only</span>';
+        } else {
+          statusBadge='<span style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px">No Prep</span>';
+        }
+        return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="expandMeeting('${escAttr(meetId||'')}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}','${escAttr(names.join(','))}','${escAttr(fmt(start))}')">
           <div class="item-row">
             <div class="item-icon cal">&#128197;</div>
             <div class="item-content"><div class="item-title">${esc(e.summary||'No title')}</div>
             <div class="item-sub">${fmt(start)} &middot; ${esc(names.join(', ')||'No attendees')}</div></div>
-            ${hasNotes?'<span style="color:#34d399;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:rgba(52,211,153,0.15);margin-right:4px">Notes Available</span>':'<span style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px">No Notes</span>'}
-            <span class="notes-link active" onclick="event.stopPropagation();expandMeeting('${escAttr(meetId||'')}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}','${escAttr(names.join(','))}','${escAttr(fmt(start))}')" title="Full meeting prep" style="color:#60a5fa;cursor:pointer;font-size:11px;font-weight:600;padding:3px 8px;border:1px solid #c9a227;border-radius:4px">Prep</span>
+            ${statusBadge}
+            <span class="notes-link active" onclick="event.stopPropagation();expandMeeting('${escAttr(meetId||'')}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}','${escAttr(names.join(','))}','${escAttr(fmt(start))}')" title="Full meeting prep" style="color:#60a5fa;cursor:pointer;font-size:11px;font-weight:600;padding:3px 8px;border:1px solid #c9a227;border-radius:4px">View</span>
           </div>
+          ${hasPrepReady?'<div style="padding:8px 12px 4px 44px;font-size:11px;color:var(--text-muted);line-height:1.5;max-height:60px;overflow:hidden">'+esc(truncate(prepMatch.body||'',200))+'</div>':''}
           <div id="${uid}" class="meeting-context" style="display:none"></div>
         </div>`;
       }).join('');
