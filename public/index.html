@@ -1717,11 +1717,14 @@ window._prepAction=function(action,company,name){
   event.preventDefault();event.stopPropagation();
   if(action==='contact360'){
     // Switch to Contact 360 tab and search for this person
-    const c360Tab=document.querySelector('[data-tab="contact360"]');
-    if(c360Tab){c360Tab.click();setTimeout(()=>{
-      const si=document.getElementById('c360SearchInput');
-      if(si){si.value=name+' '+company;si.dispatchEvent(new Event('input'));}
-    },300);}
+    switchView('contact360');
+    setTimeout(()=>{
+      const si=document.getElementById('crmSearchInput');
+      if(si){si.value=name||company;si.dispatchEvent(new Event('input'));
+        // Also trigger the search button
+        const btn=si.nextElementSibling;if(btn&&btn.tagName==='BUTTON')btn.click();
+      }
+    },500);
     return;
   }
   // For assets, research, battlecard — show a toast with the task and copy to clipboard
@@ -1925,7 +1928,7 @@ function renderDrafts(drafts){
   if(!drafts.length){el.innerHTML='<div class="empty-state">No drafts</div>';return}
   el.innerHTML=drafts.slice(0,25).map(d=>{
     const subj=d.subject||d.message?.subject||'(no subject)';
-    const to=d.toRecipients||d.message?.toRecipients||[];
+    const to=d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[];
     return `<a class="item" href="${draftUrl(d.id)}" target="_blank"><div class="item-row">
       <div class="item-icon mail" style="background:rgba(251,146,60,0.15);color:#fb923c">&#9998;</div>
       <div class="item-content"><div class="item-title">${esc(truncate(subj,50))}</div>
@@ -2726,13 +2729,16 @@ async function loadTeam(){
     call(`${GMAIL}__search_threads`,{query:`from:${t.email} newer_than:7d`,pageSize:10})
   ));
 
-  // Also fetch open Zoho tasks and deals
-  const [tasksR,dealsR]=await Promise.allSettled([
+  // Fetch Cadient + Vorro deals + tasks in parallel
+  const [tasksR,dealsR,vorroDealsR]=await Promise.allSettled([
     call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Subject,Status,Due_Date,Owner,Priority from Tasks where Status != 'Completed' order by Due_Date asc limit 50"}}).catch(()=>null),
-    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}).catch(()=>null)
+    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}).catch(()=>null),
+    fetch('/api/crm/vorro/deals',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null)
   ]);
   const tasks=(tasksR.status==='fulfilled'?(tasksR.value?.data||[]):[]);
-  const openDeals=(dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[]);
+  const cadientDeals=(dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[]);
+  const vorroDeals=(vorroDealsR.status==='fulfilled'?(vorroDealsR.value?.data||[]):[]).filter(d=>d.Stage&&!d.Stage.includes('Closed'));
+  const openDeals=[...cadientDeals.map(d=>({...d,_brand:'Cadient'})),...vorroDeals.map(d=>({...d,_brand:'Vorro'}))];
 
   // Team cards
   const tgEl=document.getElementById('teamGrid');if(!tgEl)return;
@@ -2751,7 +2757,7 @@ async function loadTeam(){
       <div class="team-stats">
         <div class="team-stat"><div class="n">${threads.length}</div><div class="l">Threads</div></div>
         <div class="team-stat"><div class="n">${myDeals.length}</div><div class="l">Deals</div></div>
-        <div class="team-stat"><div class="n">${myTasks.length}</div><div class="l">Tasks</div></div>
+        <div class="team-stat"><div class="n">$${Math.round(myDeals.reduce((s,d)=>s+(parseFloat(d.Amount)||0),0)/1000)}K</div><div class="l">Pipeline</div></div>
       </div>
     </div>`;
   }).join('');
@@ -4953,7 +4959,7 @@ async function loadFollowups(){
     });
     _fuDrafts=drafts.map(d=>{
       const subj=(d.subject||d.message?.subject||'(no subject)').toString();
-      const to=(d.toRecipients||d.message?.toRecipients||[]);
+      const to=(d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[]);
       const snippet=(d.snippet||d.message?.snippet||'').toString();
       const body=(d.message?.plaintextBody||d.message?.body||snippet||'').toString();
       const id=d.id||'';
