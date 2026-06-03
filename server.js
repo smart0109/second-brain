@@ -1387,6 +1387,35 @@ app.post('/api/crm/vorro/deals/:id/notes', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Vorro deal products
+app.get('/api/crm/vorro/deals/:id/products', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Deals/${req.params.id}/Products?per_page=50`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok && resp.status !== 204) throw new Error(`Vorro products fetch: ${resp.status}`);
+    if (resp.status === 204) return res.json({ products: [] });
+    const data = await resp.json();
+    res.json({ products: data.data || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/crm/vorro/deals/:id/products', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const { productId } = req.body;
+    if (!productId) return res.status(400).json({ error: 'productId required' });
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Deals/${req.params.id}/Products`, {
+      method: 'POST',
+      headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [{ id: productId }] }),
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---------------------------------------------------------------------------
 // Claude API proxy
 // ---------------------------------------------------------------------------
