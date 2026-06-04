@@ -4943,14 +4943,15 @@ async function loadFollowups(){
   try{
     let drafts=[];
     let pageToken=null;
-    for(let page=0;page<5;page++){
-      const params={pageSize:200};
+    for(let page=0;page<10;page++){
+      const params={pageSize:50};
       if(pageToken)params.pageToken=pageToken;
       const res=await call(GMAIL+'__list_drafts',params);
       const batch=res?.drafts||res||[];
       if(Array.isArray(batch))drafts=drafts.concat(batch);
-      pageToken=res?.nextPageToken;
-      if(!pageToken)break;
+      else if(batch&&typeof batch==='object')drafts.push(batch);
+      pageToken=res?.pageToken||res?.nextPageToken;
+      if(!pageToken||!batch.length)break;
     }
     // Filter out telemetry
     drafts=drafts.filter(d=>{
