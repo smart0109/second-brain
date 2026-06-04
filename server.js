@@ -690,6 +690,7 @@ app.get('/health', (_req, res) => {
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
+      vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
       granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
       claude: !!process.env.ANTHROPIC_API_KEY,
     },
@@ -704,6 +705,7 @@ app.get('/auth/status', (req, res) => {
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
+      vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
       granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
       claude: !!process.env.ANTHROPIC_API_KEY,
     },
@@ -1387,6 +1389,46 @@ app.post('/api/crm/vorro/deals/:id/notes', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Vorro products catalog
+app.get('/api/crm/vorro/products', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Products?per_page=200&fields=Product_Name,Unit_Price,Product_Code,Product_Active`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok) {
+      if (resp.status === 204) return res.json({ products: [] });
+      const text = await resp.text();
+      throw new Error(`Vorro products list failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    res.json({ products: data.data || [] });
+  } catch (err) {
+    console.error('Vorro products list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Vorro users (for owner assignment)
+app.get('/api/crm/vorro/users', requireAuth, async (req, res) => {
+  try {
+    const token = await getVorroZohoAccessToken();
+    const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/users?type=ActiveUsers`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Vorro users fetch failed: ${resp.status} ${text}`);
+    }
+    const data = await resp.json();
+    const users = (data.users || []).map(u => ({ id: u.id, name: u.full_name || u.name, email: u.email, role: u.role?.name }));
+    res.json({ users });
+  } catch (err) {
+    console.error('Vorro users fetch error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Vorro deal products
 app.get('/api/crm/vorro/deals/:id/products', requireAuth, async (req, res) => {
   try {
@@ -1490,7 +1532,8 @@ app.listen(PORT, () => {
   } else {
     console.log('Google auth: configured via GOOGLE_REFRESH_TOKEN');
   }
-  if (process.env.ZOHO_REFRESH_TOKEN) console.log('Zoho: configured');
+  if (process.env.ZOHO_REFRESH_TOKEN) console.log('Zoho (Cadient): configured');
+  if (process.env.VORRO_ZOHO_REFRESH_TOKEN) console.log('Zoho (Vorro India DC): configured');
   if (process.env.GRANOLA_API_KEY) console.log('Granola: configured');
   if (process.env.ANTHROPIC_API_KEY) console.log('Claude: configured');
 });

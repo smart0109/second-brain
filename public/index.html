@@ -269,6 +269,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .team-stat { text-align: center; }
 .team-stat .n { font-size: 15px; font-weight: 700; color: var(--accent-text); }
 .team-stat .l { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+.team-deals-list { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; text-align: left; }
+.team-deal-item { font-size: 10px; color: var(--text-secondary); padding: 3px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+.team-deal-item .td-name { font-weight: 600; color: var(--text-primary); }
+.team-deal-item .td-stage { color: var(--text-muted); }
+.team-deal-item .td-amt { color: var(--accent-text); font-weight: 500; }
 
 /* Scroll */
 .scroll-panel { max-height: 400px; overflow-y: auto; }
@@ -577,6 +582,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <div id="contactContent" style="display:none">
         <div style="margin-bottom:8px"><button onclick="clearContact360()" style="font-size:11px;padding:4px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;color:#cbd5e1;cursor:pointer">&#8592; Back to contacts</button></div>
         <div id="contactHero"></div>
+        <div id="contactRelScore" style="margin-bottom:14px"></div>
+        <div id="contactNextAction" style="margin-bottom:14px"></div>
         <div class="grid-2">
           <div>
             <div class="section-header">Email Threads</div>
@@ -590,6 +597,14 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
             <div class="section-header">Meeting History</div>
             <div class="card"><div class="card-body scroll-panel" id="contactMeetings"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
           </div>
+        </div>
+        <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Unified Timeline</div>
+        <div class="sh-collapsible-wrap">
+          <div class="card"><div class="card-body scroll-panel" id="contactTimeline" style="max-height:420px"><div class="loading"><div class="spinner"></div><br>Building timeline...</div></div></div>
+        </div>
+        <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Account View</div>
+        <div class="sh-collapsible-wrap">
+          <div class="card"><div class="card-body" id="contactAccountView"><div class="loading"><div class="spinner"></div><br>Loading account...</div></div></div>
         </div>
         <div class="section-header">Sales Assets</div>
         <div class="card"><div class="card-body" id="contactAssets"></div></div>
@@ -694,6 +709,23 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- INTELLIGENCE -->
     <div id="view-intelligence" class="view">
+
+      <!-- Company Prospecting Section -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <h3 style="display:flex;align-items:center;gap:8px"><span style="font-size:15px">&#x1F50D;</span> Company Prospecting</h3>
+        </div>
+        <div class="card-body" id="prospectBody" style="padding:14px">
+          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+            <input id="prospectCompany" type="text" placeholder="Company name (e.g. Geisinger Health)" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key==='Enter')runCompanyProspect()">
+            <input id="prospectDomain" type="text" placeholder="Website / domain (optional)" style="flex:0.6;min-width:140px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key==='Enter')runCompanyProspect()">
+            <button onclick="runCompanyProspect()" style="padding:10px 18px;background:var(--accent);color:#0a0e17;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s" onmouseover="this.style.background='var(--accent-text)'" onmouseout="this.style.background='var(--accent)'">Find Decision Makers</button>
+          </div>
+          <div id="prospectResults" style="min-height:40px"><div style="font-size:12px;color:var(--text-muted);padding:8px 0">Enter a company name to find decision makers in your CRM and generate prospecting suggestions.</div></div>
+        </div>
+      </div>
+
+      <!-- Existing Intelligence Search -->
       <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
         <input id="intelSearchInput" type="text" placeholder="Ask anything across email, CRM, meetings, and deals..." style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;outline:none" onkeydown="if(event.key==='Enter')runIntelSearch()">
         <button onclick="runIntelSearch()" style="padding:10px 18px;background:#c9a227;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Search</button>
@@ -2081,9 +2113,11 @@ async function loadContact(name,email){
     </div></div></div>`;
 
   // Reset
-  ['contactEmails','contactCRM','contactMeetings','contactFiles','contactBriefing','contactDeals'].forEach(id=>{
+  ['contactEmails','contactCRM','contactMeetings','contactFiles','contactBriefing','contactDeals','contactTimeline','contactAccountView'].forEach(id=>{
     const _el=document.getElementById(id);if(_el)_el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading...</div>';
   });
+  document.getElementById('contactRelScore').innerHTML='';
+  document.getElementById('contactNextAction').innerHTML='';
 
   const [emailR,crmR,leadR,dealR,granolaR,driveR]=await Promise.allSettled([
     call(`${GMAIL}__search_threads`,{query:`from:${email} OR to:${email} newer_than:30d`,pageSize:15}),
@@ -2160,6 +2194,161 @@ async function loadContact(name,email){
     const brief=await ask(`You are a CRO's executive assistant. Generate a 3-4 sentence briefing for ${name} (${email}). Cover: relationship context, recent activity, deals in play, and suggested next action. Be specific.`,bd);
     bEl.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#e2e8f0;line-height:1.7">${esc(brief)}</div>`;
   }catch(e){bEl.innerHTML='<div class="empty-state">Briefing unavailable</div>'}
+
+  // ── FEATURE: Relationship Score ──
+  try{
+    const _now=Date.now();
+    const _tdates=threads.map(t=>{const m=t.messages?.[t.messages.length-1];return m?.date?new Date(m.date).getTime():0}).filter(Boolean);
+    const _t30=_tdates.filter(d=>_now-d<30*86400000).length;
+    const _dsl=_tdates.length?Math.floor((_now-Math.max(..._tdates))/86400000):999;
+    const _mc=(granolaR.status==='fulfilled'&&granolaR.value)?(granolaR.value.match(/meeting|call|discussion|sync/gi)||[]).length:0;
+    const _rt=threads.filter(t=>(t.messages||[]).some(m=>{const s=m.sender||'';return s.toLowerCase().includes(email.toLowerCase())})).length;
+    const _rr=threads.length?_rt/threads.length:0;
+    let _rs=0;
+    _rs+=Math.min(_t30*6,30);
+    _rs+=_dsl<=3?25:_dsl<=7?18:_dsl<=14?10:_dsl<=30?5:0;
+    _rs+=Math.min(_mc*5,20);
+    _rs+=Math.round(_rr*25);
+    _rs=Math.min(100,Math.max(0,_rs));
+    const _rl=_rs>=80?'Hot':_rs>=50?'Warm':_rs>=20?'Cooling':'Cold';
+    const _rc=_rs>=80?'var(--green)':_rs>=50?'var(--accent-text)':_rs>=20?'var(--orange)':'var(--red)';
+    const _rb=_rs>=80?'rgba(52,211,153,0.15)':_rs>=50?'var(--accent-dim)':_rs>=20?'rgba(251,146,60,0.15)':'rgba(248,113,113,0.15)';
+    document.getElementById('contactRelScore').innerHTML=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:16px">
+      <div style="text-align:center;min-width:64px">
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:${_rc}">${_rs}</div>
+        <div style="font-size:10px;font-weight:600;color:${_rc};background:${_rb};padding:2px 8px;border-radius:4px;display:inline-block;margin-top:2px">${_rl}</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Relationship Score</div>
+        <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${_rs}%;background:${_rc};border-radius:3px;transition:width 0.6s var(--transition-smooth)"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text-muted);flex-wrap:wrap">
+          <span>&#9993; ${_t30} threads/30d</span>
+          <span>&#128197; ${_dsl<999?_dsl+'d ago':'No emails'}</span>
+          <span>&#127897; ~${_mc} meetings</span>
+          <span>&#8617; ${Math.round(_rr*100)}% reply rate</span>
+        </div>
+      </div>
+    </div>`;
+  }catch(e){dbg('Relationship score failed: '+e.message,'err')}
+
+  // ── FEATURE: Next Best Action (AI) ──
+  try{
+    const _naEl=document.getElementById('contactNextAction');
+    _naEl.innerHTML=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:14px 18px">
+      <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px">&#9889; Next Best Action</div>
+      <div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Analyzing...</div>
+    </div>`;
+    const _nad=[];
+    if(threads.length)_nad.push({label:'Recent email subjects',value:threads.slice(0,5).map(t=>t.messages?.[t.messages.length-1]?.subject).filter(Boolean).join('; ')});
+    if(allCRM.length)_nad.push({label:'CRM record',value:JSON.stringify(allCRM[0])});
+    if(deals.length)_nad.push({label:'Active deals',value:deals.map(d=>`${d.Deal_Name}: stage=${d.Stage}, amount=${fmtMoney(d.Amount)}, close=${d.Closing_Date||'TBD'}, prob=${d.Probability||0}%`).join('; ')});
+    const _led=threads.length?Math.floor((Date.now()-new Date(threads[0].messages?.[threads[0].messages.length-1]?.date||0).getTime())/86400000):'unknown';
+    _nad.push({label:'Days since last email',value:String(_led)});
+    if(granolaR.status==='fulfilled'&&granolaR.value)_nad.push({label:'Meeting notes summary',value:truncate(granolaR.value,500)});
+    const _nap=`You are a CRO's AI assistant. Based on the contact data for ${name} (${email}), recommend the SINGLE best next action. Reply in this exact format:\nACTION: [specific action]\nREASON: [one sentence why]\nURGENCY: [HIGH or MEDIUM or LOW]\nDo not include any other text.`;
+    const _nar=await ask(_nap,_nad);
+    const _am=(_nar||'').match(/ACTION:\s*(.+)/i);
+    const _rm2=(_nar||'').match(/REASON:\s*(.+)/i);
+    const _um=(_nar||'').match(/URGENCY:\s*(HIGH|MEDIUM|LOW)/i);
+    const _act=_am?_am[1].trim():'Review relationship and reach out';
+    const _rea=_rm2?_rm2[1].trim():'Based on available contact data';
+    const _urg=(_um?_um[1]:'MEDIUM').toUpperCase();
+    const _uc=_urg==='HIGH'?'var(--red)':_urg==='LOW'?'var(--green)':'var(--orange)';
+    const _ub=_urg==='HIGH'?'rgba(248,113,113,0.15)':_urg==='LOW'?'rgba(52,211,153,0.15)':'rgba(251,146,60,0.15)';
+    _naEl.innerHTML=`<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:14px 18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.6px;flex:1">&#9889; Next Best Action</div>
+        <span style="font-size:10px;font-weight:600;color:${_uc};background:${_ub};padding:2px 8px;border-radius:4px">${_urg}</span>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${esc(_act)}</div>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.5">${esc(_rea)}</div>
+    </div>`;
+  }catch(e){
+    dbg('Next best action failed: '+e.message,'err');
+    const _naE2=document.getElementById('contactNextAction');if(_naE2)_naE2.innerHTML='';
+  }
+
+  // ── FEATURE: Unified Timeline ──
+  try{
+    const _tli=[];
+    threads.forEach(t=>{
+      const m=t.messages?.[t.messages.length-1]||{};
+      if(m.date)_tli.push({type:'email',date:m.date,title:m.subject||'(no subject)',sub:(t.messages?.length||1)+' messages',link:gmailUrl(t.id),icon:'&#9993;',iconClass:'mail'});
+    });
+    if(granolaR.status==='fulfilled'&&granolaR.value){
+      const _ml=(granolaR.value||'').split('\n').filter(l=>l.trim());
+      const _dp=/(\d{4}-\d{2}-\d{2}|\w+ \d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4})/;
+      let _lfd=new Date().toISOString();
+      _ml.forEach(l=>{
+        const dm=l.match(_dp);
+        if(dm){try{const pd=new Date(dm[1]);if(!isNaN(pd))_lfd=pd.toISOString();}catch(ex){}}
+        if(l.match(/meeting|call|sync|discussed|decision|action/i)&&l.trim().length>10){
+          _tli.push({type:'meeting',date:_lfd,title:truncate(l.replace(/^[-*#>]+\s*/,'').trim(),80),sub:'Granola',icon:'&#127897;',iconClass:'granola'});
+        }
+      });
+    }
+    allCRM.forEach(r=>{
+      if(r.Modified_Time||r.Created_Time){
+        _tli.push({type:'crm',date:r.Modified_Time||r.Created_Time,title:'CRM: '+(r.Full_Name||name),sub:(r.Lead_Status||r.Lead_Source||'Contact')+' record updated',link:zohoUrl(crmData.includes(r)?'Contacts':'Leads',r.id),icon:'&#128188;',iconClass:'crm'});
+      }
+    });
+    deals.forEach(d=>{
+      if(d.Modified_Time||d.Created_Time||d.Closing_Date){
+        _tli.push({type:'crm',date:d.Modified_Time||d.Created_Time||d.Closing_Date,title:'Deal: '+d.Deal_Name,sub:d.Stage+' '+fmtMoney(d.Amount),link:zohoUrl('Deals',d.id),icon:'&#128176;',iconClass:'deal'});
+      }
+    });
+    _tli.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const _tlEl=document.getElementById('contactTimeline');
+    if(!_tli.length){_tlEl.innerHTML='<div class="empty-state">No timeline events</div>';}
+    else{_tlEl.innerHTML=_tli.slice(0,40).map(it=>{
+      const tg=it.link?'a':'div';
+      const hr=it.link?' href="'+esc(it.link)+'" target="_blank"':'';
+      return '<'+tg+' class="item"'+hr+'><div class="item-row"><div class="item-icon '+it.iconClass+'">'+it.icon+'</div><div class="item-content"><div class="item-title">'+esc(it.title)+'</div><div class="item-sub">'+esc(it.sub)+'</div></div><div class="item-time">'+fmtDate(it.date)+'</div></div></'+tg+'>';
+    }).join('');}
+  }catch(e){
+    dbg('Unified timeline failed: '+e.message,'err');
+    const _tlE2=document.getElementById('contactTimeline');if(_tlE2)_tlE2.innerHTML='<div class="empty-state">Timeline unavailable</div>';
+  }
+
+  // ── FEATURE: Account View ──
+  try{
+    const _co=crmRec.Company_Name||crmRec.Company||'';
+    const _avEl=document.getElementById('contactAccountView');
+    if(!_co){_avEl.innerHTML='<div class="empty-state">No company on CRM record</div>';}
+    else{
+      const [_acR,_alR]=await Promise.allSettled([
+        call(ZOHO+'__searchRecords',{path_variables:{module:'Contacts'},query_params:{word:_co,fields:'Full_Name,Email,Title,Phone,Company_Name,Modified_Time'}}),
+        call(ZOHO+'__searchRecords',{path_variables:{module:'Leads'},query_params:{word:_co,fields:'Full_Name,Email,Title,Phone,Company,Modified_Time'}})
+      ]);
+      const _acD=(_acR.status==='fulfilled'?(_acR.value?.data||[]):[]);
+      const _alD=(_alR.status==='fulfilled'?(_alR.value?.data||[]):[]);
+      const _allA=[..._acD,..._alD].filter(r=>{
+        const cn=(r.Company_Name||r.Company||'').toLowerCase();
+        return cn.includes(_co.toLowerCase())&&(r.Email||'').toLowerCase()!==email.toLowerCase();
+      });
+      if(!_allA.length){_avEl.innerHTML='<div class="empty-state">No other contacts at '+esc(_co)+'</div>';}
+      else{
+        _avEl.innerHTML='<div style="padding:10px 14px 6px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">'+_allA.length+' other contact'+(_allA.length>1?'s':'')+' at '+esc(_co)+'</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;padding:6px 14px 14px">'
+        +_allA.slice(0,12).map(r=>{
+          const rN=r.Full_Name||'Unknown';const rE=r.Email||'';const rT=r.Title||'';const rD=r.Modified_Time?fmtDate(r.Modified_Time):'';
+          return '<div onclick="loadContact(\''+escAttr(rN)+'\',\''+escAttr(rE)+'\')" style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.background=\'var(--bg-card-hover)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.background=\'var(--bg-elevated)\'">'
+            +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+            +'<div class="sr-avatar" style="width:26px;height:26px;font-size:9px">'+initials(rN)+'</div>'
+            +'<div style="font-size:12px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(rN)+'</div></div>'
+            +'<div style="font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(rT)+'</div>'
+            +(rD?'<div style="font-size:9px;color:var(--text-muted);margin-top:2px">Last: '+rD+'</div>':'')
+            +'</div>';
+        }).join('')
+        +'</div>';
+      }
+    }
+  }catch(e){
+    dbg('Account view failed: '+e.message,'err');
+    const _avE2=document.getElementById('contactAccountView');if(_avE2)_avE2.innerHTML='<div class="empty-state">Account view unavailable</div>';
+  }
 }
 
 function clearContact360(){
@@ -2245,16 +2434,19 @@ async function loadVorroPipelineCache(){
 
 async function loadPipeline(){
   window._pipeLoaded=true;
-  const [cadR,vorR,usersR]=await Promise.allSettled([
+  const [cadR,vorR,usersR,vUsersR]=await Promise.allSettled([
     call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner,Probability,Pipeline from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 200"}}),
     loadVorroPipelineCache(),
-    fetch('/api/crm/users').then(r=>r.json()).catch(()=>({users:[]}))
+    fetch('/api/crm/users').then(r=>r.json()).catch(()=>({users:[]})),
+    fetch('/api/crm/vorro/users').then(r=>r.json()).catch(()=>({users:[]}))
   ]);
   _cadientDeals=(cadR.status==='fulfilled'?(cadR.value?.data||[]):[]).map(d=>({...d,_brand:'cadient'}));
   const vorroRaw=vorR.status==='fulfilled'?vorR.value:[];
   _vorroDeals=(Array.isArray(vorroRaw)?vorroRaw:vorroRaw?.data||vorroRaw?.deals||[]).map(d=>({...d,_brand:'vorro'}));
-  _zohoUsers=usersR.status==='fulfilled'?(usersR.value?.users||[]):[];
-  dbg(`Pipeline: Cadient ${_cadientDeals.length}, Vorro ${_vorroDeals.length} deals, ${_zohoUsers.length} users`,'ok');
+  _cadientZohoUsers=usersR.status==='fulfilled'?(usersR.value?.users||[]):[];
+  _vorroZohoUsers=vUsersR.status==='fulfilled'?(vUsersR.value?.users||[]):[];
+  _zohoUsers=_cadientZohoUsers;
+  dbg(`Pipeline: Cadient ${_cadientDeals.length}, Vorro ${_vorroDeals.length} deals, ${_cadientZohoUsers.length} Cadient users, ${_vorroZohoUsers.length} Vorro users`,'ok');
   _pipeViewMode='kanban';
   document.getElementById('viewToggleKanban')?.classList.add('active');
   renderPipelineView('cadient');
@@ -2264,7 +2456,7 @@ let _currentPipeBrand='cadient';
 let _currentStageFilter='';
 let _pipeViewMode='kanban';
 let _selectedDealIds=new Set();
-let _zohoUsers=[];
+let _zohoUsers=[];let _cadientZohoUsers=[];let _vorroZohoUsers=[];
 const CADIENT_STAGES=['Qualification','Needs Analysis','Proposal/Price Quote','Negotiation/Review','In Progress','Delivered','Delivered without Meeting','Closed Won','Closed Lost'];
 const VORRO_STAGES=['S1: Qualification','S2: Discovery','S3: Solution Development/SOW','S3: Evaluation/Scoping','S4: Proposal','S5: Verbal/Negotiation','S6: Contracting','Closed Won','Closed Lost'];
 const STAGE_COLORS={'Qualification':'#60a5fa','Needs Analysis':'#38bdf8','Proposal/Price Quote':'#fbbf24','Negotiation/Review':'#fb923c','In Progress':'#a78bfa','Delivered':'#34d399','Delivered without Meeting':'#2dd4bf','Closed Won':'#22c55e','Closed Lost':'#ef4444',
@@ -2281,6 +2473,7 @@ function togglePipelineView(mode){
 
 function switchPipelineBrand(brand){
   _currentPipeBrand=brand;
+  _zohoUsers=brand==='vorro'?_vorroZohoUsers:_cadientZohoUsers;
   document.querySelectorAll('.brand-toggle[data-brand]').forEach(b=>b.classList.remove('active'));
   const btn=document.querySelector(`.brand-toggle[data-brand="${brand}"]`);
   if(btn)btn.classList.add('active');
@@ -2301,8 +2494,9 @@ function getDealsForBrand(brand){
   return[..._cadientDeals,..._vorroDeals];
 }
 function crmApi(path,brand){
-  // Route to Vorro India DC endpoints when brand is vorro
-  if(brand==='vorro'||_currentPipeBrand==='vorro')return '/api/crm/vorro'+path;
+  // Explicit brand param takes priority; fall back to current pipeline view
+  const b=brand||_currentPipeBrand;
+  if(b==='vorro')return '/api/crm/vorro'+path;
   return '/api/crm'+path;
 }
 function getDealBrand(dealId){
@@ -2679,9 +2873,10 @@ async function loadDealProducts(dealId){
   const el=document.getElementById('dealTabProducts');if(!el)return;
   el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading products...</div>';
   try{
+    const dealBrand=getDealBrand(dealId);
     const [prodResp,allProdResp]=await Promise.all([
-      fetch(crmApi(`/deals/${dealId}/products`,getDealBrand(dealId))).then(r=>r.json()).catch(()=>({products:[]})),
-      fetch('/api/crm/products').then(r=>r.json()).catch(()=>({products:[]}))
+      fetch(crmApi(`/deals/${dealId}/products`,dealBrand)).then(r=>r.json()).catch(()=>({products:[]})),
+      fetch(crmApi('/products',dealBrand)).then(r=>r.json()).catch(()=>({products:[]}))
     ]);
     const products=prodResp.products||[];
     const allProducts=allProdResp.products||[];
@@ -2759,6 +2954,7 @@ async function loadTeam(){
         <div class="team-stat"><div class="n">${myDeals.length}</div><div class="l">Deals</div></div>
         <div class="team-stat"><div class="n">$${Math.round(myDeals.reduce((s,d)=>s+(parseFloat(d.Amount)||0),0)/1000)}K</div><div class="l">Pipeline</div></div>
       </div>
+      ${myDeals.length?`<div class="team-deals-list">${myDeals.slice(0,5).map(d=>`<div class="team-deal-item"><span class="td-name">${esc(truncate(d.Deal_Name||'',30))}</span> <span class="td-stage">${esc(d.Stage||'')}</span> <span class="td-amt">${d.Amount?'$'+Math.round(parseFloat(d.Amount)/1000)+'K':''}</span>${d._brand?' <span style="font-size:8px;color:var(--text-muted)">(${esc(d._brand)})</span>':''}</div>`).join('')}</div>`:''}
     </div>`;
   }).join('');
 
@@ -3077,13 +3273,14 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   // Fetch all prep data in parallel
   // Use Granola query for meeting-specific notes (works even without meetingId)
   const granolaQuery=`Notes and summary for the meeting "${title}" with ${names.join(', ')}. Include key decisions, action items, and outcomes.`;
-  const [transcriptR,meetingDetailR,historyR,emailR,crmR,driveR]=await Promise.allSettled([
+  const [transcriptR,meetingDetailR,historyR,emailR,crmR,driveR,granolaQueryR]=await Promise.allSettled([
     meetingId?call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null):Promise.resolve(null),
-    meetingId?call(`${GRAN}__get_meetings`,{meeting_ids:[meetingId]}).catch(()=>null):call(`${GRAN}__query_granola_meetings`,{query:granolaQuery}).catch(()=>null),
+    meetingId?call(`${GRAN}__get_meetings`,{meeting_ids:[meetingId]}).catch(()=>null):Promise.resolve(null),
     names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, and outcomes.'}).catch(()=>null):Promise.resolve(null),
     emails.length?call(`${GMAIL}__search_threads`,{query:emails.map(e=>'from:'+e+' OR to:'+e).join(' OR ')+' newer_than:30d',pageSize:10}).catch(()=>null):Promise.resolve(null),
     names[0]?call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:names[0],per_page:5,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner'}}).catch(()=>null):Promise.resolve(null),
-    companyGuess?call(`${DRIVE}__search_files`,{query:`fullText contains '${companyGuess}'`,pageSize:10}).catch(()=>null):Promise.resolve(null)
+    companyGuess?call(`${DRIVE}__search_files`,{query:`fullText contains '${companyGuess}'`,pageSize:10}).catch(()=>null):Promise.resolve(null),
+    call(`${GRAN}__query_granola_meetings`,{query:granolaQuery}).catch(()=>null)
   ]);
 
   const isExternal=domains.length>0;
@@ -3116,11 +3313,11 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
     html+='</div></div>';
   }
 
-  // Granola meeting notes/summary
+  // Granola meeting notes/summary (try get_meetings first, fall back to query_granola_meetings)
+  let notesHtml='';
   const meetingDetail=meetingDetailR.status==='fulfilled'?meetingDetailR.value:null;
   if(meetingDetail){
-    let notesHtml='';
-    // If it's a text response from query_granola_meetings (no meetingId case)
+    // If it's a text response
     const textResponse=typeof meetingDetail==='string'?meetingDetail:(meetingDetail?.answer||meetingDetail?.text||meetingDetail?.content||'');
     if(textResponse&&textResponse.length>20){
       notesHtml=renderMarkdown(textResponse.slice(0,4000));
@@ -3137,8 +3334,14 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
         if(actionItems.length)notesHtml+=`<div><strong style="color:#34d399">Action Items:</strong><div style="margin-top:4px">${actionItems.map(a=>typeof a==='string'?esc(a):esc(a.text||a.description||JSON.stringify(a))).map(t=>'<div style="padding:2px 0">'+t+'</div>').join('')}</div></div>`;
       }
     }
-    if(notesHtml)html+='<div class="section-header">Granola Meeting Notes</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+notesHtml+'</div></div>';
   }
+  // Fallback: use query_granola_meetings if get_meetings returned nothing useful
+  if(!notesHtml&&granolaQueryR.status==='fulfilled'&&granolaQueryR.value){
+    const gqVal=granolaQueryR.value;
+    const gqText=typeof gqVal==='string'?gqVal:(gqVal?.answer||gqVal?.text||gqVal?.content||'');
+    if(gqText&&gqText.length>20)notesHtml=renderMarkdown(gqText.slice(0,4000));
+  }
+  if(notesHtml)html+='<div class="section-header">Granola Meeting Notes</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+notesHtml+'</div></div>';
 
   // Previous meeting notes
   const history=historyR.status==='fulfilled'?historyR.value:null;
@@ -3153,8 +3356,8 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const transcript=transcriptR.status==='fulfilled'?transcriptR.value:null;
   if(transcript){
     const tText=typeof transcript==='string'?transcript:(transcript?.transcript||transcript?.text||'');
-    // Filter out error responses like {"error":"No transcript in cache"}
-    const isError=tText.includes('"error"')||tText.includes('No transcript')||tText.includes('not found');
+    // Filter out error responses
+    const isError=tText.includes('"error"')||tText.includes('No transcript')||tText.includes('not found')||tText.includes('No data')||tText.includes('unavailable')||tText.includes('not available')||tText.includes('No meeting')||tText.includes('error":')||tText.includes('failed');
     if(tText&&tText.length>20&&!isError){
       html+='<div class="section-header">Meeting Transcript</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+renderMarkdown(tText.slice(0,5000))+'</div></div>';
     }
@@ -3196,15 +3399,21 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   try{
     const briefCtx=[];
     if(crmData.length)briefCtx.push({label:'CRM Records',value:JSON.stringify(crmData.slice(0,3))});
-    // Include Granola notes
+    // Include Granola notes (from get_meetings or query fallback)
+    let granolaAdded=false;
     if(meetingDetail){
       const mdText=typeof meetingDetail==='string'?meetingDetail:(meetingDetail?.answer||meetingDetail?.text||'');
-      if(mdText)briefCtx.push({label:'Granola meeting notes',value:mdText.slice(0,3000)});
+      if(mdText){briefCtx.push({label:'Granola meeting notes',value:mdText.slice(0,3000)});granolaAdded=true;}
       else{
         const mds=meetingDetail?.meetings||meetingDetail?.data||(Array.isArray(meetingDetail)?meetingDetail:[]);
         const md0=mds?.[0];
-        if(md0)briefCtx.push({label:'Granola meeting notes',value:JSON.stringify({summary:md0.summary||md0.ai_summary||'',notes:md0.private_notes||md0.notes||'',action_items:md0.action_items||[]}).slice(0,3000)});
+        if(md0){briefCtx.push({label:'Granola meeting notes',value:JSON.stringify({summary:md0.summary||md0.ai_summary||'',notes:md0.private_notes||md0.notes||'',action_items:md0.action_items||[]}).slice(0,3000)});granolaAdded=true;}
       }
+    }
+    if(!granolaAdded&&granolaQueryR.status==='fulfilled'&&granolaQueryR.value){
+      const gqVal=granolaQueryR.value;
+      const gqText=typeof gqVal==='string'?gqVal:(gqVal?.answer||gqVal?.text||gqVal?.content||'');
+      if(gqText&&gqText.length>20)briefCtx.push({label:'Granola meeting notes',value:gqText.slice(0,3000)});
     }
     if(history){const ht=typeof history==='string'?history:(history?.answer||history?.text||JSON.stringify(history));briefCtx.push({label:'Past meeting history',value:ht.slice(0,2000)});}
     if(transcript){const tt=typeof transcript==='string'?transcript:(transcript?.transcript||'');if(tt&&!tt.includes('"error"'))briefCtx.push({label:'Meeting transcript',value:tt.slice(0,2000)});}
@@ -3235,7 +3444,20 @@ Use ALL the context data provided. Be specific with names, dates, and numbers. N
     }
   }catch(e){
     const bEl=document.getElementById('meetingPrepBriefing');
-    if(bEl)bEl.innerHTML='<div class="empty-state">Prep generation failed. Use the asset buttons above to create manually.</div>';
+    if(bEl){
+      // Show raw collected data as fallback instead of blank
+      let fallbackHtml='<div style="padding:14px;font-size:12px"><div style="color:#f87171;margin-bottom:8px;font-weight:600">AI prep generation failed ('+esc(e.message||'unknown error')+')</div>';
+      if(briefCtx&&briefCtx.length){
+        fallbackHtml+='<div style="color:var(--text-secondary);margin-bottom:8px">Raw data collected for this meeting:</div>';
+        briefCtx.forEach(item=>{if(item&&item.label&&item.value){
+          fallbackHtml+=`<div style="margin-bottom:8px"><strong style="color:var(--accent-text)">${esc(item.label)}:</strong><div style="margin-top:2px;color:var(--text-secondary);line-height:1.6">${renderMarkdown((typeof item.value==='string'?item.value:JSON.stringify(item.value)).slice(0,800))}</div></div>`;
+        }});
+      } else {
+        fallbackHtml+='<div class="empty-state">No context data was collected. Check MCP connections.</div>';
+      }
+      fallbackHtml+='</div>';
+      bEl.innerHTML=fallbackHtml;
+    }
   }
 }
 
@@ -3306,6 +3528,113 @@ async function runIntelSearch(){
 }
 
 // ══════════════════════════════════════
+
+// ══════════════════════════════════════
+// ── COMPANY PROSPECTING ──
+// ══════════════════════════════════════
+async function runCompanyProspect(){
+  const company=document.getElementById('prospectCompany').value.trim();
+  const domain=document.getElementById('prospectDomain').value.trim();
+  if(!company&&!domain){alert('Enter a company name or domain.');return;}
+  const el=document.getElementById('prospectResults');
+  const searchTerm=company||domain;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching CRM for contacts and leads at '+esc(searchTerm)+'...</div>';
+
+  const [contactsR,leadsR,accountsR]=await Promise.allSettled([
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:searchTerm,per_page:20}}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{word:searchTerm,per_page:20}}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Accounts'},query_params:{word:searchTerm,per_page:20}})
+  ]);
+
+  const contacts=(contactsR.status==='fulfilled'?(contactsR.value?.data||[]):[]);
+  const leads=(leadsR.status==='fulfilled'?(leadsR.value?.data||[]):[]);
+  const accounts=(accountsR.status==='fulfilled'?(accountsR.value?.data||[]):[]);
+
+  const people=[];const seen=new Set();
+  contacts.forEach(c=>{
+    const key=(c.Full_Name||'').toLowerCase()+(c.Company_Name||c.Account_Name?.name||'').toLowerCase();
+    if(seen.has(key))return;seen.add(key);
+    people.push({name:c.Full_Name||`${c.First_Name||''} ${c.Last_Name||''}`.trim(),title:c.Title||'',company:c.Company_Name||c.Account_Name?.name||'',email:c.Email||'',phone:c.Phone||c.Mobile||'',linkedin:c.LinkedIn__s||c.LinkedIn_URL||c.LinkedIn||'',source:'CRM Contact',id:c.id});
+  });
+  leads.forEach(l=>{
+    const key=(l.Full_Name||'').toLowerCase()+(l.Company||'').toLowerCase();
+    if(seen.has(key))return;seen.add(key);
+    people.push({name:l.Full_Name||`${l.First_Name||''} ${l.Last_Name||''}`.trim(),title:l.Designation||l.Title||'',company:l.Company||'',email:l.Email||'',phone:l.Phone||l.Mobile||'',linkedin:l.LinkedIn__s||l.LinkedIn_URL||l.LinkedIn||'',source:'CRM Lead',id:l.id});
+  });
+
+  let aiSuggestions='';
+  try{
+    const companyCtx=company+(domain?' ('+domain+')':'');
+    const accountInfo=accounts.length?accounts.map(a=>`Account: ${a.Account_Name}, Industry: ${a.Industry||'Unknown'}, Website: ${a.Website||'N/A'}, Employees: ${a.Employees||'Unknown'}`).join('\n'):'No account found in CRM.';
+    const existingPeople=people.length?people.map(p=>`${p.name} - ${p.title} (${p.source})`).join('\n'):'No contacts found in CRM.';
+    aiSuggestions=await ask(
+      `You are a B2B sales prospecting expert for a CRO managing Cadient (HR/Talent AI) and Vorro (Healthcare Integration). Given this target company, suggest 5 decision-maker titles to pursue and explain why. Be specific to the company industry. Format as a numbered list with title and 1-line rationale.`,
+      [{label:'Target Company',value:companyCtx},{label:'CRM Account Data',value:accountInfo},{label:'Existing Contacts at Company',value:existingPeople}]
+    );
+  }catch(e){aiSuggestions='AI suggestions unavailable: '+e.message;}
+
+  let html='';
+  const total=people.length;const acctCount=accounts.length;
+  html+=`<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">`;
+  html+=`<span style="background:rgba(251,146,60,0.15);color:var(--orange);padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600">${total} people found</span>`;
+  if(acctCount)html+=`<span style="background:rgba(96,165,250,0.15);color:var(--blue);padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600">${acctCount} CRM account${acctCount>1?'s':''}</span>`;
+  html+=`</div>`;
+
+  if(people.length){
+    html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:16px">`;
+    people.forEach(p=>{
+      const initials=(p.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      const liUrl=p.linkedin||`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(p.name+' '+p.company)}`;
+      const isDirectLi=!!p.linkedin;
+      html+=`<div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;transition:all 0.2s" onmouseover="this.style.borderColor='var(--border-hover)';this.style.transform='translateY(-1px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='none'">`;
+      html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">`;
+      html+=`<div style="width:36px;height:36px;border-radius:50%;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent-text);font-size:12px;flex-shrink:0">${initials}</div>`;
+      html+=`<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>`;
+      html+=`<div style="font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.title||'No title')}</div></div>`;
+      html+=`<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:${p.source==='CRM Contact'?'rgba(52,211,153,0.15)':'rgba(167,139,250,0.15)'};color:${p.source==='CRM Contact'?'var(--green)':'var(--purple)'};font-weight:500;flex-shrink:0">${p.source}</span>`;
+      html+=`</div>`;
+      html+=`<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">${esc(p.company)}</div>`;
+      if(p.email)html+=`<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">&#9993; ${esc(p.email)}</div>`;
+      if(p.phone)html+=`<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">&#9742; ${esc(p.phone)}</div>`;
+      html+=`<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">`;
+      html+=`<a href="${esc(liUrl)}" target="_blank" style="font-size:10px;padding:4px 10px;border-radius:5px;background:rgba(96,165,250,0.15);color:var(--blue);text-decoration:none;font-weight:500;border:1px solid rgba(96,165,250,0.2)">${isDirectLi?'Open LinkedIn':'Search LinkedIn'}</a>`;
+      const safeName=p.name.replace(/'/g,"\\'");const safeTitle=(p.title||'').replace(/'/g,"\\'");const safeCo=(p.company||'').replace(/'/g,"\\'");const safeEmail=(p.email||'').replace(/'/g,"\\'");
+      html+=`<button onclick="prospectCreateOutreach('${safeName}','${safeTitle}','${safeCo}','${safeEmail}')" style="font-size:10px;padding:4px 10px;border-radius:5px;background:var(--accent-dim);color:var(--accent-text);border:1px solid rgba(201,162,39,0.3);cursor:pointer;font-weight:500">Create Outreach</button>`;
+      html+=`</div></div>`;
+    });
+    html+=`</div>`;
+  }
+
+  if(aiSuggestions){
+    html+=`<div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:14px">`;
+    html+=`<div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--accent-text);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">AI Recommended Titles to Target</div>`;
+    html+=`<div style="font-size:12px;color:var(--text-secondary);line-height:1.7">${renderMarkdown(typeof aiSuggestions==='string'?aiSuggestions:JSON.stringify(aiSuggestions))}</div>`;
+    html+=`</div>`;
+  }
+
+  if(!people.length&&!aiSuggestions){
+    html=`<div class="empty-state">No contacts found for "${esc(searchTerm)}" in CRM. Try a different company name or domain.</div>`;
+  }
+  el.innerHTML=html;
+}
+
+async function prospectCreateOutreach(name,title,company,email){
+  const el=document.getElementById('prospectResults');
+  const banner=document.createElement('div');
+  banner.style.cssText='background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--accent-text)';
+  banner.innerHTML='<div class="spinner" style="display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:middle"></div> Generating outreach for '+esc(name)+'...';
+  el.prepend(banner);
+  try{
+    const msg=await ask(
+      `You are writing a LinkedIn connection DM for a CRO at Basis Vectors Capital (managing Cadient for HR/Talent and Vorro for Healthcare Integration). Write a 60-75 word Stage 1 V1 LinkedIn DM. Include a personalized hook, one short testimonial in quotes, and a soft CTA asking for their email. No asterisks, no hyphens, no arrows. Write like a human.`,
+      [{label:'Prospect',value:`Name: ${name}\nTitle: ${title}\nCompany: ${company}\nEmail: ${email||'Unknown'}`}]
+    );
+    banner.innerHTML=`<div style="font-weight:600;margin-bottom:6px;color:var(--green)">Outreach Draft for ${esc(name)}</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap">${esc(typeof msg==='string'?msg:JSON.stringify(msg))}</div><div style="margin-top:8px"><button onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.textContent);this.textContent='Copied!'" style="font-size:10px;padding:4px 10px;border-radius:5px;background:var(--accent);color:#0a0e17;border:none;cursor:pointer;font-weight:600">Copy to Clipboard</button></div>`;
+  }catch(e){
+    banner.innerHTML=`<div style="color:var(--red)">Failed to generate outreach: ${esc(e.message)}</div>`;
+  }
+}
+
 // ── SEARCH ──
 // ══════════════════════════════════════
 let searchTimeout;
@@ -3977,19 +4306,36 @@ async function loadCopilotMeetingFromFilter(){
     const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=meeting.title||'Meeting';
     const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.textContent=(meeting.date||'')+' | '+(meeting.parts||'');
 
-    // Load transcript if available
-    try{
-      const t=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:meeting.id});
-      if(t){
-        const tText=typeof t==='string'?t:(t?.transcript||t?.text||JSON.stringify(t));
-        if(tText&&tText.length>20){
-          copilotTranscriptLines=[{text:tText.slice(0,5000),time:new Date(meeting.date||Date.now()),confidence:1,manual:true}];
-          renderCopilotTranscript();
-          copilotMeetingContext='MEETING TRANSCRIPT: '+tText.slice(0,2000);
-        }
+    // Load transcript + Granola notes in parallel
+    const tEl=document.getElementById('copilotTranscript');
+    if(tEl)tEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading meeting notes...</div>';
+    let loaded=false;
+    const [transcriptR,granolaR]=await Promise.allSettled([
+      meeting.id?call(`${GRAN}__get_meeting_transcript`,{meeting_id:meeting.id}).catch(()=>null):Promise.resolve(null),
+      call(`${GRAN}__query_granola_meetings`,{query:'Notes and summary for meeting: '+(meeting.title||'recent meeting')+'. Key decisions, action items, and outcomes.'}).catch(()=>null)
+    ]);
+    if(transcriptR.status==='fulfilled'&&transcriptR.value){
+      const t=transcriptR.value;
+      const tText=typeof t==='string'?t:(t?.transcript||t?.text||'');
+      const isError=!tText||tText.includes('"error"')||tText.includes('No transcript')||tText.includes('not found')||tText.includes('No data')||tText.includes('unavailable')||tText.length<20;
+      if(!isError){
+        copilotTranscriptLines=[{text:tText.slice(0,5000),time:new Date(meeting.date||Date.now()),confidence:1,manual:true}];
+        renderCopilotTranscript();
+        copilotMeetingContext='MEETING TRANSCRIPT: '+tText.slice(0,2000);
+        loaded=true;
       }
-    }catch(e){}
-  }catch(e){}
+    }
+    if(!loaded&&granolaR.status==='fulfilled'&&granolaR.value){
+      const gR=granolaR.value;
+      const gText=typeof gR==='string'?gR:(gR?.answer||gR?.text||gR?.content||'');
+      if(gText&&gText.length>20){
+        if(tEl)tEl.innerHTML='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "'+esc(meeting.title||'Meeting')+'":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(gText.slice(0,3000))+'</div>';
+        copilotMeetingContext='MEETING NOTES: '+gText.slice(0,2000);
+        loaded=true;
+      }
+    }
+    if(!loaded&&tEl)tEl.innerHTML='<div class="empty-state">No transcript or notes found for this meeting.</div>';
+  }catch(e){dbg('loadCopilotMeetingFromFilter error: '+e.message,'err');}
 }
 
 // Populate copilot meeting dropdown on load
@@ -4033,9 +4379,16 @@ async function ask(p,d){
   try{
     const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[]})});
     if(!res.ok)throw new Error('HTTP '+res.status);
-    return await res.json();
+    const json=await res.json();
+    return typeof json==='string'?json:(json.text||json.content||json.response||json.answer||JSON.stringify(json));
   }catch(e){
     dbg('askClaude failed: '+e.message,'err');
+    // Build useful fallback from raw data if available
+    if(d&&d.length){
+      let fallback='**AI prep unavailable** (Cowork and server API both failed).\n\nHere is the raw context data collected:\n\n';
+      d.forEach(item=>{if(item&&item.label&&item.value)fallback+=`**${item.label}:**\n${typeof item.value==='string'?item.value.slice(0,500):JSON.stringify(item.value).slice(0,500)}\n\n`;});
+      return fallback;
+    }
     return 'AI response unavailable. Access via Cowork or set ANTHROPIC_API_KEY on server.';
   }
 }
@@ -5287,14 +5640,4 @@ dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADE
     if(_st)_st.textContent='v5.0 | ready';
     dbg('Dashboard loaded successfully!','ok');
     _tabStatus.dashboard='ok';
-    flushLogs();
-  }catch(e){
-    dbg('Init failed: '+e.message,'err');
-    if(_st)_st.textContent='v5.0 | error';
-    const sb=document.getElementById('statsBar');
-    if(sb)sb.innerHTML='<div class="stat-card" style="flex:none;width:100%"><div class="stat-label" style="color:#f87171">Connection error: '+e.message+'. <a href="#" onclick="location.reload();return false" style="color:#60a5fa">Retry</a></div></div>';
-  }
-})();
-</script>
-</body>
-</html>
+    flushLogs()
