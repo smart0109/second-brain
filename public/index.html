@@ -656,6 +656,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div class="card"><div class="card-body scroll-panel" id="contactFiles"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
         <div class="section-header">AI Briefing</div>
         <div class="card"><div class="card-body" id="contactBriefing"><div class="loading"><div class="spinner"></div><br>Generating...</div></div></div>
+        <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Leadership Intelligence</div>
+        <div class="sh-collapsible-wrap">
+          <div class="card"><div class="card-body" id="contactLeadership"><div class="empty-state">Loading contact to check leadership changes...</div></div></div>
+          <div id="contactCompetitorWatch" style="margin-top:8px"></div>
+        </div>
       </div>
     </div>
 
@@ -1264,6 +1269,11 @@ const CAL='mcp__3df8d99f-29e6-4b72-aff5-d20c243cd8cc';
 const GRAN='mcp__71e0cfca-ad84-47ab-9d34-6b8b20c1f749';
 const ZOHO='mcp__ebef5225-9c03-4cba-9a7a-d6093b72e70d';
 const DRIVE='mcp__30527659-94cd-40e2-94f3-2d183a4d50bb';
+
+// ── Competitor Lists for C-Suite Monitor ──
+const CADIENT_COMPETITORS=['Greenhouse','iCIMS','Workday','Paylocity','Paradox','ADP','UKG','Ceridian','Paychex'];
+const VORRO_COMPETITORS=['Rhapsody','Corepoint','MuleSoft','Boomi','Microsoft Azure Integration','InterSystems','Redox','Health Gorilla','Particle Health'];
+
 // ── Telemetry: logs stored in-memory + flushed to Gmail draft for remote debugging ──
 const _logLines=[];
 let _dbgEl=null;
@@ -2193,11 +2203,12 @@ async function loadContact(name,email){
     </div></div></div>`;
 
   // Reset
-  ['contactEmails','contactCRM','contactMeetings','contactFiles','contactBriefing','contactDeals','contactTimeline','contactAccountView'].forEach(id=>{
+  ['contactEmails','contactCRM','contactMeetings','contactFiles','contactBriefing','contactDeals','contactTimeline','contactAccountView','contactLeadership'].forEach(id=>{
     const _el=document.getElementById(id);if(_el)_el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading...</div>';
   });
   document.getElementById('contactRelScore').innerHTML='';
   document.getElementById('contactNextAction').innerHTML='';
+  const _cwReset=document.getElementById('contactCompetitorWatch');if(_cwReset)_cwReset.innerHTML='';
 
   const [emailR,crmR,leadR,dealR,granolaR,driveR]=await Promise.allSettled([
     call(`${GMAIL}__search_threads`,{query:`from:${email} OR to:${email} newer_than:30d`,pageSize:15}),
@@ -2429,6 +2440,9 @@ async function loadContact(name,email){
     dbg('Account view failed: '+e.message,'err');
     const _avE2=document.getElementById('contactAccountView');if(_avE2)_avE2.innerHTML='<div class="empty-state">Account view unavailable</div>';
   }
+
+  // ── FEATURE: Leadership Intelligence (C-Suite Monitor) ──
+  loadLeadershipIntel(name,email,crmRec.Company_Name||crmRec.Company||'',allCRM).catch(e=>dbg('Leadership intel failed: '+e.message,'err'));
 }
 
 function clearContact360(){
@@ -2437,6 +2451,217 @@ function clearContact360(){
   document.querySelectorAll('.vip-btn').forEach(b=>b.classList.remove('active'));
   window._contact360AutoLoaded=false;
   loadAllCRMContacts();
+}
+
+// ══════════════════════════════════════
+// ── LEADERSHIP INTELLIGENCE (C-Suite Monitor) ──
+// ══════════════════════════════════════
+async function loadLeadershipIntel(name,email,company,crmData){
+  const lEl=document.getElementById('contactLeadership');
+  const cwEl=document.getElementById('contactCompetitorWatch');
+  if(!lEl)return;
+
+  // Check if contact's company is a competitor
+  const compLower=(company||'').toLowerCase();
+  const isCadientComp=CADIENT_COMPETITORS.some(c=>compLower.includes(c.toLowerCase()));
+  const isVorroComp=VORRO_COMPETITORS.some(c=>compLower.includes(c.toLowerCase()));
+  const isCompetitor=isCadientComp||isVorroComp;
+
+  // Show competitor warning banner if applicable
+  if(isCompetitor&&cwEl){
+    const brandLabel=isCadientComp?'Cadient':'Vorro';
+    cwEl.innerHTML=`<div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">&#9888;</span>
+      <div><div style="font-size:12px;font-weight:700;color:var(--red)">Competitor Alert</div>
+      <div style="font-size:11px;color:var(--text-secondary)">${esc(company)} is a ${brandLabel} competitor. Intelligence below includes their leadership changes.</div></div>
+    </div>`;
+  }
+
+  // Show loading state
+  lEl.innerHTML=`<div style="padding:14px 18px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="width:32px;height:32px;border-radius:8px;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--purple)">&#128188;</div>
+      <div>
+        <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">C-Suite Changes at ${esc(company||'Company')}</div>
+        <div style="font-size:10px;color:var(--text-muted)">Scanning for executive changes...</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Analyzing leadership changes...</div>
+  </div>`;
+
+  try{
+    const crmContext=crmData&&crmData.length?JSON.stringify(crmData[0]):'No CRM data';
+    const prompt=`Check for recent executive changes at ${company}. Look for: new CEO, CTO, CHRO, CFO, CIO, VP hires, departures, or promotions in the last 6 months. Also check if any board changes. If no changes found, say 'NO_CHANGES_FOUND'. Otherwise, for each change output EXACTLY this format on its own line:\nCHANGE: [name] | [role] | [type: HIRED/DEPARTED/PROMOTED] | [approximate date]\nAfter all changes, add a line: SUMMARY: [one sentence overview]`;
+    const dataItems=[
+      {label:'Company',value:company||'Unknown'},
+      {label:'Contact',value:name+' ('+email+')'},
+      {label:'CRM Data',value:crmContext}
+    ];
+    const result=await ask(prompt,dataItems);
+
+    if(!result||result.includes('NO_CHANGES_FOUND')||result.toLowerCase().includes('no recent changes')){
+      lEl.innerHTML=`<div style="padding:14px 18px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--purple)">&#128188;</div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Leadership Intelligence</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">No recent executive changes detected at ${esc(company||'this company')}</div>
+          </div>
+        </div>
+        ${!isCompetitor?'<div style="margin-top:10px"><button onclick="loadCompetitorWatch()" style="font-size:11px;padding:5px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent-text)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--text-secondary)\'">&#128270; Check Competitor Leadership</button></div>':''}
+      </div>`;
+    }else{
+      // Parse changes
+      const changes=[];
+      const lines=(result||'').split('\n');
+      let summary='';
+      lines.forEach(line=>{
+        const cm=line.match(/CHANGE:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(HIRED|DEPARTED|PROMOTED)\s*\|\s*(.+)/i);
+        if(cm)changes.push({name:cm[1].trim(),role:cm[2].trim(),type:cm[3].toUpperCase().trim(),date:cm[4].trim()});
+        const sm=line.match(/SUMMARY:\s*(.+)/i);
+        if(sm)summary=sm[1].trim();
+      });
+
+      const badgeColor={HIRED:'var(--green)',DEPARTED:'var(--red)',PROMOTED:'var(--blue)'};
+      const badgeBg={HIRED:'rgba(52,211,153,0.15)',DEPARTED:'rgba(248,113,113,0.15)',PROMOTED:'rgba(96,165,250,0.15)'};
+      const badgeLabel={HIRED:'New Hire',DEPARTED:'Departure',PROMOTED:'Promotion'};
+
+      let html=`<div style="padding:14px 18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--purple)">&#128188;</div>
+          <div style="flex:1">
+            <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Leadership Intelligence</div>
+            ${summary?'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+esc(summary)+'</div>':''}
+          </div>
+          <span style="font-size:10px;font-weight:600;color:var(--accent-text);background:var(--accent-dim);padding:2px 8px;border-radius:4px">${changes.length} change${changes.length!==1?'s':''}</span>
+        </div>`;
+
+      if(changes.length){
+        html+=changes.map(c=>{
+          const bc=badgeColor[c.type]||'var(--text-muted)';
+          const bb=badgeBg[c.type]||'rgba(255,255,255,0.06)';
+          const bl=badgeLabel[c.type]||c.type;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;color:var(--text-primary)">${esc(c.name)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${esc(c.role)}</div>
+            </div>
+            <span style="font-size:9px;font-weight:600;color:${bc};background:${bb};padding:2px 8px;border-radius:4px;white-space:nowrap">${bl}</span>
+            <span style="font-size:10px;color:var(--text-muted);white-space:nowrap">${esc(c.date)}</span>
+          </div>`;
+        }).join('');
+      }else{
+        // AI returned text but no parseable CHANGE lines - show raw
+        html+=`<div style="font-size:11px;color:var(--text-secondary);line-height:1.6;padding:6px 0">${esc(result)}</div>`;
+      }
+
+      html+=`${!isCompetitor?'<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)"><button onclick="loadCompetitorWatch()" style="font-size:11px;padding:5px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent-text)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--text-secondary)\'">&#128270; Check Competitor Leadership</button></div>':''}
+      </div>`;
+      lEl.innerHTML=html;
+    }
+
+    // Auto-run competitor watch if viewing a competitor
+    if(isCompetitor){
+      loadCompetitorWatch().catch(e=>dbg('Auto competitor watch failed: '+e.message,'err'));
+    }
+  }catch(e){
+    dbg('Leadership intel error: '+e.message,'err');
+    lEl.innerHTML=`<div style="padding:14px 18px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(248,113,113,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--red)">&#128188;</div>
+        <div>
+          <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Leadership Intelligence</div>
+          <div style="font-size:11px;color:var(--red);margin-top:2px">Unable to check leadership changes: ${esc(e.message)}</div>
+        </div>
+      </div>
+      <div style="margin-top:10px"><button onclick="loadCompetitorWatch()" style="font-size:11px;padding:5px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer">&#128270; Check Competitor Leadership</button></div>
+    </div>`;
+  }
+}
+
+async function loadCompetitorWatch(){
+  const cwEl=document.getElementById('contactCompetitorWatch');
+  if(!cwEl)return;
+
+  // Show loading in the competitor watch area (append, don't replace warning)
+  const existingWarning=cwEl.querySelector('[data-comp-warning]');
+  const warningHtml=existingWarning?existingWarning.outerHTML:'';
+
+  cwEl.innerHTML=warningHtml+`<div class="card" style="margin-top:8px"><div class="card-body" style="padding:14px 18px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:14px">&#127919;</span>
+      <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Competitor Leadership Scan</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px"><div class="spinner" style="width:14px;height:14px;border-width:2px"></div> Scanning ${CADIENT_COMPETITORS.length + VORRO_COMPETITORS.length} competitors...</div>
+  </div></div>`;
+
+  try{
+    const cadientList=CADIENT_COMPETITORS.join(', ');
+    const vorroList=VORRO_COMPETITORS.join(', ');
+    const prompt=`Recent leadership and executive changes at these companies in the last 3 months.
+
+CADIENT COMPETITORS: ${cadientList}
+VORRO COMPETITORS: ${vorroList}
+
+For each company that had a change, output EXACTLY this format on its own line:
+COMP: [company] | [person name] | [old role or N/A] | [new role] | [change type: HIRED/DEPARTED/PROMOTED] | [brand: CADIENT/VORRO]
+
+If a company had no changes, skip it entirely. At the end add:
+TOTAL: [number of total changes found]`;
+
+    const result=await ask(prompt,[{label:'Context',value:'Scanning competitor leadership for sales intelligence'}]);
+
+    // Parse competitor changes
+    const compChanges=[];
+    const lines=(result||'').split('\n');
+    lines.forEach(line=>{
+      const cm=line.match(/COMP:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(HIRED|DEPARTED|PROMOTED)\s*\|\s*(CADIENT|VORRO)/i);
+      if(cm)compChanges.push({company:cm[1].trim(),person:cm[2].trim(),oldRole:cm[3].trim(),newRole:cm[4].trim(),type:cm[5].toUpperCase().trim(),brand:cm[6].toUpperCase().trim()});
+    });
+
+    const badgeColor={HIRED:'var(--green)',DEPARTED:'var(--red)',PROMOTED:'var(--blue)'};
+    const badgeBg={HIRED:'rgba(52,211,153,0.15)',DEPARTED:'rgba(248,113,113,0.15)',PROMOTED:'rgba(96,165,250,0.15)'};
+    const brandColor={CADIENT:'var(--blue)',VORRO:'var(--green)'};
+    const brandBg={CADIENT:'rgba(96,165,250,0.15)',VORRO:'rgba(52,211,153,0.15)'};
+
+    let html=`<div class="card" style="margin-top:8px"><div class="card-body" style="padding:14px 18px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:14px">&#127919;</span>
+        <div style="flex:1;font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Competitor Leadership Watch</div>
+        <span style="font-size:10px;color:var(--text-muted)">${compChanges.length} change${compChanges.length!==1?'s':''} found</span>
+      </div>`;
+
+    if(compChanges.length){
+      html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">`;
+      html+=compChanges.map(c=>{
+        const bc=badgeColor[c.type]||'var(--text-muted)';
+        const bb=badgeBg[c.type]||'rgba(255,255,255,0.06)';
+        const brc=brandColor[c.brand]||'var(--text-muted)';
+        const brb=brandBg[c.brand]||'rgba(255,255,255,0.06)';
+        return `<div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:700;color:var(--text-primary)">${esc(c.company)}</span>
+            <span style="font-size:8px;font-weight:600;color:${brc};background:${brb};padding:1px 5px;border-radius:3px;margin-left:auto">${c.brand}</span>
+          </div>
+          <div style="font-size:11px;font-weight:600;color:var(--text-primary)">${esc(c.person)}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${c.oldRole!=='N/A'?esc(c.oldRole)+' &rarr; ':''}${esc(c.newRole)}</div>
+          <span style="font-size:9px;font-weight:600;color:${bc};background:${bb};padding:1px 6px;border-radius:3px;display:inline-block;margin-top:4px">${c.type}</span>
+        </div>`;
+      }).join('');
+      html+=`</div>`;
+    }else{
+      html+=`<div style="font-size:11px;color:var(--text-muted);line-height:1.6">${result?esc(result):'No competitor leadership changes detected in the last 3 months.'}</div>`;
+    }
+
+    html+=`</div></div>`;
+    cwEl.innerHTML=warningHtml+html;
+    dbg('Competitor watch: '+compChanges.length+' changes found','ok');
+  }catch(e){
+    dbg('Competitor watch error: '+e.message,'err');
+    cwEl.innerHTML=warningHtml+`<div class="card" style="margin-top:8px"><div class="card-body" style="padding:14px 18px">
+      <div style="font-size:11px;color:var(--red)">Competitor scan failed: ${esc(e.message)}</div>
+    </div></div>`;
+  }
 }
 
 function renderAssets(title,company,name,email){
@@ -5423,7 +5648,8 @@ const CORE_AUTOMATIONS=[
   {name:'Intent Signal Scan',schedule:'M-F 6:54am + Mon 6:30am',desc:'Reddit, HN, Apollo job signals for Cadient + Vorro',failSubject:'Intent',runPrompt:'Run intent signal scan now'},
   {name:'ATS Detection',schedule:'Daily 10pm + every 2hrs',desc:'Company ATS detection via DuckDuckGo + careers pages',failSubject:'ATS',runPrompt:'Run ATS detection scan now'},
   {name:'Draft Approval Queue',schedule:'M-F 9:05am',desc:'Surfaces drafts needing review before send',failSubject:'Draft Approval',runPrompt:'Run draft approval queue scan'},
-  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'HQ Digest',runPrompt:'Send my briefing now'}
+  {name:'Morning Digest',schedule:'M-F 7:05am',desc:'Calendar + VIP threads + action items email summary',failSubject:'HQ Digest',runPrompt:'Send my briefing now'},
+  {name:'C-Suite Monitor',schedule:'Weekly Mon 7am',desc:'Scans customer + competitor companies for leadership changes',failSubject:'C-Suite',runPrompt:'Check all Cadient and Vorro customer companies plus competitors for recent C-suite changes. Report any new hires, departures, or promotions.'}
 ];
 function kickOffJob(prompt,btn){
   btn.textContent='...';btn.disabled=true;btn.style.opacity='0.5';
