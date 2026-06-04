@@ -1,3 +1,14 @@
 node_modules/
 .env
-*.bat
+*.log
+.DS_Store
+*.new
+deploy_now.py
+deploy_to_github.py
+deploy_server.py
+sync-from-github.bat
+setup-git.bat
+setup-sb-git.cowork.bat
+*.v5-backup*
+build_qa_spreadsheet.py
+run_qa_build.bat
