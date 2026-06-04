@@ -404,6 +404,50 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .prod-add-form input:focus, .prod-add-form select:focus, .prod-add-form textarea:focus { border-color: var(--accent); outline: none; }
 .prod-add-form .paf-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .prod-add-form .paf-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+/* Productivity new features */
+.prod-feature-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+.prod-feature-card h3 { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.prod-feature-card h4 { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 6px; }
+.pf-section { margin-bottom: 14px; }
+.pf-section ul { list-style: none; padding: 0; }
+.pf-section ul li { font-size: 12px; color: var(--text-secondary); padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.03); line-height: 1.5; }
+.pf-bar-wrap { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.pf-bar-label { font-size: 11px; color: var(--text-muted); min-width: 40px; text-align: right; }
+.pf-bar-track { flex: 1; height: 20px; background: var(--bg-surface); border-radius: 4px; overflow: hidden; position: relative; }
+.pf-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 9px; font-weight: 700; color: #fff; min-width: 30px; }
+.pf-bar-fill.meetings { background: var(--orange); }
+.pf-bar-fill.focus-bar { background: var(--green); }
+.pf-bar-fill.green { background: var(--green); }
+.pf-bar-fill.amber { background: var(--orange); }
+.pf-bar-fill.red { background: var(--red); }
+.pf-stat-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.pf-stat-box { flex: 1; min-width: 120px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+.pf-stat-box .pf-num { font-size: 24px; font-weight: 800; font-family: var(--font-display); }
+.pf-stat-box .pf-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.pf-warning { background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--orange); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.pf-okr-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+.pf-okr-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.pf-okr-vals { font-size: 11px; color: var(--text-muted); min-width: 120px; text-align: right; }
+.pf-okr-bar { flex: 1; max-width: 200px; }
+.pf-okr-pct { font-size: 13px; font-weight: 700; min-width: 50px; text-align: right; }
+.pf-energy-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+.pf-energy-item .pf-mtg-name { flex: 1; font-size: 12px; color: var(--text-primary); font-weight: 500; }
+.pf-energy-item .pf-mtg-time { font-size: 10px; color: var(--text-muted); min-width: 80px; }
+.pf-energy-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.pf-energy-btn.energize { color: var(--green); }
+.pf-energy-btn.energize:hover, .pf-energy-btn.energize.active { background: rgba(52,211,153,0.2); border-color: var(--green); }
+.pf-energy-btn.drain { color: var(--red); }
+.pf-energy-btn.drain:hover, .pf-energy-btn.drain.active { background: rgba(248,113,113,0.2); border-color: var(--red); }
+.pf-focus-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+.pf-focus-card .pf-focus-time { font-size: 14px; font-weight: 700; color: var(--green); min-width: 180px; font-family: var(--font-display); }
+.pf-focus-card .pf-focus-dur { font-size: 11px; color: var(--text-muted); padding: 3px 8px; background: rgba(52,211,153,0.12); border-radius: 4px; }
+.pf-focus-card .pf-focus-label { font-size: 11px; color: var(--text-secondary); flex: 1; }
+.pf-pie-container { display: flex; align-items: center; gap: 20px; margin: 14px 0; }
+.pf-pie { width: 80px; height: 80px; border-radius: 50%; position: relative; }
+.pf-pie-legend { font-size: 12px; color: var(--text-secondary); }
+.pf-pie-legend div { margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.pf-pie-legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.prod-tabs { flex-wrap: wrap; }
 /* Follow-ups tab */
 .fu-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .fu-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
@@ -856,6 +900,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <button class="prod-tab" onclick="switchProdView('assets',this)">Sales Assets</button>
         <button class="prod-tab" onclick="switchProdView('memory',this)">Memory</button>
         <button class="prod-tab" onclick="switchProdView('glossary',this)">Glossary</button>
+        <button class="prod-tab" onclick="switchProdView('review',this)">Review</button>
+        <button class="prod-tab" onclick="switchProdView('load',this)">Load</button>
+        <button class="prod-tab" onclick="switchProdView('okrs',this)">OKRs</button>
+        <button class="prod-tab" onclick="switchProdView('energy',this)">Energy</button>
+        <button class="prod-tab" onclick="switchProdView('focus',this)">Focus</button>
       </div>
 
       <!-- Board view -->
@@ -988,6 +1037,37 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         </div>
         <div id="glossaryList" class="card"><div class="card-body scroll-panel" id="glossaryItems" style="padding:12px"><div class="memory-empty">Loading glossary...</div></div></div>
       </div>
+
+      <!-- Weekly Review view -->
+      <div id="prodReviewView" style="display:none">
+        <div class="prod-feature-loading" id="reviewLoading"><div class="memory-empty">Click to load weekly review...</div></div>
+        <div id="reviewContent" style="display:none"></div>
+      </div>
+
+      <!-- Meeting Load view -->
+      <div id="prodLoadView" style="display:none">
+        <div class="prod-feature-loading" id="loadLoading"><div class="memory-empty">Click to load meeting analysis...</div></div>
+        <div id="loadContent" style="display:none"></div>
+      </div>
+
+      <!-- OKR Tracker view -->
+      <div id="prodOKRView" style="display:none">
+        <div class="prod-feature-loading" id="okrLoading"><div class="memory-empty">Click to load OKR tracker...</div></div>
+        <div id="okrContent" style="display:none"></div>
+      </div>
+
+      <!-- Energy Tracker view -->
+      <div id="prodEnergyView" style="display:none">
+        <div class="prod-feature-loading" id="energyLoading"><div class="memory-empty">Click to load energy tracker...</div></div>
+        <div id="energyContent" style="display:none"></div>
+      </div>
+
+      <!-- Focus Blocks view -->
+      <div id="prodFocusView" style="display:none">
+        <div class="prod-feature-loading" id="focusLoading"><div class="memory-empty">Click to load focus blocks...</div></div>
+        <div id="focusContent" style="display:none"></div>
+      </div>
+
     </div>
 
     <!-- LEGAL ASSETS -->
@@ -3160,17 +3240,24 @@ async function loadMeetingsView(){
     call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}),
     call(`${GMAIL}__search_threads`,{query:'subject:(Prep:) newer_than:7d in:draft',pageSize:30})
   ]);
-  // Build prep draft lookup (subject "Prep: meeting_title — date — company")
+  // Build prep draft lookup (subject "Prep: <title> -- <date> -- <company>" with em-dash, en-dash, or regular dash)
   const prepDrafts=(prepDraftsR.status==='fulfilled'?(prepDraftsR.value?.threads||[]):[]);
   const prepMap={};
+  const normPrepKey=s=>(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
   prepDrafts.forEach(t=>{
     const msg=t.messages?.[t.messages.length-1]||t;
     const subj=(msg.subject||t.subject||'').toString();
     if(subj.startsWith('Prep:')){
-      // Extract meeting title from "Prep: <title> — <date> — <company>"
+      // Extract meeting title: handle em-dash (—), en-dash (–), double-dash (--), or spaced single dash
       const afterPrep=subj.slice(5).trim();
-      const titlePart=afterPrep.split(/\s*[—-]\s*/)[0].trim().toLowerCase();
-      if(titlePart)prepMap[titlePart]={id:t.id||msg.id,subject:subj,body:msg.plaintextBody||msg.body||msg.snippet||'',draftId:t.draftId||t.id};
+      const titlePart=afterPrep.split(/\s*[—–]|\s+--\s+|\s+-\s+/)[0].trim().toLowerCase();
+      if(titlePart){
+        const entry={id:t.id||msg.id,subject:subj,body:msg.plaintextBody||msg.body||msg.snippet||'',draftId:t.draftId||t.id};
+        prepMap[titlePart]=entry;
+        // Also store normalized version (strip special chars) for fuzzy match
+        const norm=normPrepKey(titlePart);
+        if(norm&&norm!==titlePart)prepMap[norm]=entry;
+      }
     }
   });
   window._prepDraftMap=prepMap;
@@ -3195,8 +3282,9 @@ async function loadMeetingsView(){
         });
         const hasNotes=!!matched;
         const meetId=matched?matched.id:'';
-        // Match with pre-generated prep draft
-        const prepMatch=prepMap[titleLow]||Object.entries(prepMap).find(([k])=>k.includes(titleLow)||titleLow.includes(k))?.[1]||null;
+        // Match with pre-generated prep draft (exact, normalized, or substring)
+        const titleNormCal=titleLow.replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+        const prepMatch=prepMap[titleLow]||prepMap[titleNormCal]||Object.entries(prepMap).find(([k])=>k.includes(titleLow)||titleLow.includes(k)||k.includes(titleNormCal)||titleNormCal.includes(k))?.[1]||null;
         const hasPrepReady=!!prepMatch;
         const uid='calMtg_'+i;
         // Badge: Prep Ready (green link) > Notes Available > No Notes
@@ -3240,10 +3328,11 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   expView.style.display='block';
   const el=document.getElementById('meetingExpandedContent');
 
-  // Check for pre-generated prep draft first
+  // Check for pre-generated prep draft first (match by exact title, normalized title, or substring)
   const titleLow=(title||'').toLowerCase();
+  const titleNorm=(titleLow||'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
   const pm=window._prepDraftMap||{};
-  const prepDraft=pm[titleLow]||Object.entries(pm).find(([k])=>k.includes(titleLow)||titleLow.includes(k))?.[1]||null;
+  const prepDraft=pm[titleLow]||pm[titleNorm]||Object.entries(pm).find(([k])=>k.includes(titleLow)||titleLow.includes(k)||k.includes(titleNorm)||titleNorm.includes(k))?.[1]||null;
   if(prepDraft&&prepDraft.body&&prepDraft.body.length>100){
     // Show pre-generated prep directly (no loading spinner, instant)
     const draftLink=draftUrl(prepDraft.draftId||prepDraft.id);
@@ -3293,11 +3382,9 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const hasVorro=allEmails.some(e=>vorroTeam.includes(e))||title.toLowerCase().includes('vorro')||title.toLowerCase().includes('bridgegate')||title.toLowerCase().includes('integration')||title.toLowerCase().includes('fhir');
   const hasCV3=allEmails.some(e=>cv3Team.includes(e))||title.toLowerCase().includes('cv3')||title.toLowerCase().includes('commercev3')||title.toLowerCase().includes('ecommerce');
   const brandLabel=hasCadient?'Cadient':hasVorro?'Vorro':hasCV3?'CV3':'';
-  const assetBtn='';
   let html=`<div style="background:#1e2a3a;border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:16px;margin-bottom:12px">
     <h2 style="font-size:16px;margin-bottom:4px">${esc(title)}</h2>
-    <div style="font-size:12px;color:#94a3b8">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}</div>
-    ${assetBtn}
+    <div style="font-size:12px;color:#94a3b8">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}${brandLabel?' &middot; <span style="color:#c9a227;font-weight:600">'+esc(brandLabel)+'</span>':''}</div>
   </div>`;
 
   // CRM data
@@ -3391,7 +3478,21 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
 
   // AI Meeting Prep Asset (brand-specific, auto-generated)
   html+='<div class="section-header">Meeting Prep Asset</div><div class="card"><div class="card-body" id="meetingPrepBriefing"><div class="loading"><div class="spinner"></div> Generating meeting prep...</div></div></div>';
-  html+=assetBtn;
+
+  // Generate Asset button (triggers correct skill via sendPrompt)
+  if(brandLabel){
+    const skillCompany=companyGuess||'the prospect company';
+    const skillNames=names.join(', ')||'attendees';
+    let skillPrompt='';
+    if(brandLabel==='Vorro'){
+      skillPrompt=`Create a Vorro sales asset for ${skillCompany}. Contact: ${skillNames}. Use the vorro-sales-asset skill.`;
+    }else if(brandLabel==='Cadient'){
+      skillPrompt=`Create a Cadient hiring process audit for ${skillCompany}. Use the hiring-process-audit skill.`;
+    }else if(brandLabel==='CV3'){
+      skillPrompt=`Create a CV3 eCommerce diagnostic for ${skillCompany}. Contact: ${skillNames}.`;
+    }
+    html+=`<div style="text-align:center;margin:12px 0"><button onclick="kickOffJob('${skillPrompt.replace(/'/g,"\\'")}',this)" style="padding:8px 20px;background:linear-gradient(135deg,#c9a227,#e6b800);color:#1a1a2e;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.3px">Generate ${esc(brandLabel)} Sales Asset</button></div>`;
+  }
 
   el.innerHTML=html;
 
@@ -3420,23 +3521,46 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
     if(threads.length)briefCtx.push({label:'Recent email threads',value:threads.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return (m.subject||'')+'|'+(m.sender||'');}).join('\n')});
     if(files.length)briefCtx.push({label:'Related files',value:files.slice(0,5).map(f=>f.title).join(', ')});
 
-    // Detect brand for tailored prep
-    const brand=hasCadient?'Cadient (SmartSuite - AI talent optimization)':hasVorro?'Vorro (BridgeGate - healthcare integration EiPaaS)':hasCV3?'CV3 (eCommerce optimization, AI site diagnostics)':'General';
-    briefCtx.push({label:'Brand/Product',value:brand});
+    // Detect brand for tailored prep with full product context
+    let brandContext='';
+    if(hasCadient){
+      brandContext=`Brand: Cadient (SmartSuite - AI-powered talent optimization platform).
+Key products to reference: SmartSource (AI candidate sourcing, 5x pool improvement), SmartMatch (AI skills matching, 15% accuracy lift), SmartScreen (automated phone screening, 30% faster hiring), SmartTenure (predictive retention, 20% lift), SmartFeedback (post-hire engagement, 30% improvement).
+Value props: 60% faster hiring, 30% better quality, 45% lower cost-per-hire, 80% recruiter productivity lift.
+Industries: Retail, Healthcare, Logistics, Hospitality, Manufacturing, Finance.
+Pricing: Enterprise SaaS. Competitors: iCIMS, Greenhouse, Paradox, Paylocity, Workday Recruiting.`;
+    }else if(hasVorro){
+      brandContext=`Brand: Vorro (BridgeGate EiPaaS - Enterprise Integration Platform as a Service for healthcare).
+Key products: BridgeGate Integration (connect EHRs, billing, HIEs), BridgeGate Automation (AI-driven workflow automation), AI Data Hub (unified patient data), BridgeGate Monitoring (real-time dashboards + auto-healing).
+Standards supported: FHIR, HL7 v2, EDI X12, NCPDP, C-CDA. Partners: Epic, Cerner, Athena, most major EHRs.
+Value props: 52% integration cost reduction, 87% faster reconciliation, 40% faster implementations.
+Pricing: $20K-$90K+/year + per-connection fees. Deployment: Self-managed, Hybrid, or Fully Managed.
+Competitors: Rhapsody, MuleSoft Health Cloud, Microsoft Health Data Services.`;
+    }else if(hasCV3){
+      brandContext=`Brand: CV3 (CommerceV3 - AI-powered eCommerce optimization platform).
+Focus: Performance-based model for DTC brands. AI site diagnostics, conversion optimization, platform migration.
+Value props: Revenue lift through AI-driven recommendations, reduced platform costs, faster site performance.`;
+    }else{
+      brandContext='Brand: General (Basis Vectors Capital portfolio). Determine if this is a Cadient (HR/talent), Vorro (healthcare integration), or CV3 (eCommerce) opportunity.';
+    }
+    briefCtx.push({label:'Brand/Product Context',value:brandContext});
     briefCtx.push({label:'Company',value:companyGuess||'Unknown'});
+    briefCtx.push({label:'Attendees',value:names.join(', ')||'Unknown'});
 
     const brief=await ask(
-      `You are a CRO's executive assistant preparing a meeting prep asset for "${title}" with ${names.join(', ')}${companyGuess?' at '+companyGuess:''}. Brand: ${brand}.
+      `You are Manish Agarwal's CRO executive assistant. Manish is CRO at Basis Vectors Capital, managing Cadient (HR/Talent) and Vorro (Healthcare Integration). Prepare a meeting prep for "${title}" with ${names.join(', ')}${companyGuess?' at '+companyGuess:''}.
 
-Generate a comprehensive prep document with these sections:
-1. ATTENDEE PROFILE: Who they are, their role, company context
-2. RELATIONSHIP STATUS: Past meetings summary, last discussions, open action items, any commitments
-3. DEALS IN PLAY: Active deals, stage, next steps
-4. KEY TALKING POINTS: 3-5 specific points for this meeting based on all context
-5. OBJECTION PREP: Likely objections and data-driven responses
-6. SUGGESTED NEXT STEPS: What to propose at end of meeting
+${brandContext}
 
-Use ALL the context data provided. Be specific with names, dates, and numbers. No generic filler.`,briefCtx);
+Generate a comprehensive, SPECIFIC prep document with these sections:
+1. ATTENDEE PROFILE: Who they are, their role, what their company does. Use CRM data and email context if available.
+2. RELATIONSHIP STATUS: Summarize past meetings (from Granola notes), recent email threads, open action items, any commitments made. Include specific dates and quotes from context.
+3. DEALS IN PLAY: Active Zoho deals for this company, current stage, pipeline value, next steps.
+4. KEY TALKING POINTS: 3-5 specific points tailored to this meeting. Reference the brand products above that match their needs. Be concrete about which product features solve their problems.
+5. OBJECTION PREP: Likely objections based on their industry and the brand context. Include data-driven responses using the metrics above.
+6. SUGGESTED NEXT STEPS: What to propose at end of meeting (demo, pilot, contract review, etc.)
+
+CRITICAL: Use ALL the context data provided below. Reference specific names, dates, email subjects, and meeting notes. If context data is sparse, say what is missing rather than inventing details. No generic filler.`,briefCtx);
     const bEl=document.getElementById('meetingPrepBriefing');
     if(bEl){
       const briefText=typeof brief==='string'?brief:JSON.stringify(brief);
@@ -4572,11 +4696,305 @@ function addProdTask(){
 function switchProdView(view,btn){
   document.querySelectorAll('.prod-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('prodBoardView').style.display=view==='board'?'block':'none';
-  document.getElementById('prodAssetsView').style.display=view==='assets'?'block':'none';
-  document.getElementById('prodMemoryView').style.display=view==='memory'?'block':'none';
-  document.getElementById('prodGlossaryView').style.display=view==='glossary'?'block':'none';
+  const views=['board','assets','memory','glossary','review','load','okrs','energy','focus'];
+  const ids={board:'prodBoardView',assets:'prodAssetsView',memory:'prodMemoryView',glossary:'prodGlossaryView',review:'prodReviewView',load:'prodLoadView',okrs:'prodOKRView',energy:'prodEnergyView',focus:'prodFocusView'};
+  views.forEach(v=>{const el=document.getElementById(ids[v]);if(el)el.style.display=v===view?'block':'none';});
+  // Lazy load new features on first click
+  if(view==='review'&&!window._reviewLoaded){window._reviewLoaded=true;loadWeeklyReview();}
+  if(view==='load'&&!window._loadLoaded){window._loadLoaded=true;loadMeetingLoad();}
+  if(view==='okrs'&&!window._okrLoaded){window._okrLoaded=true;loadOKRTracker();}
+  if(view==='energy'&&!window._energyLoaded){window._energyLoaded=true;loadEnergyTracker();}
+  if(view==='focus'&&!window._focusLoaded){window._focusLoaded=true;loadFocusBlocks();}
 }
+
+// ── Weekly Review ──
+async function loadWeeklyReview(){
+  const el=document.getElementById('reviewContent');
+  const ld=document.getElementById('reviewLoading');
+  ld.innerHTML='<div class="memory-empty">Loading weekly review data...</div>';
+  try{
+    const now=new Date();
+    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
+    const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+6);weekEnd.setHours(23,59,59,999);
+    const [calR,emailR,granR,dealsR]=await Promise.allSettled([
+      call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+      call(`${GMAIL}__search_threads`,{query:'newer_than:7d',pageSize:50}),
+      call(`${GRAN}__list_meetings`,{period:'this_week'}),
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Deal_Name,Stage,Amount,Modified_Time from Deals where Modified_Time >= '${weekStart.toISOString().slice(0,10)}' order by Modified_Time desc limit 30`}})
+    ]);
+    const events=calR.status==='fulfilled'?(calR.value?.events||[]):[];
+    const threads=emailR.status==='fulfilled'?(emailR.value?.threads||[]):[];
+    const meetings=granR.status==='fulfilled'?(granR.value?.meetings||granR.value||[]):[];
+    const deals=dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[];
+    const mtgCount=events.length;
+    const threadCount=threads.length;
+    const granolaCount=Array.isArray(meetings)?meetings.length:0;
+    const dealCount=deals.length;
+    const summary=`This week: ${mtgCount} calendar events, ${threadCount} email threads, ${granolaCount} Granola meetings, ${dealCount} Zoho deals updated.`;
+    const aiPrompt='You are a CRO productivity coach. Given this weeks data, generate a weekly review with 3 sections: WINS (3-5 bullets), BLOCKERS (2-3 bullets), NEXT WEEK PRIORITIES (3-5 bullets). Be specific using the data provided. Return plain text with section headers.';
+    const dataItems=[
+      {label:'Calendar Events',value:events.map(e=>`${e.summary||'No title'} (${(e.start?.dateTime||e.start?.date||'').slice(0,16)})`).join('; ')},
+      {label:'Email Thread Count',value:String(threadCount)},
+      {label:'Granola Meetings',value:Array.isArray(meetings)?meetings.map(m=>m.title||m.name||'Meeting').join('; '):'None'},
+      {label:'Zoho Deals Updated',value:deals.map(d=>`${d.Deal_Name} [${d.Stage}] ${fmtMoney(d.Amount)}`).join('; ')}
+    ];
+    let aiResult;
+    try{aiResult=await ask(aiPrompt,dataItems);}catch(e){aiResult=null;}
+    const sections=parseReviewSections(aiResult);
+    el.innerHTML=`
+      <div class="prod-feature-card">
+        <h3>&#128203; Weekly Review &mdash; Week of ${weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</h3>
+        <div class="pf-stat-row">
+          <div class="pf-stat-box"><div class="pf-num" style="color:var(--blue)">${mtgCount}</div><div class="pf-label">Meetings</div></div>
+          <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${threadCount}</div><div class="pf-label">Email Threads</div></div>
+          <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${granolaCount}</div><div class="pf-label">Granola Notes</div></div>
+          <div class="pf-stat-box"><div class="pf-num" style="color:var(--orange)">${dealCount}</div><div class="pf-label">Deals Updated</div></div>
+        </div>
+        <div class="pf-section"><h4 style="color:var(--green)">&#9989; Wins</h4><ul>${(sections.wins||['No data available']).map(w=>'<li>'+esc(w)+'</li>').join('')}</ul></div>
+        <div class="pf-section"><h4 style="color:var(--red)">&#128679; Blockers</h4><ul>${(sections.blockers||['No blockers identified']).map(b=>'<li>'+esc(b)+'</li>').join('')}</ul></div>
+        <div class="pf-section"><h4 style="color:var(--blue)">&#127919; Next Week Priorities</h4><ul>${(sections.priorities||['No priorities generated']).map(p=>'<li>'+esc(p)+'</li>').join('')}</ul></div>
+      </div>
+      <div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._reviewLoaded=false;loadWeeklyReview()">Regenerate Review</button></div>`;
+    ld.style.display='none';el.style.display='block';
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error loading review: '+esc(e.message)+'</div>';}
+}
+
+function parseReviewSections(text){
+  if(!text)return{wins:[],blockers:[],priorities:[]};
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l);
+  let section='';const result={wins:[],blockers:[],priorities:[]};
+  for(const line of lines){
+    const lower=line.toLowerCase();
+    if(lower.includes('win')){section='wins';continue;}
+    if(lower.includes('blocker')||lower.includes('challenge')||lower.includes('obstacle')){section='blockers';continue;}
+    if(lower.includes('priorit')||lower.includes('next week')||lower.includes('action')){section='priorities';continue;}
+    if(section&&line.length>2){
+      const clean=line.replace(/^[\-\*\d\.)\s]+/,'').trim();
+      if(clean)result[section].push(clean);
+    }
+  }
+  return result;
+}
+
+// ── Meeting Load ──
+async function loadMeetingLoad(){
+  const el=document.getElementById('loadContent');
+  const ld=document.getElementById('loadLoading');
+  ld.innerHTML='<div class="memory-empty">Analyzing meeting load...</div>';
+  try{
+    const now=new Date();
+    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
+    const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
+    const calR=await call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
+    const events=(calR?.events||[]).filter(e=>e.start?.dateTime&&e.end?.dateTime);
+    const days=['Mon','Tue','Wed','Thu','Fri'];
+    const dayHours=[0,0,0,0,0];
+    events.forEach(e=>{
+      const s=new Date(e.start.dateTime);const en=new Date(e.end.dateTime);
+      const dayIdx=s.getDay()-1;
+      if(dayIdx>=0&&dayIdx<5){dayHours[dayIdx]+=(en-s)/3600000;}
+    });
+    const totalMtg=dayHours.reduce((a,b)=>a+b,0);
+    const totalAvail=40;
+    const focusHrs=totalAvail-totalMtg;
+    const ratio=Math.round((totalMtg/totalAvail)*100);
+    const overloaded=ratio>60;
+    let html=`<div class="prod-feature-card"><h3>&#128200; Meeting Load Analysis</h3>`;
+    if(overloaded)html+=`<div class="pf-warning">&#9888; Meeting load is at ${ratio}% &mdash; above the 60% threshold. Consider declining or rescheduling meetings to protect focus time.</div>`;
+    html+=`<div class="pf-stat-row">
+      <div class="pf-stat-box"><div class="pf-num" style="color:var(--orange)">${totalMtg.toFixed(1)}h</div><div class="pf-label">Meeting Hours</div></div>
+      <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${focusHrs.toFixed(1)}h</div><div class="pf-label">Focus Hours</div></div>
+      <div class="pf-stat-box"><div class="pf-num" style="color:${overloaded?'var(--red)':'var(--blue)'};">${ratio}%</div><div class="pf-label">Meeting Ratio</div></div>
+      <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${events.length}</div><div class="pf-label">Total Events</div></div>
+    </div>`;
+    html+=`<h4>Weekly Overview</h4>
+    <div class="pf-bar-wrap"><div class="pf-bar-label">Meetings</div><div class="pf-bar-track"><div class="pf-bar-fill meetings" style="width:${ratio}%">${totalMtg.toFixed(1)}h</div></div></div>
+    <div class="pf-bar-wrap"><div class="pf-bar-label">Focus</div><div class="pf-bar-track"><div class="pf-bar-fill focus-bar" style="width:${100-ratio}%">${focusHrs.toFixed(1)}h</div></div></div>`;
+    html+=`<h4>Day-by-Day Breakdown</h4>`;
+    days.forEach((d,i)=>{
+      const pct=Math.round((dayHours[i]/8)*100);
+      const cls=pct>75?'red':pct>50?'amber':'green';
+      html+=`<div class="pf-bar-wrap"><div class="pf-bar-label">${d}</div><div class="pf-bar-track"><div class="pf-bar-fill ${cls}" style="width:${Math.min(pct,100)}%">${dayHours[i].toFixed(1)}h</div></div></div>`;
+    });
+    html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._loadLoaded=false;loadMeetingLoad()">Refresh</button></div>`;
+    el.innerHTML=html;ld.style.display='none';el.style.display='block';
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+}
+
+// ── OKR Tracker ──
+async function loadOKRTracker(){
+  const el=document.getElementById('okrContent');
+  const ld=document.getElementById('okrLoading');
+  ld.innerHTML='<div class="memory-empty">Loading OKR data...</div>';
+  try{
+    const now=new Date();
+    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
+    const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
+    const [dealsR,wonR,lostR,calR]=await Promise.allSettled([
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Amount from Deals where Stage != 'Closed Lost' and Stage != 'Closed Won' limit 200"}}),
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Amount from Deals where Stage = 'Closed Won' limit 200"}}),
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Amount from Deals where Stage = 'Closed Lost' limit 200"}}),
+      call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
+    ]);
+    const pipeline=(dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[]).reduce((s,d)=>s+(d.Amount||0),0);
+    const won=(wonR.status==='fulfilled'?(wonR.value?.data||[]):[]);
+    const lost=(lostR.status==='fulfilled'?(lostR.value?.data||[]):[]);
+    const winRate=won.length+lost.length>0?Math.round((won.length/(won.length+lost.length))*100):0;
+    const mtgCount=(calR.status==='fulfilled'?(calR.value?.events||[]):[]).length;
+    const okrs=[
+      {name:'Pipeline Coverage',target:2000000,actual:pipeline,unit:'$',fmt:v=>fmtMoney(v)},
+      {name:'Win Rate',target:30,actual:winRate,unit:'%',fmt:v=>v+'%'},
+      {name:'Meetings/Week',target:15,actual:mtgCount,unit:'',fmt:v=>String(v)},
+      {name:'Response Time',target:4,actual:null,unit:'hr',fmt:()=>'Track manually'}
+    ];
+    let html=`<div class="prod-feature-card"><h3>&#127919; OKR Tracker</h3>`;
+    okrs.forEach(o=>{
+      const pct=o.actual!==null?Math.min(Math.round((o.actual/o.target)*100),150):0;
+      const cls=o.actual===null?'amber':pct>=80?'green':pct>=50?'amber':'red';
+      const color=cls==='green'?'var(--green)':cls==='amber'?'var(--orange)':'var(--red)';
+      html+=`<div class="pf-okr-row">
+        <div class="pf-okr-name">${esc(o.name)}</div>
+        <div class="pf-okr-vals">Target: ${o.fmt(o.target)} | Actual: ${o.actual!==null?o.fmt(o.actual):'N/A'}</div>
+        <div class="pf-okr-bar"><div class="pf-bar-track"><div class="pf-bar-fill ${cls}" style="width:${o.actual!==null?Math.min(pct,100):0}%"></div></div></div>
+        <div class="pf-okr-pct" style="color:${color}">${o.actual!==null?pct+'%':'--'}</div>
+      </div>`;
+    });
+    html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._okrLoaded=false;loadOKRTracker()">Refresh</button></div>`;
+    el.innerHTML=html;ld.style.display='none';el.style.display='block';
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+}
+
+// ── Energy Tracker ──
+async function loadEnergyTracker(){
+  const el=document.getElementById('energyContent');
+  const ld=document.getElementById('energyLoading');
+  ld.innerHTML='<div class="memory-empty">Loading meetings for energy tracking...</div>';
+  try{
+    const now=new Date();
+    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
+    const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
+    const calR=await call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
+    const events=(calR?.events||[]).filter(e=>e.summary);
+    const stored=JSON.parse(localStorage.getItem('energyTracker')||'{}');
+    renderEnergyView(el,ld,events,stored);
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+}
+
+function renderEnergyView(el,ld,events,stored){
+  const energizing=Object.values(stored).filter(v=>v==='energizing').length;
+  const draining=Object.values(stored).filter(v=>v==='draining').length;
+  const total=energizing+draining;
+  const ePct=total>0?Math.round((energizing/total)*100):50;
+  const dPct=total>0?100-ePct:50;
+  let html=`<div class="prod-feature-card"><h3>&#9889; Energy Tracker</h3>`;
+  html+=`<div class="pf-stat-row">
+    <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${energizing}</div><div class="pf-label">Energizing</div></div>
+    <div class="pf-stat-box"><div class="pf-num" style="color:var(--red)">${draining}</div><div class="pf-label">Draining</div></div>
+    <div class="pf-stat-box"><div class="pf-num" style="color:var(--text-secondary)">${events.length}</div><div class="pf-label">Total Meetings</div></div>
+  </div>`;
+  html+=`<div class="pf-bar-wrap"><div class="pf-bar-label" style="min-width:70px">Balance</div><div class="pf-bar-track" style="display:flex">
+    <div class="pf-bar-fill green" style="width:${ePct}%;border-radius:4px 0 0 4px">${ePct}%</div>
+    <div class="pf-bar-fill red" style="width:${dPct}%;border-radius:0 4px 4px 0">${dPct}%</div>
+  </div></div>`;
+  html+=`<h4>Rate Your Meetings</h4>`;
+  events.forEach(e=>{
+    const key='energy_'+(e.id||e.summary);
+    const val=stored[key]||'';
+    const sTime=e.start?.dateTime?new Date(e.start.dateTime).toLocaleString('en-US',{weekday:'short',hour:'numeric',minute:'2-digit'}):(e.start?.date||'');
+    html+=`<div class="pf-energy-item">
+      <div class="pf-mtg-time">${esc(sTime)}</div>
+      <div class="pf-mtg-name">${esc(e.summary)}</div>
+      <button class="pf-energy-btn energize ${val==='energizing'?'active':''}" onclick="setEnergy('${esc(key)}','energizing')" title="Energizing">+</button>
+      <button class="pf-energy-btn drain ${val==='draining'?'active':''}" onclick="setEnergy('${esc(key)}','draining')" title="Draining">&minus;</button>
+    </div>`;
+  });
+  if(!events.length)html+=`<div class="memory-empty">No meetings found this week</div>`;
+  html+=`</div>`;
+  el.innerHTML=html;ld.style.display='none';el.style.display='block';
+  window._energyEvents=events;
+}
+
+function setEnergy(key,value){
+  const stored=JSON.parse(localStorage.getItem('energyTracker')||'{}');
+  if(stored[key]===value){delete stored[key];}else{stored[key]=value;}
+  localStorage.setItem('energyTracker',JSON.stringify(stored));
+  const el=document.getElementById('energyContent');
+  const ld=document.getElementById('energyLoading');
+  renderEnergyView(el,ld,window._energyEvents||[],stored);
+}
+
+// ── Focus Blocks ──
+async function loadFocusBlocks(){
+  const el=document.getElementById('focusContent');
+  const ld=document.getElementById('focusLoading');
+  ld.innerHTML='<div class="memory-empty">Finding focus blocks...</div>';
+  try{
+    const now=new Date();
+    const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
+    const tomorrowEnd=new Date(todayStart);tomorrowEnd.setDate(tomorrowEnd.getDate()+2);tomorrowEnd.setHours(0,0,0,0);
+    const calR=await call(`${CAL}__list_events`,{startTime:todayStart.toISOString(),endTime:tomorrowEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
+    const events=(calR?.events||[]).filter(e=>e.start?.dateTime&&e.end?.dateTime);
+    const todayLabel=now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+    const tmrw=new Date(todayStart);tmrw.setDate(tmrw.getDate()+1);
+    const tmrwLabel=tmrw.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+    const todayEvents=events.filter(e=>{const d=new Date(e.start.dateTime);return d.toDateString()===now.toDateString();});
+    const tmrwEvents=events.filter(e=>{const d=new Date(e.start.dateTime);return d.toDateString()===tmrw.toDateString();});
+    const todayBlocks=findFocusGaps(todayEvents,now);
+    const tmrwBlocks=findFocusGaps(tmrwEvents,tmrw);
+    const todayFocus=todayBlocks.reduce((s,b)=>s+b.minutes,0);
+    const tmrwFocus=tmrwBlocks.reduce((s,b)=>s+b.minutes,0);
+    let html=`<div class="prod-feature-card"><h3>&#128161; Focus Blocks</h3>
+      <div class="pf-stat-row">
+        <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${(todayFocus/60).toFixed(1)}h</div><div class="pf-label">Today Focus</div></div>
+        <div class="pf-stat-box"><div class="pf-num" style="color:var(--blue)">${(tmrwFocus/60).toFixed(1)}h</div><div class="pf-label">Tomorrow Focus</div></div>
+        <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${todayBlocks.length+tmrwBlocks.length}</div><div class="pf-label">Total Blocks</div></div>
+      </div>`;
+    html+=`<h4>Today &mdash; ${esc(todayLabel)}</h4>`;
+    if(todayBlocks.length){
+      todayBlocks.forEach(b=>{
+        html+=`<div class="pf-focus-card">
+          <div class="pf-focus-time">${b.startStr} &mdash; ${b.endStr}</div>
+          <div class="pf-focus-dur">${b.minutes} min</div>
+          <div class="pf-focus-label">Available for deep work</div>
+        </div>`;
+      });
+    }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found today</div>`;}
+    html+=`<h4>Tomorrow &mdash; ${esc(tmrwLabel)}</h4>`;
+    if(tmrwBlocks.length){
+      tmrwBlocks.forEach(b=>{
+        html+=`<div class="pf-focus-card">
+          <div class="pf-focus-time">${b.startStr} &mdash; ${b.endStr}</div>
+          <div class="pf-focus-dur">${b.minutes} min</div>
+          <div class="pf-focus-label">Available for deep work</div>
+        </div>`;
+      });
+    }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found tomorrow</div>`;}
+    html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._focusLoaded=false;loadFocusBlocks()">Refresh</button></div>`;
+    el.innerHTML=html;ld.style.display='none';el.style.display='block';
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+}
+
+function findFocusGaps(events,day){
+  const workStart=new Date(day);workStart.setHours(8,0,0,0);
+  const workEnd=new Date(day);workEnd.setHours(18,0,0,0);
+  const sorted=events.map(e=>({s:new Date(e.start.dateTime),e:new Date(e.end.dateTime)})).sort((a,b)=>a.s-b.s);
+  const gaps=[];
+  let cursor=workStart;
+  sorted.forEach(evt=>{
+    if(evt.s>cursor){
+      const mins=Math.round((evt.s-cursor)/60000);
+      if(mins>=90)gaps.push({start:new Date(cursor),end:new Date(evt.s),minutes:mins,startStr:fmtTime(cursor),endStr:fmtTime(evt.s)});
+    }
+    if(evt.e>cursor)cursor=new Date(evt.e);
+  });
+  if(workEnd>cursor){
+    const mins=Math.round((workEnd-cursor)/60000);
+    if(mins>=90)gaps.push({start:new Date(cursor),end:new Date(workEnd),minutes:mins,startStr:fmtTime(cursor),endStr:fmtTime(workEnd)});
+  }
+  return gaps;
+}
+
+function fmtTime(d){return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});}
 
 async function loadMemoryView(){
   // Build memory from CLAUDE.md knowledge + CRM + Calendar
@@ -5640,4 +6058,12 @@ dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADE
     if(_st)_st.textContent='v5.0 | ready';
     dbg('Dashboard loaded successfully!','ok');
     _tabStatus.dashboard='ok';
-    flushLogs()
+    flushLogs();
+  }catch(e){
+    dbg('INIT ERROR: '+e.message,'err');
+    if(_st)_st.textContent='v5.0 | error';
+  }
+})();
+</script>
+</body>
+</html>
