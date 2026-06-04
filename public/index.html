@@ -543,6 +543,14 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <h1>Manish's HQ</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v5.0 | init...</span>
     <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="margin-left:auto;padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer">Debug</button>
     <button onclick="fetch('/auth/logout',{method:'POST'}).then(()=>location.reload())" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">Logout</button>
+    <select id="viewSwitcher" onchange="switchOrgView(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--accent-text);font-size:11px;font-weight:600;cursor:pointer;margin-left:6px">
+      <option value="sales">CRO / Sales</option>
+      <option value="marketing">CMO / Marketing</option>
+      <option value="finance">CFO / Finance</option>
+      <option value="hr">CHRO / HR</option>
+      <option value="operations">COO / Operations</option>
+      <option value="product">CPO / Product</option>
+    </select>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
       <input id="searchInput" type="text" placeholder="Search contacts, threads, deals..." autocomplete="off">
@@ -555,19 +563,49 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <button class="vip-btn" onclick="loadContact('Bill Mastin','bmastin@cadienttalent.com')">Bill</button>
     </div>
   </div>
-  <div class="tabs">
-    <div class="tab active" data-view="dashboard" onclick="switchView('dashboard')">Today</div>
-    <div class="tab" data-view="contact360" onclick="switchView('contact360')">Contact 360</div>
-    <div class="tab" data-view="pipeline" onclick="switchView('pipeline')">Pipeline</div>
-    <div class="tab" data-view="team" onclick="switchView('team')">Team</div>
-    <div class="tab" data-view="meetings" onclick="switchView('meetings')">Meetings</div>
-    <div class="tab" data-view="intelligence" onclick="switchView('intelligence')">Intelligence</div>
-    <div class="tab" data-view="copilot" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
-    <div class="tab" data-view="productivity" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
-    <div class="tab" data-view="legal" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
-    <div class="tab" data-view="newsfeed" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
-    <div class="tab" data-view="icpchecker" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Checker</div>
-    <div class="tab" data-view="followups" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
+  <div class="tabs" id="tabBar">
+    <!-- Shared across all views -->
+    <div class="tab active" data-view="dashboard" data-org="all" onclick="switchView('dashboard')">Today</div>
+    <!-- Sales-only tabs -->
+    <div class="tab" data-view="contact360" data-org="sales" onclick="switchView('contact360')">Contact 360</div>
+    <div class="tab" data-view="pipeline" data-org="sales,finance" onclick="switchView('pipeline')">Pipeline</div>
+    <div class="tab" data-view="team" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('team')">Team</div>
+    <div class="tab" data-view="meetings" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('meetings')">Meetings</div>
+    <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
+    <div class="tab" data-view="copilot" data-org="sales" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
+    <div class="tab" data-view="productivity" data-org="sales" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
+    <div class="tab" data-view="legal" data-org="sales" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
+    <div class="tab" data-view="newsfeed" data-org="sales" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
+    <div class="tab" data-view="icpchecker" data-org="sales" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Checker</div>
+    <div class="tab" data-view="followups" data-org="sales" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
+    <!-- Marketing tabs -->
+    <div class="tab" data-view="mktCampaigns" data-org="marketing" onclick="switchView('mktCampaigns')" style="display:none;color:#60a5fa;font-weight:600">Campaigns</div>
+    <div class="tab" data-view="mktLeads" data-org="marketing" onclick="switchView('mktLeads')" style="display:none;color:#60a5fa;font-weight:600">Lead Analytics</div>
+    <div class="tab" data-view="mktEvents" data-org="marketing" onclick="switchView('mktEvents')" style="display:none;color:#60a5fa;font-weight:600">Events</div>
+    <div class="tab" data-view="mktContent" data-org="marketing" onclick="switchView('mktContent')" style="display:none;color:#60a5fa;font-weight:600">Content</div>
+    <!-- Finance tabs -->
+    <div class="tab" data-view="finRevenue" data-org="finance" onclick="switchView('finRevenue')" style="display:none;color:#34d399;font-weight:600">Revenue</div>
+    <div class="tab" data-view="finRenewals" data-org="finance" onclick="switchView('finRenewals')" style="display:none;color:#34d399;font-weight:600">Renewals</div>
+    <div class="tab" data-view="finForecast" data-org="finance" onclick="switchView('finForecast')" style="display:none;color:#34d399;font-weight:600">Forecast</div>
+    <div class="tab" data-view="finExpenses" data-org="finance" onclick="switchView('finExpenses')" style="display:none;color:#34d399;font-weight:600">Expenses</div>
+    <!-- HR tabs -->
+    <div class="tab" data-view="hrHeadcount" data-org="hr" onclick="switchView('hrHeadcount')" style="display:none;color:#a78bfa;font-weight:600">Headcount</div>
+    <div class="tab" data-view="hrAppraisals" data-org="hr" onclick="switchView('hrAppraisals')" style="display:none;color:#a78bfa;font-weight:600">Appraisals</div>
+    <div class="tab" data-view="hrCerts" data-org="hr" onclick="switchView('hrCerts')" style="display:none;color:#a78bfa;font-weight:600">Certifications</div>
+    <div class="tab" data-view="hrSurveys" data-org="hr" onclick="switchView('hrSurveys')" style="display:none;color:#a78bfa;font-weight:600">Surveys</div>
+    <div class="tab" data-view="hrOnboarding" data-org="hr" onclick="switchView('hrOnboarding')" style="display:none;color:#a78bfa;font-weight:600">Onboarding</div>
+    <!-- Operations tabs -->
+    <div class="tab" data-view="opsCustHealth" data-org="operations" onclick="switchView('opsCustHealth')" style="display:none;color:#2dd4bf;font-weight:600">Customer Health</div>
+    <div class="tab" data-view="opsSupport" data-org="operations" onclick="switchView('opsSupport')" style="display:none;color:#2dd4bf;font-weight:600">Support</div>
+    <div class="tab" data-view="opsProjects" data-org="operations" onclick="switchView('opsProjects')" style="display:none;color:#2dd4bf;font-weight:600">Projects</div>
+    <div class="tab" data-view="opsSLAs" data-org="operations" onclick="switchView('opsSLAs')" style="display:none;color:#2dd4bf;font-weight:600">SLAs</div>
+    <div class="tab" data-view="opsIncidents" data-org="operations" onclick="switchView('opsIncidents')" style="display:none;color:#2dd4bf;font-weight:600">Incidents</div>
+    <!-- Product tabs -->
+    <div class="tab" data-view="prodRoadmap" data-org="product" onclick="switchView('prodRoadmap')" style="display:none;color:#f472b6;font-weight:600">Roadmap</div>
+    <div class="tab" data-view="prodUsage" data-org="product" onclick="switchView('prodUsage')" style="display:none;color:#f472b6;font-weight:600">Usage</div>
+    <div class="tab" data-view="prodBugs" data-org="product" onclick="switchView('prodBugs')" style="display:none;color:#f472b6;font-weight:600">Bugs</div>
+    <div class="tab" data-view="prodSprints" data-org="product" onclick="switchView('prodSprints')" style="display:none;color:#f472b6;font-weight:600">Sprints</div>
+    <div class="tab" data-view="prodFeedback" data-org="product" onclick="switchView('prodFeedback')" style="display:none;color:#f472b6;font-weight:600">Feedback</div>
   </div>
   <div id="debugPanel" style="display:none;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:10px;padding:8px 12px;max-height:200px;overflow-y:auto;border-bottom:2px solid #4caf50">
     <div style="display:flex;justify-content:space-between;margin-bottom:4px"><strong style="color:#4caf50">Debug Log v5.0</strong><button onclick="navigator.clipboard.writeText(document.getElementById('debugLog').textContent)" style="font-size:9px;background:#1e2a3a;color:#0f0;border:1px solid #0f0;padding:1px 4px;cursor:pointer">Copy</button></div>
@@ -1259,6 +1297,115 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <div class="card"><div class="card-body scroll-panel" id="newsIndustry" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
     </div>
 
+    <!-- ══════ MARKETING VIEWS ══════ -->
+    <div id="view-mktCampaigns" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#60a5fa">Campaigns</h2>
+      <div id="mktCampaignsStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="mktCampaignsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading campaigns...</div></div></div>
+    </div>
+    <div id="view-mktLeads" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#60a5fa">Lead Analytics</h2>
+      <div id="mktLeadsStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="mktLeadsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading lead data...</div></div></div>
+    </div>
+    <div id="view-mktEvents" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#60a5fa">Events</h2>
+      <div class="card"><div class="card-body scroll-panel" id="mktEventsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading events...</div></div></div>
+    </div>
+    <div id="view-mktContent" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#60a5fa">Content</h2>
+      <div class="card"><div class="card-body scroll-panel" id="mktContentBody" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading content threads...</div></div></div>
+    </div>
+
+    <!-- ══════ FINANCE VIEWS ══════ -->
+    <div id="view-finRevenue" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#34d399">Revenue</h2>
+      <div id="finRevenueStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="finRevenueContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading revenue data...</div></div></div>
+    </div>
+    <div id="view-finRenewals" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#34d399">Renewals</h2>
+      <div class="card"><div class="card-body scroll-panel" id="finRenewalsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading renewals...</div></div></div>
+    </div>
+    <div id="view-finForecast" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#34d399">Forecast</h2>
+      <div id="finForecastStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="finForecastContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading forecast...</div></div></div>
+    </div>
+    <div id="view-finExpenses" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#34d399">Expenses</h2>
+      <div class="card"><div class="card-body scroll-panel" id="finExpensesContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading expense threads...</div></div></div>
+    </div>
+
+    <!-- ══════ HR VIEWS ══════ -->
+    <div id="view-hrHeadcount" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#a78bfa">Headcount</h2>
+      <div class="card"><div class="card-body scroll-panel" id="hrHeadcountContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading headcount data...</div></div></div>
+    </div>
+    <div id="view-hrAppraisals" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#a78bfa">Appraisals</h2>
+      <div class="card"><div class="card-body scroll-panel" id="hrAppraisalsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading appraisal data...</div></div></div>
+    </div>
+    <div id="view-hrCerts" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#a78bfa">Certifications</h2>
+      <div class="card"><div class="card-body scroll-panel" id="hrCertsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading certifications...</div></div></div>
+    </div>
+    <div id="view-hrSurveys" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#a78bfa">Surveys</h2>
+      <div class="card"><div class="card-body scroll-panel" id="hrSurveysContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading survey data...</div></div></div>
+    </div>
+    <div id="view-hrOnboarding" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#a78bfa">Onboarding</h2>
+      <div class="card"><div class="card-body scroll-panel" id="hrOnboardingContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading onboarding data...</div></div></div>
+    </div>
+
+    <!-- ══════ OPERATIONS VIEWS ══════ -->
+    <div id="view-opsCustHealth" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#2dd4bf">Customer Health</h2>
+      <div id="opsCustHealthStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="opsCustHealthContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading customer health...</div></div></div>
+    </div>
+    <div id="view-opsSupport" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#2dd4bf">Support</h2>
+      <div id="opsSupportStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="opsSupportContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading support data...</div></div></div>
+    </div>
+    <div id="view-opsProjects" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#2dd4bf">Projects</h2>
+      <div class="card"><div class="card-body scroll-panel" id="opsProjectsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading projects...</div></div></div>
+    </div>
+    <div id="view-opsSLAs" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#2dd4bf">SLAs</h2>
+      <div class="card"><div class="card-body scroll-panel" id="opsSLAsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading SLA data...</div></div></div>
+    </div>
+    <div id="view-opsIncidents" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#2dd4bf">Incidents</h2>
+      <div class="card"><div class="card-body scroll-panel" id="opsIncidentsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading incidents...</div></div></div>
+    </div>
+
+    <!-- ══════ PRODUCT VIEWS ══════ -->
+    <div id="view-prodRoadmap" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#f472b6">Roadmap</h2>
+      <div class="card"><div class="card-body scroll-panel" id="prodRoadmapContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading roadmap...</div></div></div>
+    </div>
+    <div id="view-prodUsage" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#f472b6">Usage</h2>
+      <div class="card"><div class="card-body scroll-panel" id="prodUsageContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading usage data...</div></div></div>
+    </div>
+    <div id="view-prodBugs" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#f472b6">Bugs</h2>
+      <div id="prodBugsStats" class="stats-bar" style="margin-bottom:14px"></div>
+      <div class="card"><div class="card-body scroll-panel" id="prodBugsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading bugs...</div></div></div>
+    </div>
+    <div id="view-prodSprints" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#f472b6">Sprints</h2>
+      <div class="card"><div class="card-body scroll-panel" id="prodSprintsContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading sprints...</div></div></div>
+    </div>
+    <div id="view-prodFeedback" class="view">
+      <h2 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#f472b6">Feedback</h2>
+      <div class="card"><div class="card-body scroll-panel" id="prodFeedbackContent" style="max-height:600px"><div class="loading"><div class="spinner"></div><br>Loading feedback...</div></div></div>
+    </div>
+
   </div>
 </div>
 
@@ -1476,6 +1623,495 @@ function detectBrand(title,company){
   return 'cadient';
 }
 
+// ── Org View Switching ──
+let _currentOrgView='sales';
+function switchOrgView(orgView){
+  _currentOrgView=orgView;
+  dbg('switchOrgView('+orgView+')');
+  // Show/hide tabs based on data-org attribute
+  document.querySelectorAll('.tab[data-org]').forEach(tab=>{
+    const orgs=tab.getAttribute('data-org');
+    if(orgs==='all'||orgs.split(',').includes(orgView)){
+      tab.style.display='';
+    }else{
+      tab.style.display='none';
+    }
+  });
+  // Switch to Today tab
+  switchView('dashboard');
+}
+
+// ── Helper: render Gmail threads as card list ──
+function renderThreadList(threads,el,emptyMsg){
+  if(!threads||!threads.length){el.innerHTML='<div class="empty-state">'+(emptyMsg||'No threads found')+'</div>';return;}
+  let html='';
+  threads.forEach(t=>{
+    const subj=esc(t.subject||t.snippet||'(no subject)');
+    const snip=esc(truncate(t.snippet||'',120));
+    const from=esc((t.from||'').split('<')[0].trim());
+    const date=t.date?fmtDate(t.date):'';
+    const url=gmailUrl(t.threadId||t.id||'');
+    html+=`<div class="thread-row" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer" onclick="window.open('${url}','_blank')">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${subj}</div>
+        <div style="font-size:10px;color:var(--text-muted);white-space:nowrap">${date}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${from}</div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${snip}</div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+// ── Helper: render Zoho table rows ──
+function renderZohoTable(data,columns,el,emptyMsg){
+  if(!data||!data.length){el.innerHTML='<div class="empty-state">'+(emptyMsg||'No data found')+'</div>';return;}
+  let html='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html+='<thead><tr>';
+  columns.forEach(c=>{html+=`<th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:0.5px">${esc(c.label)}</th>`});
+  html+='</tr></thead><tbody>';
+  data.forEach((row,i)=>{
+    html+=`<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(255,255,255,0.02)':''}">`;
+    columns.forEach(c=>{
+      let val=row[c.key]||'';
+      if(c.fmt==='money')val=fmtMoney(val);
+      else if(c.fmt==='date')val=fmtDate(val);
+      else val=esc(String(val));
+      html+=`<td style="padding:8px 10px;color:var(--text-primary)">${val}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  el.innerHTML=html;
+}
+
+// ══════════════════════════════════════
+// ── MARKETING VIEW LOADERS ──
+// ══════════════════════════════════════
+async function loadMktCampaigns(){
+  const el=document.getElementById('mktCampaignsContent');
+  const stats=document.getElementById('mktCampaignsStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading campaigns...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(campaign OR MQL OR "lead gen" OR newsletter OR webinar) newer_than:30d',pageSize:25});
+    const threads=r?.threads||r?.resultThreads||[];
+    if(stats)stats.innerHTML=`<div class="stat-card"><div class="stat-num">${threads.length}</div><div class="stat-label">Campaign Threads (30d)</div></div>
+      <div class="stat-card"><div class="stat-num">${threads.length>0?fmtDate(threads[0]?.date||threads[0]?.messages?.[0]?.date):'N/A'}</div><div class="stat-label">Latest Activity</div></div>`;
+    renderThreadList(threads,el,'No campaign-related threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadMktLeads(){
+  const el=document.getElementById('mktLeadsContent');
+  const stats=document.getElementById('mktLeadsStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading lead data...</div>';
+  try{
+    const [zohoR,gmailR]=await Promise.allSettled([
+      call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select Lead_Source, COUNT(id) as cnt from Leads group by Lead_Source limit 50"}}).catch(()=>null),
+      call(GMAIL+'__search_threads',{query:'subject:("lead report" OR "MQL report" OR "pipeline report" OR "marketing report") newer_than:30d',pageSize:15})
+    ]);
+    let html='';
+    const zoho=zohoR.status==='fulfilled'&&zohoR.value?zohoR.value:null;
+    const leads=zoho?.data||[];
+    if(leads.length){
+      const total=leads.reduce((s,l)=>s+(l.cnt||0),0);
+      if(stats)stats.innerHTML=`<div class="stat-card"><div class="stat-num">${total}</div><div class="stat-label">Total Leads</div></div>
+        <div class="stat-card"><div class="stat-num">${leads.length}</div><div class="stat-label">Lead Sources</div></div>`;
+      html+='<div class="section-header" style="margin-bottom:8px">Lead Sources (Zoho CRM)</div>';
+      html+='<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px"><thead><tr><th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Source</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Count</th></tr></thead><tbody>';
+      leads.sort((a,b)=>(b.cnt||0)-(a.cnt||0));
+      leads.forEach((l,i)=>{html+=`<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(255,255,255,0.02)':''}"><td style="padding:8px 10px;color:var(--text-primary)">${esc(l.Lead_Source||'Unknown')}</td><td style="padding:8px 10px;text-align:right;color:var(--accent-text);font-weight:600">${l.cnt||0}</td></tr>`});
+      html+='</tbody></table>';
+    }
+    const gmail=gmailR.status==='fulfilled'?gmailR.value:null;
+    const threads=gmail?.threads||gmail?.resultThreads||[];
+    if(threads.length){
+      html+='<div class="section-header" style="margin-bottom:8px">Lead/Marketing Reports (Gmail)</div>';
+      const tmpEl=document.createElement('div');
+      renderThreadList(threads,tmpEl,'');
+      html+=tmpEl.innerHTML;
+    }
+    el.innerHTML=html||'<div class="empty-state">No lead data available</div>';
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadMktEvents(){
+  const el=document.getElementById('mktEventsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading events...</div>';
+  try{
+    const now=new Date();
+    const end=new Date(now);end.setDate(end.getDate()+60);
+    const r=await call(CAL+'__list_events',{startTime:now.toISOString(),endTime:end.toISOString(),timeZone:'America/New_York',orderBy:'startTime',q:'webinar OR event OR conference OR summit OR launch'});
+    const events=r?.events||r?.items||[];
+    if(!events.length){el.innerHTML='<div class="empty-state">No upcoming webinars, events, or conferences in the next 60 days</div>';return;}
+    let html='';
+    events.forEach(ev=>{
+      const title=esc(ev.summary||ev.title||'Untitled');
+      const start=ev.start?.dateTime||ev.start?.date||ev.startTime||'';
+      const attendees=(ev.attendees||[]).map(a=>esc(a.email||a.displayName||'')).filter(Boolean).join(', ');
+      html+=`<div style="padding:10px 12px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;gap:8px"><div style="font-size:12px;font-weight:600;color:var(--text-primary)">${title}</div><div style="font-size:10px;color:var(--accent-text);white-space:nowrap">${fmtFull(start)}</div></div>
+        ${attendees?`<div style="font-size:10px;color:var(--text-muted);margin-top:3px">${attendees}</div>`:''}
+      </div>`;
+    });
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadMktContent(){
+  const el=document.getElementById('mktContentBody');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading content threads...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(blog OR "content calendar" OR "social media" OR "brand guide" OR "press release" OR whitepaper OR ebook) newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No content-related threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+// ══════════════════════════════════════
+// ── FINANCE VIEW LOADERS ──
+// ══════════════════════════════════════
+async function loadFinRevenue(){
+  const el=document.getElementById('finRevenueContent');
+  const stats=document.getElementById('finRevenueStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading revenue data...</div>';
+  try{
+    const [totalR,listR]=await Promise.allSettled([
+      call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select SUM(Amount) as total from Deals where Stage = 'Closed Won'"}}),
+      call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select Deal_Name, Amount, Closing_Date, Account_Name from Deals where Stage = 'Closed Won' order by Closing_Date desc limit 50"}})
+    ]);
+    const totalData=totalR.status==='fulfilled'?totalR.value:null;
+    const listData=listR.status==='fulfilled'?listR.value:null;
+    const totalAmt=(totalData?.data||[])[0]?.total||0;
+    const deals=listData?.data||[];
+    if(stats)stats.innerHTML=`<div class="stat-card"><div class="stat-num" style="color:var(--green)">${fmtMoney(totalAmt)}</div><div class="stat-label">Total Closed Won Revenue</div></div>
+      <div class="stat-card"><div class="stat-num">${deals.length}</div><div class="stat-label">Recent Wins</div></div>`;
+    renderZohoTable(deals,[
+      {key:'Deal_Name',label:'Deal',fmt:'text'},
+      {key:'Account_Name',label:'Account',fmt:'text'},
+      {key:'Amount',label:'Amount',fmt:'money'},
+      {key:'Closing_Date',label:'Close Date',fmt:'date'}
+    ],el,'No closed deals found');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadFinRenewals(){
+  const el=document.getElementById('finRenewalsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading renewals...</div>';
+  try{
+    const r=await call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select Deal_Name, Amount, Closing_Date, Account_Name, Stage from Deals where (Type = 'Existing Business - Renewal' or Deal_Name like '%renewal%' or Deal_Name like '%Renewal%') order by Closing_Date asc limit 50"}});
+    const deals=r?.data||[];
+    renderZohoTable(deals,[
+      {key:'Deal_Name',label:'Deal',fmt:'text'},
+      {key:'Account_Name',label:'Account',fmt:'text'},
+      {key:'Amount',label:'Amount',fmt:'money'},
+      {key:'Closing_Date',label:'Due Date',fmt:'date'},
+      {key:'Stage',label:'Stage',fmt:'text'}
+    ],el,'No renewal deals found. Try searching Zoho with Type = "Existing Business" deals.');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadFinForecast(){
+  const el=document.getElementById('finForecastContent');
+  const stats=document.getElementById('finForecastStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading forecast...</div>';
+  try{
+    const r=await call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select Stage, SUM(Amount) as total, COUNT(id) as cnt from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' group by Stage"}});
+    const stages=r?.data||[];
+    const weights={'Qualification':10,'Needs Analysis':20,'Value Proposition':40,'Identify Decision Makers':50,'Proposal/Price Quote':60,'Negotiation/Review':75,'S4 - Proposal/Negotiation':75,'S3 - Demo/Evaluation':50,'S2 - Discovery':25,'S1 - Prospecting':10};
+    let totalPipe=0,totalWeighted=0;
+    stages.forEach(s=>{
+      const amt=s.total||0;
+      const w=(weights[s.Stage]||30)/100;
+      totalPipe+=amt;
+      totalWeighted+=amt*w;
+    });
+    if(stats)stats.innerHTML=`<div class="stat-card"><div class="stat-num">${fmtMoney(totalPipe)}</div><div class="stat-label">Total Open Pipeline</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--green)">${fmtMoney(totalWeighted)}</div><div class="stat-label">Weighted Forecast</div></div>
+      <div class="stat-card"><div class="stat-num">${stages.length}</div><div class="stat-label">Active Stages</div></div>`;
+    let html='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Stage</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Deals</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Total</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Weight</th><th style="text-align:right;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text-muted);font-size:10px;text-transform:uppercase">Weighted</th></tr></thead><tbody>';
+    stages.sort((a,b)=>(b.total||0)-(a.total||0));
+    stages.forEach((s,i)=>{
+      const w=weights[s.Stage]||30;
+      html+=`<tr style="border-bottom:1px solid var(--border);${i%2?'background:rgba(255,255,255,0.02)':''}"><td style="padding:8px 10px;color:var(--text-primary);font-weight:600">${esc(s.Stage||'Unknown')}</td><td style="padding:8px 10px;text-align:right;color:var(--text-secondary)">${s.cnt||0}</td><td style="padding:8px 10px;text-align:right;color:var(--accent-text)">${fmtMoney(s.total)}</td><td style="padding:8px 10px;text-align:right;color:var(--text-muted)">${w}%</td><td style="padding:8px 10px;text-align:right;color:var(--green);font-weight:600">${fmtMoney((s.total||0)*w/100)}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadFinExpenses(){
+  const el=document.getElementById('finExpensesContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading expense threads...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(expense OR invoice OR vendor OR payment OR budget OR MIS OR "P&L" OR cost OR procurement) newer_than:30d',pageSize:25});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No expense/finance-related threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+// ══════════════════════════════════════
+// ── HR VIEW LOADERS ──
+// ══════════════════════════════════════
+async function loadHRHeadcount(){
+  const el=document.getElementById('hrHeadcountContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading headcount data...</div>';
+  try{
+    const [gmailR,zohoR]=await Promise.allSettled([
+      call(GMAIL+'__search_threads',{query:'subject:(headcount OR "open position" OR "offer letter" OR "new hire" OR requisition OR "job opening" OR hiring) newer_than:30d',pageSize:20}),
+      call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select Full_Name, Email, Title, Department from Contacts where Title like '%HR%' or Title like '%People%' or Title like '%Talent%' limit 30"}}).catch(()=>null)
+    ]);
+    let html='';
+    const zoho=zohoR.status==='fulfilled'&&zohoR.value?zohoR.value:null;
+    const contacts=zoho?.data||[];
+    if(contacts.length){
+      html+='<div class="section-header" style="margin-bottom:8px">HR Team Contacts (Zoho CRM)</div>';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+      contacts.forEach(c=>{
+        html+=`<div style="padding:6px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-size:11px"><span style="font-weight:600;color:var(--text-primary)">${esc(c.Full_Name||'')}</span><br><span style="color:var(--text-muted)">${esc(c.Title||'')}</span></div>`;
+      });
+      html+='</div>';
+    }
+    const gmail=gmailR.status==='fulfilled'?gmailR.value:null;
+    const threads=gmail?.threads||gmail?.resultThreads||[];
+    if(threads.length||!contacts.length){
+      html+='<div class="section-header" style="margin-bottom:8px">Headcount/Hiring Threads (30d)</div>';
+      const tmpEl=document.createElement('div');
+      renderThreadList(threads,tmpEl,'No headcount-related threads found');
+      html+=tmpEl.innerHTML;
+    }
+    el.innerHTML=html||'<div class="empty-state">No headcount data available</div>';
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadHRAppraisals(){
+  const el=document.getElementById('hrAppraisalsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading appraisal data...</div>';
+  try{
+    const [gmailR,calR]=await Promise.allSettled([
+      call(GMAIL+'__search_threads',{query:'subject:(appraisal OR "performance review" OR "annual review" OR "feedback cycle" OR "360 review") newer_than:90d',pageSize:15}),
+      call(CAL+'__list_events',{startTime:new Date().toISOString(),endTime:new Date(Date.now()+90*86400000).toISOString(),timeZone:'America/New_York',q:'review OR appraisal OR 1:1 OR check-in'})
+    ]);
+    let html='';
+    const cal=calR.status==='fulfilled'?calR.value:null;
+    const events=cal?.events||cal?.items||[];
+    if(events.length){
+      html+='<div class="section-header" style="margin-bottom:8px">Upcoming Reviews/1:1s</div>';
+      events.slice(0,15).forEach(ev=>{
+        html+=`<div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><div style="font-size:12px;font-weight:600;color:var(--text-primary)">${esc(ev.summary||ev.title||'')}</div><div style="font-size:10px;color:var(--accent-text);white-space:nowrap">${fmtFull(ev.start?.dateTime||ev.startTime||'')}</div></div>`;
+      });
+      html+='<div style="height:12px"></div>';
+    }
+    const gmail=gmailR.status==='fulfilled'?gmailR.value:null;
+    const threads=gmail?.threads||gmail?.resultThreads||[];
+    html+='<div class="section-header" style="margin-bottom:8px">Appraisal Threads (90d)</div>';
+    const tmpEl=document.createElement('div');
+    renderThreadList(threads,tmpEl,'No appraisal threads found in the last 90 days');
+    html+=tmpEl.innerHTML;
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadHRCerts(){
+  const el=document.getElementById('hrCertsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading certifications...</div>';
+  try{
+    const r=await call(CAL+'__list_events',{startTime:new Date().toISOString(),endTime:new Date(Date.now()+90*86400000).toISOString(),timeZone:'America/New_York',q:'certification OR training OR compliance OR license OR onboarding'});
+    const events=r?.events||r?.items||[];
+    if(!events.length){el.innerHTML='<div class="empty-state">No certification/training events found in the next 90 days</div>';return;}
+    let html='';
+    events.forEach(ev=>{
+      html+=`<div style="padding:10px 12px;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;gap:8px"><div style="font-size:12px;font-weight:600;color:var(--text-primary)">${esc(ev.summary||ev.title||'')}</div><div style="font-size:10px;color:var(--accent-text);white-space:nowrap">${fmtFull(ev.start?.dateTime||ev.startTime||'')}</div></div></div>`;
+    });
+    el.innerHTML=html;
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadHRSurveys(){
+  const el=document.getElementById('hrSurveysContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading survey data...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:("employee satisfaction" OR eNPS OR "engagement survey" OR "pulse survey" OR culture OR "employee feedback") newer_than:90d',pageSize:15});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No employee survey threads found in the last 90 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadHROnboarding(){
+  const el=document.getElementById('hrOnboardingContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading onboarding data...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(onboarding OR "new hire" OR "first day" OR orientation OR "welcome aboard" OR "offer accepted") newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No onboarding-related threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+// ══════════════════════════════════════
+// ── OPERATIONS VIEW LOADERS ──
+// ══════════════════════════════════════
+async function loadOpsCustHealth(){
+  const el=document.getElementById('opsCustHealthContent');
+  const stats=document.getElementById('opsCustHealthStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading customer health...</div>';
+  try{
+    const [zohoR,gmailR]=await Promise.allSettled([
+      call(ZOHO+'__executeCOQLQuery',{body:{select_query:"select Account_Name, Rating, Owner from Accounts where Rating is not null order by Rating desc limit 50"}}).catch(()=>null),
+      call(GMAIL+'__search_threads',{query:'subject:("churn risk" OR escalation OR "customer health" OR NPS OR "at risk" OR "renewal risk") newer_than:30d',pageSize:15})
+    ]);
+    let html='';
+    const zoho=zohoR.status==='fulfilled'&&zohoR.value?zohoR.value:null;
+    const accounts=zoho?.data||[];
+    if(accounts.length){
+      if(stats){
+        const hot=accounts.filter(a=>a.Rating==='Hot').length;
+        const warm=accounts.filter(a=>a.Rating==='Warm').length;
+        const cold=accounts.filter(a=>a.Rating==='Cold').length;
+        stats.innerHTML=`<div class="stat-card"><div class="stat-num" style="color:var(--red)">${hot}</div><div class="stat-label">Hot Accounts</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--orange)">${warm}</div><div class="stat-label">Warm</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--blue)">${cold}</div><div class="stat-label">Cold</div></div>
+          <div class="stat-card"><div class="stat-num">${accounts.length}</div><div class="stat-label">Total Rated</div></div>`;
+      }
+      html+='<div class="section-header" style="margin-bottom:8px">Account Health (Zoho CRM)</div>';
+      renderZohoTable(accounts,[
+        {key:'Account_Name',label:'Account',fmt:'text'},
+        {key:'Rating',label:'Rating',fmt:'text'},
+        {key:'Owner',label:'Owner',fmt:'text'}
+      ],el,'');
+      html=el.innerHTML;
+    }
+    const gmail=gmailR.status==='fulfilled'?gmailR.value:null;
+    const threads=gmail?.threads||gmail?.resultThreads||[];
+    if(threads.length){
+      html+='<div class="section-header" style="margin:16px 0 8px">Health/Escalation Threads (30d)</div>';
+      const tmpEl=document.createElement('div');
+      renderThreadList(threads,tmpEl,'');
+      html+=tmpEl.innerHTML;
+    }
+    el.innerHTML=html||'<div class="empty-state">No customer health data available</div>';
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadOpsSupport(){
+  const el=document.getElementById('opsSupportContent');
+  const stats=document.getElementById('opsSupportStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading support data...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:("support ticket" OR "case #" OR escalation OR P1 OR critical OR outage OR incident) newer_than:14d',pageSize:25});
+    const threads=r?.threads||r?.resultThreads||[];
+    if(stats)stats.innerHTML=`<div class="stat-card"><div class="stat-num">${threads.length}</div><div class="stat-label">Support Threads (14d)</div></div>`;
+    renderThreadList(threads,el,'No support/escalation threads found in the last 14 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadOpsProjects(){
+  const el=document.getElementById('opsProjectsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading projects...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:("project update" OR sprint OR milestone OR deliverable OR "status report" OR "weekly update") newer_than:30d',pageSize:25});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No project update threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadOpsSLAs(){
+  const el=document.getElementById('opsSLAsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading SLA data...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(SLA OR "service level" OR uptime OR "response time" OR availability OR "SLO") newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No SLA-related threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadOpsIncidents(){
+  const el=document.getElementById('opsIncidentsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading incidents...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(incident OR outage OR downtime OR "post-mortem" OR "root cause" OR RCA OR "service disruption") newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No incident threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+// ══════════════════════════════════════
+// ── PRODUCT VIEW LOADERS ──
+// ══════════════════════════════════════
+async function loadProdRoadmap(){
+  const el=document.getElementById('prodRoadmapContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading roadmap...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(roadmap OR "feature request" OR "product update" OR release OR launch OR "product brief") newer_than:30d',pageSize:25});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No roadmap/product update threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadProdUsage(){
+  const el=document.getElementById('prodUsageContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading usage data...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:("usage report" OR analytics OR DAU OR MAU OR adoption OR "engagement report" OR "user metrics") newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No usage/analytics threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadProdBugs(){
+  const el=document.getElementById('prodBugsContent');
+  const stats=document.getElementById('prodBugsStats');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading bugs...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(bug OR defect OR regression OR hotfix OR patch OR "fix deployed" OR "production issue") newer_than:30d',pageSize:25});
+    const threads=r?.threads||r?.resultThreads||[];
+    if(stats)stats.innerHTML=`<div class="stat-card"><div class="stat-num" style="color:var(--red)">${threads.length}</div><div class="stat-label">Bug Threads (30d)</div></div>`;
+    renderThreadList(threads,el,'No bug/defect threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadProdSprints(){
+  const el=document.getElementById('prodSprintsContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading sprints...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:(sprint OR "sprint review" OR standup OR retro OR retrospective OR "sprint planning" OR backlog) newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No sprint-related threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
+async function loadProdFeedback(){
+  const el=document.getElementById('prodFeedbackContent');
+  if(!el)return;
+  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading feedback...</div>';
+  try{
+    const r=await call(GMAIL+'__search_threads',{query:'subject:("customer feedback" OR "feature request" OR "user feedback" OR NPS OR CSAT OR "product feedback" OR "voice of customer") newer_than:30d',pageSize:20});
+    const threads=r?.threads||r?.resultThreads||[];
+    renderThreadList(threads,el,'No product feedback threads found in the last 30 days');
+  }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
+}
+
 // ── View Switching ──
 function switchView(v){
   dbg('switchView('+v+')');
@@ -1510,6 +2146,34 @@ function switchView(v){
   if(v==='newsfeed'&&!window._newsLoaded)safeLoad(loadNewsFeed,'News Feed');
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
   if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
+  // Marketing views
+  if(v==='mktCampaigns'&&!window._mktCampaignsLoaded){window._mktCampaignsLoaded=true;safeLoad(loadMktCampaigns,'Campaigns');}
+  if(v==='mktLeads'&&!window._mktLeadsLoaded){window._mktLeadsLoaded=true;safeLoad(loadMktLeads,'Lead Analytics');}
+  if(v==='mktEvents'&&!window._mktEventsLoaded){window._mktEventsLoaded=true;safeLoad(loadMktEvents,'Events');}
+  if(v==='mktContent'&&!window._mktContentLoaded){window._mktContentLoaded=true;safeLoad(loadMktContent,'Content');}
+  // Finance views
+  if(v==='finRevenue'&&!window._finRevenueLoaded){window._finRevenueLoaded=true;safeLoad(loadFinRevenue,'Revenue');}
+  if(v==='finRenewals'&&!window._finRenewalsLoaded){window._finRenewalsLoaded=true;safeLoad(loadFinRenewals,'Renewals');}
+  if(v==='finForecast'&&!window._finForecastLoaded){window._finForecastLoaded=true;safeLoad(loadFinForecast,'Forecast');}
+  if(v==='finExpenses'&&!window._finExpensesLoaded){window._finExpensesLoaded=true;safeLoad(loadFinExpenses,'Expenses');}
+  // HR views
+  if(v==='hrHeadcount'&&!window._hrHeadcountLoaded){window._hrHeadcountLoaded=true;safeLoad(loadHRHeadcount,'Headcount');}
+  if(v==='hrAppraisals'&&!window._hrAppraisalsLoaded){window._hrAppraisalsLoaded=true;safeLoad(loadHRAppraisals,'Appraisals');}
+  if(v==='hrCerts'&&!window._hrCertsLoaded){window._hrCertsLoaded=true;safeLoad(loadHRCerts,'Certifications');}
+  if(v==='hrSurveys'&&!window._hrSurveysLoaded){window._hrSurveysLoaded=true;safeLoad(loadHRSurveys,'Surveys');}
+  if(v==='hrOnboarding'&&!window._hrOnboardingLoaded){window._hrOnboardingLoaded=true;safeLoad(loadHROnboarding,'Onboarding');}
+  // Operations views
+  if(v==='opsCustHealth'&&!window._opsCustHealthLoaded){window._opsCustHealthLoaded=true;safeLoad(loadOpsCustHealth,'Customer Health');}
+  if(v==='opsSupport'&&!window._opsSupportLoaded){window._opsSupportLoaded=true;safeLoad(loadOpsSupport,'Support');}
+  if(v==='opsProjects'&&!window._opsProjectsLoaded){window._opsProjectsLoaded=true;safeLoad(loadOpsProjects,'Projects');}
+  if(v==='opsSLAs'&&!window._opsSLAsLoaded){window._opsSLAsLoaded=true;safeLoad(loadOpsSLAs,'SLAs');}
+  if(v==='opsIncidents'&&!window._opsIncidentsLoaded){window._opsIncidentsLoaded=true;safeLoad(loadOpsIncidents,'Incidents');}
+  // Product views
+  if(v==='prodRoadmap'&&!window._prodRoadmapLoaded){window._prodRoadmapLoaded=true;safeLoad(loadProdRoadmap,'Roadmap');}
+  if(v==='prodUsage'&&!window._prodUsageLoaded){window._prodUsageLoaded=true;safeLoad(loadProdUsage,'Usage');}
+  if(v==='prodBugs'&&!window._prodBugsLoaded){window._prodBugsLoaded=true;safeLoad(loadProdBugs,'Bugs');}
+  if(v==='prodSprints'&&!window._prodSprintsLoaded){window._prodSprintsLoaded=true;safeLoad(loadProdSprints,'Sprints');}
+  if(v==='prodFeedback'&&!window._prodFeedbackLoaded){window._prodFeedbackLoaded=true;safeLoad(loadProdFeedback,'Feedback');}
 }
 
 // ══════════════════════════════════════
