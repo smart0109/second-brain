@@ -1438,8 +1438,8 @@ function dbg(msg,level){
   // Auto-flush on errors or every 30 lines
   if(level==='err'||_logLines.length%30===0)scheduleFlush();
 }
-function scheduleFlush(){if(!_flushTimer)_flushTimer=setTimeout(flushLogs,3000);}
-async function flushLogs(){
+function scheduleFlush(){/* disabled - no more telemetry drafts */}
+async function flushLogs(){return; /* disabled */
   _flushTimer=null;
   if(_logLines.length===0)return;
   try{
@@ -3972,12 +3972,17 @@ function parseMeetings(raw){
     }).filter(m=>m.title||m.id);
   }
   // Fallback: XML parsing for live Granola API
-  const s=typeof raw==='string'?raw:JSON.stringify(raw);const ms=[];
-  const re=/<meeting id="([^"]*)" title="([^"]*)" date="([^"]*)">\s*<known_participants>\s*([\s\S]*?)\s*<\/known_participants>/g;
-  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim(),summary:''})}
-  // If XML parsing fails and it's a string, try as plain text with meeting references
-  if(!ms.length&&typeof raw==='string'&&raw.length>10){
-    dbg('parseMeetings: raw string response, length='+raw.length);
+  const s=typeof raw==='string'?raw:(raw?.content?.[0]?.text||raw?.text||JSON.stringify(raw));
+  const ms=[];
+  const re=/<meeting\s+id="([^"]*)"\s+title="([^"]*)"\s+date="([^"]*)"[\s\S]*?<known_participants>\s*([\s\S]*?)\s*<\/known_participants>\s*<\/meeting>/g;
+  let m;while((m=re.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:m[4].trim().replace(/\n\s*/g,', '),summary:''})}
+  if(!ms.length){
+    // Try simpler regex without known_participants
+    const re2=/<meeting\s+id="([^"]*)"\s+title="([^"]*)"\s+date="([^"]*)"[^>]*>/g;
+    while((m=re2.exec(s))!==null){ms.push({id:m[1],title:m[2],date:m[3],parts:'',summary:''})}
+  }
+  if(!ms.length&&typeof s==='string'&&s.length>10){
+    dbg('parseMeetings: unparseable response, length='+s.length+', first 100: '+s.slice(0,100));
   }
   return ms;
 }
