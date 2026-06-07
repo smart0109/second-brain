@@ -1517,6 +1517,405 @@ app.post('/api/ask', requireAuth, async (req, res) => {
   }
 });
 
+
+// ===========================================================================
+// MANISH HQ v6 — NEW CAPABILITIES
+// Added: Memory Layer, Meeting Brief, Deep Ask (Sonnet), Daily Briefing
+// ===========================================================================
+
+// ── In-Process Memory Store (lightweight Mem0 alternative) ──────────────────
+const _memoryStore = new Map(); // userId → [{memory, metadata, created_at}]
+
+// GET /api/memory?q=query   — search memories
+app.get('/api/memory', requireAuth, async (req, res) => {
+  const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+  const query = (req.query.q || '').toLowerCase();
+  const mem0Key = process.env.MEM0_API_KEY;
+
+  if (mem0Key) {
+    try {
+      const resp = await fetch('https://api.mem0.ai/v1/memories/search/', {
+        method: 'POST',
+        headers: { 'Authorization': `Token ${mem0Key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query || 'recent context', user_id: userId, limit: 20 })
+      });
+      if (resp.ok) return res.json(await resp.json());
+    } catch (e) { console.error('Mem0 search error:', e.message); }
+  }
+
+  const memories = _memoryStore.get(userId) || [];
+  const filtered = query
+    ? memories.filter(m => m.memory?.toLowerCase().includes(query))
+    : memories;
+  res.json({ results: filtered.slice(-50) });
+});
+
+// POST /api/memory   — store new memory
+app.post('/api/memory', requireAuth, async (req, res) => {
+  const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+  const { messages, metadata } = req.body;
+  if (!messages) return res.status(400).json({ error: 'messages required' });
+
+  const mem0Key = process.env.MEM0_API_KEY;
+  if (mem0Key) {
+    try {
+      const resp = await fetch('https://api.mem0.ai/v1/memories/', {
+        method: 'POST',
+        headers: { 'Authorization': `Token ${mem0Key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, user_id: userId, metadata })
+      });
+      if (resp.ok) return res.json(await resp.json());
+    } catch (e) { console.error('Mem0 add error:', e.message); }
+  }
+
+  const existing = _memoryStore.get(userId) || [];
+  const newMems = messages.map(m => ({
+    memory: m.content,
+    metadata: metadata || {},
+    created_at: new Date().toISOString()
+  }));
+  _memoryStore.set(userId, [...existing, ...newMems].slice(-300));
+  res.json({ results: newMems, source: 'in-process' });
+});
+
+// DELETE /api/memory   — clear all memories
+app.delete('/api/memory', requireAuth, (req, res) => {
+  const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+  _memoryStore.delete(userId);
+  res.json({ success: true });
+});
+
+// ── Meeting Brief Generator ──────────────────────────────────────────────────
+app.post('/api/brief', requireAuth, async (req, res) => {
+  const { eventId, attendees = [], title, startTime } = req.body;
+  if (!title) return res.status(400).json({ error: 'title required' });
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+
+  try {
+    const emailQuery = attendees.length
+      ? '(' + attendees.slice(0, 3).map(a => `from:${a} OR to:${a}`).join(' OR ') + ') newer_than:30d'
+      : `"${title.slice(0, 40)}" newer_than:30d`;
+
+    const [emailR, granolaR] = await Promise.allSettled([
+      handleGmail('search_threads', { query: emailQuery, pageSize: 8 }),
+      handleGranola('query_granola_meetings', { query: (attendees.slice(0, 2).join(' ') || title).slice(0, 80) })
+    ]);
+
+    const emailCtx = emailR.status === 'fulfilled'
+      ? (emailR.value?.threads || []).slice(0, 5).map(t => {
+          const last = t.messages?.slice(-1)[0] || {};
+          return `"${last.subject}" from ${last.sender}: ${(last.snippet || '').slice(0, 120)}`;
+        }).join('\n')
+      : '';
+
+    const granolaCtx = granolaR.status === 'fulfilled'
+      ? (typeof granolaR.value === 'string'
+          ? granolaR.value
+          : JSON.stringify(granolaR.value)).slice(0, 2000)
+      : '';
+
+    const prompt = [
+      `Pre-meeting brief for: "${title}"`,
+      `Start: ${startTime || 'soon'}`,
+      `Attendees: ${attendees.join(', ') || 'unknown'}`,
+      emailCtx ? `\nRecent email threads:\n${emailCtx}` : '',
+      granolaCtx ? `\nPast meeting notes:\n${granolaCtx}` : '',
+      `\nCreate a tight brief with these sections:
+**Context** (2 sentences on what this meeting is about)
+**Objectives** (2-3 bullets: specific outcomes to achieve)
+**Agenda Intel** (1-2 bullets: what they'll likely raise based on email/notes)
+**Opening Move** (1 specific thing Manish can say/propose in first 3 minutes)
+**Watch Out** (1 risk or sensitive topic to navigate)
+
+Under 200 words total. Manish reads this in under 60 seconds.`
+    ].filter(Boolean).join('\n');
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 800,
+        system: "You are Manish's executive assistant. Manish is CRO at Basis Vectors Capital managing Cadient (AI hiring platform) and Vorro (healthcare integration). Be direct, specific, no fluff.",
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) throw new Error(`Claude API error: ${resp.status}`);
+    const result = await resp.json();
+    const brief = result.content?.[0]?.text || '';
+
+    // Auto-store brief in memory
+    const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+    const existing = _memoryStore.get(userId) || [];
+    _memoryStore.set(userId, [...existing, {
+      memory: `Brief for "${title}" (${new Date().toLocaleDateString()}): ${brief.slice(0, 200)}`,
+      metadata: { type: 'meeting_brief', title, attendees },
+      created_at: new Date().toISOString()
+    }].slice(-300));
+
+    res.json({ brief, title, attendees, generated_at: new Date().toISOString() });
+  } catch (err) {
+    console.error('Brief generation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Deep Ask — Sonnet 4.6 with auto-injected live context ───────────────────
+app.post('/api/ask/deep', requireAuth, async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+
+  const { prompt, inject_context = true, max_tokens = 2048 } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'prompt required' });
+
+  const contextBlocks = [];
+
+  if (inject_context) {
+    try {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+      const [calR, dealsR] = await Promise.allSettled([
+        handleCalendar('list_events', { startTime: todayStart, endTime: todayEnd, timeZone: 'America/New_York' }),
+        handleZoho('executeCOQLQuery', { body: { select_query: "select Deal_Name,Stage,Amount,Closing_Date,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 10" }})
+      ]);
+
+      if (calR.status === 'fulfilled' && calR.value?.events?.length) {
+        contextBlocks.push('TODAY\'S SCHEDULE:\n' + calR.value.events.map(e => {
+          const t = new Date(e.start?.dateTime || e.start?.date);
+          return `  ${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} - ${e.summary}`;
+        }).join('\n'));
+      }
+
+      if (dealsR.status === 'fulfilled' && dealsR.value?.data?.length) {
+        contextBlocks.push('TOP OPEN DEALS:\n' + dealsR.value.data.slice(0, 8).map(d =>
+          `  ${d.Deal_Name} | ${d.Stage} | $${(d.Amount || 0).toLocaleString()} | Close: ${d.Closing_Date || 'TBD'}`
+        ).join('\n'));
+      }
+
+      // Recent memory
+      const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+      const memories = (_memoryStore.get(userId) || []).slice(-5);
+      if (memories.length) {
+        contextBlocks.push('RECENT CONTEXT:\n' + memories.map(m => `  - ${m.memory}`).join('\n'));
+      }
+    } catch (e) {
+      console.error('Deep ask context fetch error:', e.message);
+    }
+  }
+
+  const systemPrompt = `You are Manish's strategic AI advisor. Manish is CRO at Basis Vectors Capital managing:
+- Cadient: AI hiring platform (SmartSuite™). 60% faster hiring, 45% lower cost-per-hire, 80% recruiter productivity lift.
+- Vorro: Healthcare integration (BridgeGate™ EiPaaS). FHIR/HL7, $20K-$90K+/yr, 100+ enterprises.
+- CV3/RevEngineer: E-commerce platform.
+Be direct, specific, and data-driven. Reference exact numbers when relevant. Give actionable next steps.`;
+
+  const userContent = contextBlocks.length > 0
+    ? prompt + '\n\n--- LIVE CONTEXT ---\n' + contextBlocks.join('\n\n')
+    : prompt;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: Math.min(max_tokens, 4096),
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userContent }]
+      })
+    });
+
+    if (!resp.ok) throw new Error(`Claude API error: ${resp.status}`);
+    const result = await resp.json();
+    const text = result.content?.[0]?.text || '';
+
+    // Auto-store to memory
+    const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+    const existing = _memoryStore.get(userId) || [];
+    _memoryStore.set(userId, [...existing, {
+      memory: `Q: ${prompt.slice(0, 100)} → ${text.slice(0, 150)}`,
+      metadata: { type: 'deep_query' },
+      created_at: new Date().toISOString()
+    }].slice(-300));
+
+    return res.json(text);
+  } catch (err) {
+    console.error('Deep ask error:', err.message);
+    return res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Daily Intelligence Briefing ──────────────────────────────────────────────
+app.get('/api/intelligence/daily', requireAuth, async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+    const weekEnd = new Date(now.getTime() + 7 * 86400000).toISOString();
+
+    const [calR, dealsR, mailR] = await Promise.allSettled([
+      handleCalendar('list_events', { startTime: todayStart, endTime: weekEnd, timeZone: 'America/New_York' }),
+      handleZoho('executeCOQLQuery', { body: { select_query: "select Deal_Name,Stage,Amount,Closing_Date,Probability,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Closing_Date asc limit 30" }}),
+      handleGmail('search_threads', { query: 'is:unread newer_than:1d', pageSize: 15 })
+    ]);
+
+    const allEvents = calR.status === 'fulfilled' ? (calR.value?.events || []) : [];
+    const todayEvents = allEvents.filter(e => {
+      const d = new Date(e.start?.dateTime || e.start?.date);
+      return d >= new Date(todayStart) && d < new Date(todayEnd);
+    });
+    const weekEvents = allEvents.filter(e => {
+      const d = new Date(e.start?.dateTime || e.start?.date);
+      return d >= new Date(todayEnd) && d < new Date(weekEnd);
+    });
+
+    const deals = dealsR.status === 'fulfilled' ? (dealsR.value?.data || []) : [];
+    const overdueDeals = deals.filter(d => d.Closing_Date && new Date(d.Closing_Date) < now);
+    const closingThisWeek = deals.filter(d => {
+      if (!d.Closing_Date) return false;
+      const cd = new Date(d.Closing_Date);
+      return cd >= now && cd <= new Date(weekEnd);
+    });
+    const pipelineValue = deals.reduce((s, d) => s + (d.Amount || 0), 0);
+    const weightedValue = deals.reduce((s, d) => s + (d.Amount || 0) * ((d.Probability || 0) / 100), 0);
+
+    const unreadThreads = mailR.status === 'fulfilled' ? (mailR.value?.threads || []) : [];
+    const unreadEmails = unreadThreads.slice(0, 6).map(t => {
+      const last = t.messages?.slice(-1)[0] || {};
+      return { subject: last.subject || '(no subject)', from: last.sender || '', snippet: (last.snippet || '').slice(0, 100) };
+    });
+
+    const dataContext = [
+      `DATE: ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`,
+      todayEvents.length
+        ? `MEETINGS TODAY (${todayEvents.length}):\n${todayEvents.map(e => `• ${new Date(e.start?.dateTime || e.start?.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} — ${e.summary}`).join('\n')}`
+        : '• No meetings scheduled today',
+      closingThisWeek.length
+        ? `DEALS CLOSING THIS WEEK (${closingThisWeek.length}, total $${closingThisWeek.reduce((s,d)=>s+(d.Amount||0),0).toLocaleString()}):\n${closingThisWeek.map(d => `• ${d.Deal_Name} | ${d.Stage} | $${(d.Amount||0).toLocaleString()} | ${d.Closing_Date}`).join('\n')}`
+        : '',
+      overdueDeals.length ? `OVERDUE DEALS (${overdueDeals.length}): ${overdueDeals.slice(0,3).map(d=>`${d.Deal_Name} (${d.Closing_Date})`).join(', ')}` : '',
+      unreadEmails.length ? `UNREAD EMAILS (${unreadEmails.length}):\n${unreadEmails.slice(0,4).map(e=>`• "${e.subject}" from ${e.from}`).join('\n')}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const briefResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        system: "You are Manish's morning briefing AI. CRO at Basis Vectors (Cadient + Vorro). Sharp, direct, scannable. Under 150 words total.",
+        messages: [{ role: 'user', content: `Generate today's briefing from this data:\n\n${dataContext}\n\nFormat exactly:\n🎯 TOP PRIORITY — (1 sentence: the single most important thing today)\n\n⚡ ACT NOW\n• (item 1)\n• (item 2)\n• (item 3 if warranted)\n\n🔥 WATCH\n• (risk or opportunity 1)\n• (item 2 if warranted)` }]
+      })
+    });
+
+    const briefResult = await briefResp.json();
+    const briefingText = briefResult.content?.[0]?.text || '';
+
+    res.json({
+      briefing: briefingText,
+      stats: {
+        meetings_today: todayEvents.length,
+        meetings_this_week: weekEvents.length,
+        deals_closing_this_week: closingThisWeek.length,
+        deals_overdue: overdueDeals.length,
+        unread_emails: unreadEmails.length,
+        total_open_deals: deals.length,
+        pipeline_value: pipelineValue,
+        weighted_pipeline: Math.round(weightedValue),
+      },
+      today_events: todayEvents.slice(0, 8).map(e => ({
+        id: e.id,
+        summary: e.summary,
+        start: e.start,
+        attendees: (e.attendees || []).filter(a => !a.self).map(a => a.email || a.displayName),
+        conferenceUrl: e.conferenceUrl,
+      })),
+      closing_this_week: closingThisWeek,
+      overdue_deals: overdueDeals.slice(0, 5),
+      unread_emails: unreadEmails,
+      generated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('Daily briefing error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Deal Intelligence — AI risk/opportunity scoring ──────────────────────────
+app.post('/api/intelligence/deals/score', requireAuth, async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+
+  const { deals } = req.body;
+  if (!deals?.length) return res.status(400).json({ error: 'deals array required' });
+
+  const dealSummaries = deals.slice(0, 20).map(d => ({
+    id: d.id,
+    name: d.Deal_Name || d.name,
+    stage: d.Stage || d.stage,
+    amount: d.Amount || d.amount || 0,
+    closing: d.Closing_Date || d.closing,
+    probability: d.Probability || d.probability || 0,
+    account: d.Account_Name?.name || d.account || '',
+    contact: d.Contact_Name?.name || d.contact || '',
+  }));
+
+  const now = new Date();
+
+  const prompt = `Score these ${dealSummaries.length} deals for risk (1-10, 10=high risk) and opportunity (1-10, 10=high opportunity). Consider: stage, amount, closing date, probability.
+
+Deals:
+${dealSummaries.map((d, i) => `${i+1}. ${d.name} | ${d.stage} | $${d.amount.toLocaleString()} | Close: ${d.closing || 'TBD'} | Prob: ${d.probability}% | Account: ${d.account}`).join('\n')}
+
+Today: ${now.toISOString().slice(0,10)}
+
+Return ONLY valid JSON array, no markdown:
+[{"id":"deal_id","name":"deal_name","risk_score":5,"opp_score":7,"risk_reason":"overdue by 2 weeks","action":"Schedule executive check-in"}]`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!resp.ok) throw new Error(`Claude API error: ${resp.status}`);
+    const result = await resp.json();
+    const text = result.content?.[0]?.text || '[]';
+
+    // Parse JSON from response
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    const scores = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+    res.json({ scores, deals_scored: scores.length });
+  } catch (err) {
+    console.error('Deal scoring error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 // ---------------------------------------------------------------------------
 // SPA catch-all
 // ---------------------------------------------------------------------------
