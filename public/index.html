@@ -7163,62 +7163,96 @@ async function scoreProspect(){
   resultEl.style.display='block';
   resultEl.innerHTML='<div class="loading"><div class="spinner"></div> Scoring...</div>';
   try{
-    var res=await fetch('/api/icp/score',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({name:name,title:title,company:company,location:location,brand:brand})});
-    var result=await res.json();
-    var tierColors={A:'#34d399',B:'#60a5fa',C:'#fb923c',DISQUALIFIED:'#f87171'};
-    var tierBg={A:'rgba(52,211,153,0.15)',B:'rgba(96,165,250,0.15)',C:'rgba(251,146,60,0.15)',DISQUALIFIED:'rgba(248,113,113,0.15)'};
-    var tc=tierColors[result.tier]||'#64748b';
-    var tb=tierBg[result.tier]||'rgba(100,116,139,0.15)';
-    var html='<div style="padding:16px;border-radius:12px;border:1px solid '+tc+'44;background:'+tb+'"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:12px;background:'+tb+';display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:'+tc+';border:2px solid '+tc+'44">'+result.tier+'</div><div style="flex:1"><div style="font-size:15px;font-weight:700;color:var(--text-primary)">'+esc(result.name||'Prospect')+'</div><div style="font-size:12px;color:var(--text-secondary)">'+esc(result.title)+(result.company?' at '+esc(result.company):'')+'</div></div><div style="text-align:right"><div style="font-size:28px;font-weight:800;color:'+tc+'">'+result.score+'</div><div style="font-size:10px;color:var(--text-muted)">ICP Score</div></div></div><div style="font-size:12px;color:var(--text-primary);padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);margin-bottom:10px">'+esc(result.recommendation)+'</div>';
-    if(result.matches&&result.matches.length){
-      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Score Breakdown</div>';
-      result.matches.forEach(function(m){html+='<div style="font-size:11px;color:#34d399;padding:2px 0">+ '+esc(m)+'</div>';});
-    }
-    if(result.rejects&&result.rejects.length){
-      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin:6px 0 4px">Disqualification Reasons</div>';
-      result.rejects.forEach(function(r){html+='<div style="font-size:11px;color:#f87171;padding:2px 0">✗ '+esc(r)+'</div>';});
-    }
-    html+='</div>';
-    resultEl.innerHTML=html;
-  }catch(e){
-    resultEl.innerHTML='<div style="color:#f87171;padding:10px">Scoring failed: '+esc(e.message)+'</div>';
-  }
-}
-
-// ── INIT: Auth check then load dashboard ──
-dbg('INIT started. Checking DOM elements...');
-const _st=document.getElementById('sbStatus');
-const _criticalIds=['searchInput','searchResults','statsBar','statEvents','statThreads','statDrafts','statDeals','statPipeline','todayCalendar','priorityThreads','draftsList','closingDeals','automationStatus','staleAlerts'];
-const _missing=_criticalIds.filter(id=>!document.getElementById(id));
-if(_missing.length)dbg('MISSING DOM: '+_missing.join(', '),'err');
-else dbg('All '+_criticalIds.length+' critical DOM elements found','ok');
-dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADED'));
-
-// Check auth status then load
-(async function(){
-  if(_st)_st.textContent='v5.0 | checking auth...';
-  try{
-    const res=await fetch('/auth/status',{credentials:'same-origin'});
-    const status=await res.json();
-    dbg('Auth status: '+JSON.stringify(status));
-    if(!status.authenticated){
-      if(_st)_st.textContent='v5.0 | not authenticated';
-      const main=document.querySelector('.main');
-      if(main)main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Manish\'s HQ</h2><p style="color:#94a3b8;margin-bottom:20px">Sign in with Google to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Sign in with Google</a><p style="color:#64748b;margin-top:16px;font-size:11px">Requires Gmail, Calendar, and Drive permissions</p></div>';
-      return;
-    }
-    if(_st)_st.textContent='v5.0 | loading dashboard...';
-    await loadDashboard();
-    wireCollapsibleHeaders();
-    initHeroBar();
-    if(_st)_st.textContent='v5.0 | ready';
-    dbg('Dashboard loaded successfully!','ok');
-    _tabStatus.dashboard='ok';
-    flushLogs();
-  }catch(e){
-    dbg('INIT ERROR: '+e.message,'err');
+        dbg('INIT ERROR: '+e.message,'err');
     if(_st)_st.textContent='v5.0 | error';
   }
+})();
+
+// ══════════════════════════════════════
+// ── MEETING WATCHER + AUTO-LAUNCH ──
+// ══════════════════════════════════════
+let _meetingWatcherTimer=null;
+let _lastNotifiedMeeting=null; // prevent repeat notifications for same meeting
+let _meetingOverlayDismissed=false;
+
+function startMeetingWatcher(){
+  _meetingWatcherTimer=setInterval(checkUpcomingMeetings,60000);
+  setTimeout(checkUpcomingMeetings,5000);
+  dbg('Meeting watcher started (60s poll)','ok');
+}
+
+async function checkUpcomingMeetings(){
+  try{
+    const now=new Date();
+    const soon=new Date(now.getTime()+5*60000);
+    const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
+    const r=await call(`${CAL}__list_events`,{startTime:now.toISOString(),endTime:todayEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
+    const events=(r?.events||[]).filter(e=>{
+      const st=e.start?.dateTime||e.start?.date;
+      if(!st)return false;
+      const startD=new Date(st);
+      return startD<=soon&&startD>=new Date(now.getTime()-2*60000);
+    });
+    if(!events.length)return;
+    const meeting=events[0];
+    const meetingId=meeting.id||meeting.summary||'';
+    if(_lastNotifiedMeeting===meetingId)return;
+    _lastNotifiedMeeting=meetingId;
+    _meetingOverlayDismissed=false;
+    const attendees=(meeting.attendees||[]).filter(a=>!a.self);
+    const isExternal=attendees.length>0;
+    const startTime=meeting.start?.dateTime?new Date(meeting.start.dateTime):null;
+    const timeStr=startTime?startTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):'now';
+    const confUrl=meeting.conferenceUrl||meeting.location||'';
+    let platform='';let joinUrl='';
+    if(confUrl.includes('meet.google.com')){platform='Google Meet';joinUrl=confUrl;}
+    else if(confUrl.includes('zoom.us')){platform='Zoom';joinUrl=confUrl;}
+    else if(confUrl.includes('teams.microsoft.com')||confUrl.includes('teams.live.com')){platform='Teams';joinUrl=confUrl;}
+    if(!joinUrl&&meeting.location){
+      const loc=meeting.location;
+      if(loc.includes('meet.google.com')){platform='Google Meet';joinUrl=loc;}
+      else if(loc.includes('zoom.us')){platform='Zoom';joinUrl=loc;}
+      else if(loc.includes('teams.microsoft.com')){platform='Teams';joinUrl=loc;}
+    }
+    showMeetingOverlay(meeting,attendees,isExternal,timeStr,platform,joinUrl);
+  }catch(e){dbg('Meeting watcher error: '+e.message,'warn');}
+}
+
+function showMeetingOverlay(meeting,attendees,isExternal,timeStr,platform,joinUrl){
+  const existing=document.getElementById('meetingOverlay');
+  if(existing)existing.remove();
+  const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
+  const extraCount=attendees.length>4?' +'+String(attendees.length-4)+' more':'';
+  const meetingType=isExternal?'External Meeting':'Internal Meeting';
+  const accentColor=isExternal?'#ff9800':'#4caf50';
+  const overlay=document.createElement('div');
+  overlay.id='meetingOverlay';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10000;animation:slideDown 0.4s ease;';
+  overlay.innerHTML='<div style="background:linear-gradient(135deg,'+accentColor+'22,'+accentColor+'11);border-bottom:2px solid '+accentColor+';padding:14px 20px;backdrop-filter:blur(20px)"><div style="max-width:900px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap"><div style="width:44px;height:44px;border-radius:50%;background:'+accentColor+'33;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+(isExternal?'&#127897;':'&#128197;')+'</div><div style="flex:1;min-width:200px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:2px"><span style="font-size:10px;font-weight:700;color:'+accentColor+';text-transform:uppercase;letter-spacing:1px">'+meetingType+' Starting '+timeStr+'</span>'+(platform?'<span style="font-size:9px;padding:2px 6px;background:'+accentColor+'22;border:1px solid '+accentColor+'44;border-radius:3px;color:'+accentColor+'">'+platform+'</span>':'')+'</div><div style="font-size:14px;font-weight:700;color:var(--text-primary)">'+esc(meeting.summary||'Meeting')+'</div>'+(attendees.length?'<div style="font-size:11px;color:var(--text-secondary);margin-top:1px">'+esc(names)+extraCount+'</div>':'')+'</div><div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">'+(joinUrl?'<a href="'+joinUrl+'" target="_blank" style="padding:8px 16px;background:'+accentColor+';color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px">&#127911; Join '+platform+'</a>':'')+'<button onclick="launchMeetingCoach()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px">&#129302; Launch AI Coach</button><button onclick="dismissMeetingOverlay()" style="padding:8px 12px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">Dismiss</button></div></div></div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){if(!_meetingOverlayDismissed)dismissMeetingOverlay();},300000);
+  window._pendingMeetingLaunch=meeting;
+}
+
+function dismissMeetingOverlay(){
+  _meetingOverlayDismissed=true;
+  const el=document.getElementById('meetingOverlay');
+  if(el){el.style.animation='slideUp 0.3s ease forwards';setTimeout(function(){el.remove()},300);}
+}
+
+async function launchMeetingCoach(){
+  dismissMeetingOverlay();
+  switchView('copilot');
+  await new Promise(function(r){setTimeout(r,1500)});
+  const tog=document.getElementById('autoCoachToggle');
+  if(tog&&!tog.checked){tog.checked=true;toggleAutoCoach();}
+  addCoachFeedItem('system','AI Coach auto-launched for: '+(window._pendingMeetingLaunch?.summary||'Meeting')+'. Listening for conversation. Type or speak to get real-time intelligence.','&#127897;');
+}
+
+(function(){
+  const style=document.createElement('style');
+  style.textContent='@keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes slideUp{from{transform:translateY(0);opacity:1}to{transform:translateY(-100%);opacity:0}}';
+  document.head.appendChild(style);
 })();
 </script>
 </body>
