@@ -578,6 +578,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="tab" data-view="newsfeed" data-org="sales" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
     <div class="tab" data-view="icpchecker" data-org="sales" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Checker</div>
     <div class="tab" data-view="followups" data-org="sales" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
+    <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="color:#e879f9;font-weight:600">Artifacts</div>
     <!-- Marketing tabs -->
     <div class="tab" data-view="mktCampaigns" data-org="marketing" onclick="switchView('mktCampaigns')" style="display:none;color:#60a5fa;font-weight:600">Campaigns</div>
     <div class="tab" data-view="mktLeads" data-org="marketing" onclick="switchView('mktLeads')" style="display:none;color:#60a5fa;font-weight:600">Lead Analytics</div>
@@ -1226,6 +1227,19 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <div class="card"><div class="card-body scroll-panel" id="legalExamples" style="padding:0"></div></div>
         </div>
       </div>
+    </div>
+
+    <!-- ARTIFACTS -->
+    <div id="view-artifacts" class="view">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <h2 style="font-size:16px;font-weight:700;flex:1;color:#e879f9">Sales Artifacts &amp; Demo Videos</h2>
+        <div style="display:flex;gap:6px">
+          <button class="prod-btn" onclick="filterArtifacts('all')" id="artFilterAll" style="background:rgba(232,121,249,0.25);color:#e879f9;border-color:rgba(232,121,249,0.4)">All</button>
+          <button class="prod-btn" onclick="filterArtifacts('cadient')" id="artFilterCadient" style="background:rgba(232,121,249,0.1);color:#e879f9;border-color:rgba(232,121,249,0.2)">Cadient</button>
+          <button class="prod-btn" onclick="filterArtifacts('vorro')" id="artFilterVorro" style="background:rgba(232,121,249,0.1);color:#e879f9;border-color:rgba(232,121,249,0.2)">Vorro</button>
+        </div>
+      </div>
+      <div id="artifactsContent"><div class="loading"><div class="spinner"></div><br>Loading artifacts...</div></div>
     </div>
 
     <!-- NEWS FEED -->
@@ -2182,6 +2196,7 @@ function switchView(v){
   if(v==='newsfeed'&&!window._newsLoaded)safeLoad(loadNewsFeed,'News Feed');
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
   if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
+  if(v==='artifacts'&&!window._artifactsLoaded)safeLoad(loadArtifacts,'Artifacts');
   // Marketing views
   if(v==='mktCampaigns'&&!window._mktCampaignsLoaded){window._mktCampaignsLoaded=true;safeLoad(loadMktCampaigns,'Campaigns');}
   if(v==='mktLeads'&&!window._mktLeadsLoaded){window._mktLeadsLoaded=true;safeLoad(loadMktLeads,'Lead Analytics');}
@@ -6889,6 +6904,185 @@ async function loadNewsFeed(forceRefresh){
 // ══════════════════════════════════════
 // ── FOLLOW-UPS ──
 // ══════════════════════════════════════
+// ── ARTIFACTS TAB ──
+// ══════════════════════════════════════
+let _artFilter='all';
+const ARTIFACTS_DATA={
+  cadient:{
+    label:'Cadient Talent',
+    color:'#c9a227',
+    sections:[
+      {title:'Product Demo Videos (YouTube)',icon:'&#127909;',items:[
+        {name:'Cadient Talent Acquisition Dashboard',url:'https://www.youtube.com/watch?v=JtHAcPPaq5Q',type:'youtube',desc:'Full walkthrough of the SmartSuite talent acquisition dashboard'},
+        {name:'Meet Cadient Talent and Helen',url:'https://www.youtube.com/watch?v=hnvqSu7VZ7Y',type:'youtube',desc:'Introduction to Cadient and AI assistant Helen'},
+        {name:'Cadient Decision Point Pilot',url:'https://www.youtube.com/watch?v=VrQzqMl7dh8',type:'youtube',desc:'Decision Point pilot program overview'},
+        {name:'Future of Hiring (Short)',url:'https://www.youtube.com/shorts/XqTZRXAbuNQ',type:'youtube',desc:'Quick vertical video on AI-driven hiring'},
+        {name:'Tags and Campaigns Demo',url:'https://www.youtube.com/watch?v=D8DANKNfqUA',type:'youtube',desc:'How to use tags and campaigns in SmartSuite'},
+        {name:'Enhanced Interview Scheduling',url:'https://www.youtube.com/watch?v=6kE4MywJ_JU',type:'youtube',desc:'SmartSuite interview scheduling capabilities'}
+      ]},
+      {title:'Product Demos (Google Drive)',icon:'&#128193;',items:[
+        {name:'SmartScreen Demo',url:'https://drive.google.com/file/d/1bq2pkb0jWGVAT-Z7OciWTdmbDLXvU5Ol/view',type:'drive',desc:'Full SmartScreen demo starting at 5:20'},
+        {name:'SmartScreen Alt Demo',url:'https://drive.google.com/file/d/17nv-eAkF8ig4mPtW8nvm4N1SeCLUG2TT/view',type:'drive',desc:'Alternative SmartScreen walkthrough'},
+        {name:'SmartSource Demo',url:'https://drive.google.com/file/d/1CAkbjmY2IERmugtj2mrY1UvGXHlF1Zax/view',type:'drive',desc:'AI candidate sourcing demo'},
+        {name:'SmartFeedback Demo',url:'https://drive.google.com/file/d/1rYE3DEAFC30CeaowCzGkD7xveBYdcruy/view',type:'drive',desc:'Post-hire engagement insights demo'}
+      ]},
+      {title:'Campaign Assets (One-Pagers)',icon:'&#128196;',items:[
+        {name:'SmartSuite + CEM Overview',url:'https://drive.google.com/file/d/170l_zc3Y8tUbNatai4ldMZXqAdg0eat-/view',type:'drive',desc:'Executive-level one-pager for VP/CHRO/CPO'},
+        {name:'SmartSource One-Pager',url:'https://drive.google.com/file/d/1ZY5OiGSX4ZM-D3ZJsY2SBShktAR5YO_g/view',type:'drive',desc:'AI sourcing focused for TA leaders'},
+        {name:'SmartScreen One-Pager',url:'https://drive.google.com/file/d/1Gx_gawGmxobqKLkigngqx3vqq_O9QcLK/view',type:'drive',desc:'Auto-screening for recruiters and ops'},
+        {name:'SmartHire One-Pager',url:'https://drive.google.com/file/d/1i7zB35EBSZFTMkb2BIapeiVLXEWq11PH/view',type:'drive',desc:'Full hiring orchestration for HR managers'},
+        {name:'SmartSuite Full Overview',url:'https://drive.google.com/file/d/1nZLAN0E1IloIHfYVVuFYHSLVYo40Erib/view',type:'drive',desc:'Complete platform overview'}
+      ]},
+      {title:'Campaign Videos',icon:'&#127916;',items:[
+        {name:'SmartSuite Explainer',url:'https://drive.google.com/file/d/18kV5WPL8nyackgynuPXNRZIaMpQZPJEF/view',type:'drive',desc:'Stage 4 video for executives and directors'},
+        {name:'SmartMatch Promo',url:'https://drive.google.com/file/d/1DQqqpyefqW8mDcl6LZ3rM81GQrhaG0I9/view',type:'drive',desc:'AI skills matching promo for TA/sourcing'},
+        {name:'SmartScreen Promo',url:'https://drive.google.com/file/d/1J_FjkeaGAtACRHDMib1677zhb6blssNr/view',type:'drive',desc:'Auto-screening promo for recruiters/ops'},
+        {name:'SmartSuite Overview Video',url:'https://drive.google.com/file/d/1kSGx0qWC9grkTZ2IFtJ9fpQMlz3eI863/view',type:'drive',desc:'General overview for HR managers'}
+      ]},
+      {title:'Case Studies',icon:'&#128202;',items:[
+        {name:'Mini Case Study (Retail/Auto)',url:'https://drive.google.com/file/d/1PpXwvv1sM6ljI-XdepjlsaVL0XXikwtu/view',type:'drive',desc:'Stage 3 proof point for retail and automotive'},
+        {name:'Mini Proof Point (Healthcare)',url:'https://drive.google.com/file/d/13JLKPTiQvy0h14hHbmucTp4a71_H-tjG/view',type:'drive',desc:'Stage 3 proof point for healthcare'}
+      ]},
+      {title:'Hiring Journey CEMs (by Industry)',icon:'&#128218;',items:[
+        {name:'Grocery',url:'https://drive.google.com/file/d/1SSQSCc55KsiYZoO_WTqsSrpeQjXrHXwS/view',type:'drive',desc:'Candidate Experience Map for grocery vertical'},
+        {name:'Healthcare & Nursing',url:'https://drive.google.com/file/d/11IVZ1Pj3BgY9FOtl1a2XgLjGii8fslz9/view',type:'drive',desc:'CEM for healthcare and nursing'},
+        {name:'Generic',url:'https://drive.google.com/file/d/1dVpO0fSPI3G-ZR5vsPqEv0JZ7z1kvvbM/view',type:'drive',desc:'Default CEM for all industries'},
+        {name:'Manufacturing',url:'https://drive.google.com/file/d/1JN49IUxb5ak7nTTMAB5rqhuN5SND9SXy/view',type:'drive',desc:'CEM for manufacturing'},
+        {name:'Logistics & Warehousing',url:'https://drive.google.com/file/d/1xjXu9hSUTZnVemgZYqiPKpyP1tDCtzfV/view',type:'drive',desc:'CEM for logistics and warehousing'},
+        {name:'Hospitality',url:'https://drive.google.com/file/d/1CMw-UQ1q6KvGC4sqGIjmzcPNCKiu7GXg/view',type:'drive',desc:'CEM for hospitality'},
+        {name:'Food & Beverage',url:'https://drive.google.com/file/d/1_4B2DrjdFPj4NVeUS7Zrjv9ivmsmIx0N/view',type:'drive',desc:'CEM for food and beverage'},
+        {name:'Delivery',url:'https://drive.google.com/file/d/12QvuVwJ_FjTRWZ3P39dAy-xAKA-RgeEM/view',type:'drive',desc:'CEM for delivery services'},
+        {name:'Financial Services',url:'https://drive.google.com/file/d/1qfUFyqKAX3-gxJCwItpgANRqr8sXj81S/view',type:'drive',desc:'CEM for financial services'}
+      ]},
+      {title:'In Production',icon:'&#9881;',items:[
+        {name:'Product Demo + Usage Videos',url:'',type:'pending',desc:'Prateek assigned Ayush to create demos for all cadient.ai products (Jun 1)'},
+        {name:'AI Video Editor - Jeevan',url:'',type:'pending',desc:'New team member (joined May 28) refining sales videos'},
+        {name:'Launch Video',url:'',type:'pending',desc:'First cut being prepared by Sachin/Teena (Jun 5)'}
+      ]}
+    ]
+  },
+  vorro:{
+    label:'Vorro Healthcare',
+    color:'#2dd4bf',
+    sections:[
+      {title:'Product Videos (YouTube)',icon:'&#127909;',items:[
+        {name:'Benefits of Vorro BridgeGate',url:'https://www.youtube.com/watch?v=pD1NcOWzs2A',type:'youtube',desc:'Overview of BridgeGate integration benefits'},
+        {name:'E-commerce Integration',url:'https://www.youtube.com/watch?v=zkb8Vf9ULhw',type:'youtube',desc:'BridgeGate e-commerce integration capabilities'},
+        {name:'BridgeGateHealth Overview',url:'https://www.youtube.com/watch?v=4y2QRlExUGk',type:'youtube',desc:'Healthcare-specific BridgeGate features'}
+      ]},
+      {title:'Demo Resources',icon:'&#128187;',items:[
+        {name:'BridgeGate Landing Page',url:'https://vorro.net/BridgeGate-N8N-Node/',type:'link',desc:'Product landing page with N8N integration showcase'},
+        {name:'Demo Center',url:'https://vorro.net/demo-center',type:'link',desc:'Interactive demo center with live product walkthroughs'},
+        {name:'BridgeGate Demo Video',url:'https://drive.google.com/file/d/1gV2BM8vBp2jGEDtiKc8fi75Ae_RJgj2w/view',type:'drive',desc:'Full product demo recording'},
+        {name:'N8N Integration Node (NPM)',url:'https://www.npmjs.com/package/n8n-nodes-bridgegate',type:'link',desc:'Open-source N8N node for BridgeGate'}
+      ]},
+      {title:'In Production',icon:'&#9881;',items:[
+        {name:'Product Demo Videos Session',url:'',type:'pending',desc:'Ayanika scheduling demo recording sessions (Jun 4)'},
+        {name:'Vorro MCP + BridgeGate 11.x Content',url:'',type:'pending',desc:'Ginni + Shashank creating social media content (Jun 2)'}
+      ]}
+    ]
+  }
+};
+
+async function loadArtifacts(){
+  dbg('loadArtifacts() started');
+  window._artifactsLoaded=true;
+  renderArtifacts();
+  dbg('loadArtifacts() done','ok');
+}
+
+function renderArtifacts(){
+  const el=document.getElementById('artifactsContent');
+  if(!el)return;
+  const brands=_artFilter==='all'?['cadient','vorro']:[_artFilter];
+  let html='';
+
+  // Stats bar
+  let totalVideos=0,totalDocs=0,totalPending=0;
+  for(const b of ['cadient','vorro']){
+    for(const sec of ARTIFACTS_DATA[b].sections){
+      for(const item of sec.items){
+        if(item.type==='pending')totalPending++;
+        else if(item.type==='youtube'||item.name.toLowerCase().includes('video')||item.name.toLowerCase().includes('promo')||item.name.toLowerCase().includes('explainer'))totalVideos++;
+        else totalDocs++;
+      }
+    }
+  }
+  html+='<div class="stats-bar" style="margin-bottom:14px">';
+  html+='<div class="stat-card"><div class="stat-num" style="color:#e879f9">'+totalVideos+'</div><div class="stat-label">Videos</div></div>';
+  html+='<div class="stat-card"><div class="stat-num" style="color:#e879f9">'+totalDocs+'</div><div class="stat-label">Documents</div></div>';
+  html+='<div class="stat-card"><div class="stat-num" style="color:#e879f9">'+totalPending+'</div><div class="stat-label">In Production</div></div>';
+  html+='<div class="stat-card"><div class="stat-num" style="color:#e879f9">'+(totalVideos+totalDocs)+'</div><div class="stat-label">Total Ready</div></div>';
+  html+='</div>';
+
+  for(const brandKey of brands){
+    const brand=ARTIFACTS_DATA[brandKey];
+    html+='<div style="margin-bottom:20px">';
+    html+='<h3 style="font-size:14px;font-weight:700;color:'+brand.color+';margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06)">'+brand.label+'</h3>';
+
+    for(const sec of brand.sections){
+      html+='<div class="section-header" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'+\':\'-\'">'+sec.icon+' '+sec.title+' <span style="color:#64748b;font-size:11px;margin-left:4px">('+sec.items.length+')</span> <span class="toggle-arrow" style="font-size:14px;color:#64748b;margin-left:auto">-</span></div>';
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-bottom:14px">';
+
+      for(const item of sec.items){
+        const isPending=item.type==='pending';
+        const isYT=item.type==='youtube';
+        const isDrive=item.type==='drive';
+        const isLink=item.type==='link';
+
+        let icon='&#128196;';
+        let badge='';
+        let bgStyle='background:var(--bg-card);border:1px solid var(--border)';
+
+        if(isPending){
+          icon='&#9203;';
+          badge='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(251,146,60,0.15);color:#fb923c;margin-left:6px">In Production</span>';
+          bgStyle='background:rgba(251,146,60,0.04);border:1px solid rgba(251,146,60,0.15)';
+        }else if(isYT){
+          icon='&#9654;';
+          badge='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(255,0,0,0.12);color:#f87171;margin-left:6px">YouTube</span>';
+        }else if(isDrive){
+          icon='&#128193;';
+          badge='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(66,133,244,0.12);color:#60a5fa;margin-left:6px">Drive</span>';
+        }else if(isLink){
+          icon='&#128279;';
+          badge='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(45,212,191,0.12);color:#2dd4bf;margin-left:6px">Web</span>';
+        }
+
+        const clickAction=isPending?'':'onclick="window.open(\''+item.url+'\',\'_blank\')" style="cursor:pointer;'+bgStyle+'"';
+        const cardStyle=isPending?'style="'+bgStyle+';opacity:0.7"':clickAction;
+
+        html+='<div class="card" '+cardStyle+'>';
+        html+='<div class="card-body" style="padding:10px">';
+        html+='<div style="display:flex;align-items:flex-start;gap:8px">';
+        html+='<span style="font-size:18px;line-height:1">'+icon+'</span>';
+        html+='<div style="flex:1;min-width:0">';
+        html+='<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px">'+item.name+badge+'</div>';
+        html+='<div style="font-size:11px;color:var(--text-secondary);line-height:1.3">'+item.desc+'</div>';
+        html+='</div>';
+        html+='</div>';
+        html+='</div></div>';
+      }
+      html+='</div>';
+    }
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+
+function filterArtifacts(f){
+  _artFilter=f;
+  document.querySelectorAll('[id^="artFilter"]').forEach(b=>{
+    b.style.background=b.id==='artFilter'+f.charAt(0).toUpperCase()+f.slice(1)||b.id==='artFilterAll'&&f==='all'?'rgba(232,121,249,0.25)':'rgba(232,121,249,0.1)';
+  });
+  // Simpler active state
+  document.getElementById('artFilterAll').style.background=f==='all'?'rgba(232,121,249,0.25)':'rgba(232,121,249,0.1)';
+  document.getElementById('artFilterCadient').style.background=f==='cadient'?'rgba(232,121,249,0.25)':'rgba(232,121,249,0.1)';
+  document.getElementById('artFilterVorro').style.background=f==='vorro'?'rgba(232,121,249,0.25)':'rgba(232,121,249,0.1)';
+  renderArtifacts();
+}
+
+// ══════════════════════════════════════
 let _fuDrafts=[];
 let _fuFilter='all';
 
@@ -7023,6 +7217,7 @@ function renderFollowups(){
       const meta=catMeta[cat];
       html+=renderFuGroup(cat,items,meta);
     }
+    el.innerHTML=html;
     el.innerHTML=html;
   }
 }
@@ -7207,7 +7402,7 @@ async function scoreProspect(){
     }
     if(result.rejects&&result.rejects.length){
       html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin:6px 0 4px">Disqualification Reasons</div>';
-      result.rejects.forEach(function(r){html+='<div style="font-size:11px;color:#f87171;padding:2px 0">✗ '+esc(r)+'</div>';});
+      result.rejects.forEach(function(r){html+='<div style="font-size:11px;color:#f87171;padding:2px 0">&#10007; '+esc(r)+'</div>';});
     }
     html+='</div>';
     resultEl.innerHTML=html;
@@ -7333,36 +7528,39 @@ function showMeetingOverlay(meeting,attendees,isExternal,timeStr,platform,joinUr
   if(existing)existing.remove();
 
   const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
-  const extraCount=attendees.length>4?' +'+String(attendees.length-4)+' more':'';
+  const extraCount=attendees.length>4?` +${attendees.length-4} more`:'';
   const meetingType=isExternal?'External Meeting':'Internal Meeting';
   const accentColor=isExternal?'#ff9800':'#4caf50';
 
   const overlay=document.createElement('div');
   overlay.id='meetingOverlay';
-  overlay.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10000;animation:slideDown 0.4s ease;';
-  var ohtml='<div style="background:linear-gradient(135deg,'+accentColor+'22,'+accentColor+'11);border-bottom:2px solid '+accentColor+';padding:14px 20px;backdrop-filter:blur(20px)">';
-  ohtml+='<div style="max-width:900px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap">';
-  ohtml+='<div style="width:44px;height:44px;border-radius:50%;background:'+accentColor+'33;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">';
-  ohtml+=(isExternal?'&#127897;':'&#128197;');
-  ohtml+='</div>';
-  ohtml+='<div style="flex:1;min-width:200px">';
-  ohtml+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">';
-  ohtml+='<span style="font-size:10px;font-weight:700;color:'+accentColor+';text-transform:uppercase;letter-spacing:1px">'+meetingType+' Starting '+timeStr+'</span>';
-  if(platform)ohtml+='<span style="font-size:9px;padding:2px 6px;background:'+accentColor+'22;border:1px solid '+accentColor+'44;border-radius:3px;color:'+accentColor+'">'+platform+'</span>';
-  ohtml+='</div>';
-  ohtml+='<div style="font-size:14px;font-weight:700;color:var(--text-primary)">'+esc(meeting.summary||'Meeting')+'</div>';
-  if(attendees.length)ohtml+='<div style="font-size:11px;color:var(--text-secondary);margin-top:1px">'+esc(names)+extraCount+'</div>';
-  ohtml+='</div>';
-  ohtml+='<div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">';
-  if(joinUrl)ohtml+='<a href="'+joinUrl+'" target="_blank" style="padding:8px 16px;background:'+accentColor+';color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px">&#127911; Join '+platform+'</a>';
-  ohtml+='<button onclick="launchMeetingCoach()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px">&#129302; Launch AI Coach</button>';
-  ohtml+='<button onclick="dismissMeetingOverlay()" style="padding:8px 12px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">Dismiss</button>';
-  ohtml+='</div></div></div>';
-  overlay.innerHTML=ohtml;
+  overlay.style.cssText=`position:fixed;top:0;left:0;right:0;z-index:10000;animation:slideDown 0.4s ease;`;
+  overlay.innerHTML=`
+    <div style="background:linear-gradient(135deg,${accentColor}22,${accentColor}11);border-bottom:2px solid ${accentColor};padding:14px 20px;backdrop-filter:blur(20px)">
+      <div style="max-width:900px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="width:44px;height:44px;border-radius:50%;background:${accentColor}33;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
+          ${isExternal?'&#127897;':'&#128197;'}
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">
+            <span style="font-size:10px;font-weight:700;color:${accentColor};text-transform:uppercase;letter-spacing:1px">${meetingType} Starting ${timeStr}</span>
+            ${platform?`<span style="font-size:9px;padding:2px 6px;background:${accentColor}22;border:1px solid ${accentColor}44;border-radius:3px;color:${accentColor}">${platform}</span>`:''}
+          </div>
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary)">${esc(meeting.summary||'Meeting')}</div>
+          ${attendees.length?`<div style="font-size:11px;color:var(--text-secondary);margin-top:1px">${esc(names)}${extraCount}</div>`:''}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
+          ${joinUrl?`<a href="${joinUrl}" target="_blank" style="padding:8px 16px;background:${accentColor};color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px">&#127911; Join ${platform}</a>`:''}
+          <button onclick="launchMeetingCoach()" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px">&#129302; Launch AI Coach</button>
+          <button onclick="dismissMeetingOverlay()" style="padding:8px 12px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  `;
   document.body.appendChild(overlay);
 
   // Auto-dismiss after 5 minutes
-  setTimeout(function(){if(!_meetingOverlayDismissed)dismissMeetingOverlay();},300000);
+  setTimeout(()=>{if(!_meetingOverlayDismissed)dismissMeetingOverlay();},300000);
 
   // Store current meeting for launch
   window._pendingMeetingLaunch=meeting;
@@ -7373,7 +7571,7 @@ function dismissMeetingOverlay(){
   const el=document.getElementById('meetingOverlay');
   if(el){
     el.style.animation='slideUp 0.3s ease forwards';
-    setTimeout(function(){el.remove();},300);
+    setTimeout(()=>el.remove(),300);
   }
 }
 
@@ -7382,7 +7580,7 @@ async function launchMeetingCoach(){
   // Switch to AI Transcription tab
   switchView('copilot');
   // Wait for copilot to load
-  await new Promise(function(r){setTimeout(r,1500);});
+  await new Promise(r=>setTimeout(r,1500));
   // Enable auto-coach
   const tog=document.getElementById('autoCoachToggle');
   if(tog&&!tog.checked){
@@ -7396,7 +7594,10 @@ async function launchMeetingCoach(){
 // Add CSS animation for overlay
 (function(){
   const style=document.createElement('style');
-  style.textContent='@keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes slideUp{from{transform:translateY(0);opacity:1}to{transform:translateY(-100%);opacity:0}}';
+  style.textContent=`
+    @keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+    @keyframes slideUp{from{transform:translateY(0);opacity:1}to{transform:translateY(-100%);opacity:0}}
+  `;
   document.head.appendChild(style);
 })();
 </script>
