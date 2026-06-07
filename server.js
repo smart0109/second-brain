@@ -1481,9 +1481,9 @@ app.post('/api/ask', requireAuth, async (req, res) => {
     userContent += '\n\n--- DATA CONTEXT ---\n' + contextParts.join('\n\n');
   }
 
-  // Use Haiku for fast coaching responses, Sonnet for detailed analysis
-  const model = fast ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-20250514';
-  const maxTokens = fast ? 512 : 1024;
+  // Always use Haiku for fastest response time
+  const model = 'claude-haiku-4-5-20251001';
+  const maxTokens = 512;
 
   const systemPrompt = 'You are a real-time sales meeting intelligence assistant for a CRO named Manish. He manages two companies: Cadient (AI-powered talent/HR platform with SmartSuite) and Vorro (healthcare integration platform with BridgeGate EiPaaS). Be direct, data-driven, and actionable. Never generic. Always reference specifics from the conversation. Keep responses concise and immediately usable in a live meeting context.';
 
