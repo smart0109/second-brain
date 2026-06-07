@@ -7688,6 +7688,490 @@ async function launchMeetingCoach(){
   `;
   document.head.appendChild(style);
 })();
+
+// ===========================================================================
+// MANISH HQ v6 FRONTEND — NEW CAPABILITIES
+// Added: Command Palette, Daily Briefing Panel, Meeting Brief, Deal Scoring,
+//        Deep Ask, Memory-aware Copilot
+// ===========================================================================
+
+// ── Command Palette (Cmd+K / Ctrl+K) ────────────────────────────────────────
+(function initCommandPalette() {
+  const style = document.createElement('style');
+  style.textContent = `
+    #cmdPalette { position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:none;align-items:flex-start;justify-content:center;padding-top:15vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px); }
+    #cmdPalette.open { display:flex; }
+    #cmdBox { width:600px;max-width:90vw;background:#111827;border:1px solid rgba(201,162,39,0.4);border-radius:16px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.8); }
+    #cmdInput { width:100%;padding:16px 20px;font-size:15px;font-family:var(--font-display);background:transparent;border:none;outline:none;color:#f1f5f9;border-bottom:1px solid rgba(255,255,255,0.08); }
+    #cmdInput::placeholder { color:#475569; }
+    #cmdResults { max-height:380px;overflow-y:auto; }
+    .cmd-item { padding:10px 20px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.04); }
+    .cmd-item:hover,.cmd-item.selected { background:rgba(201,162,39,0.12); }
+    .cmd-icon { width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0; }
+    .cmd-label { font-size:13px;font-weight:600;color:#e2e8f0; }
+    .cmd-sub { font-size:11px;color:#64748b;margin-top:1px; }
+    .cmd-kb { font-size:10px;color:#475569;margin-left:auto;flex-shrink:0; }
+    #cmdFooter { padding:8px 20px;font-size:10px;color:#475569;display:flex;gap:12px;border-top:1px solid rgba(255,255,255,0.05); }
+    #cmdAiBar { padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06); }
+    #cmdAiInput { width:100%;background:rgba(201,162,39,0.07);border:1px solid rgba(201,162,39,0.2);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;outline:none; }
+    #cmdAiInput::placeholder { color:#475569; }
+    #cmdAiResult { margin-top:8px;font-size:12px;color:#94a3b8;line-height:1.6;max-height:120px;overflow-y:auto; }
+  `;
+  document.head.appendChild(style);
+
+  const el = document.createElement('div');
+  el.id = 'cmdPalette';
+  el.innerHTML = `
+    <div id="cmdBox">
+      <input id="cmdInput" placeholder="Search views, actions, or ask AI…" autocomplete="off" spellcheck="false"/>
+      <div id="cmdResults"></div>
+      <div id="cmdAiBar">
+        <input id="cmdAiInput" placeholder="Ask AI with live context (Enter to send)…"/>
+        <div id="cmdAiResult"></div>
+      </div>
+      <div id="cmdFooter">
+        <span>↑↓ navigate</span><span>↵ select</span><span>Esc close</span><span>⌘K open</span>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+
+  const CMD_ITEMS = [
+    { icon:'🏠', label:'Dashboard', sub:'Home screen', action:()=>switchView('dashboard'), bg:'rgba(96,165,250,0.15)', color:'#60a5fa' },
+    { icon:'🔭', label:'Pipeline', sub:'Cadient deal kanban', action:()=>switchView('pipeline'), bg:'rgba(251,146,60,0.15)', color:'#fb923c' },
+    { icon:'🤖', label:'AI Copilot', sub:'Chat with live CRM + calendar context', action:()=>switchView('copilot'), bg:'rgba(167,139,250,0.15)', color:'#a78bfa' },
+    { icon:'📅', label:'Meetings', sub:'Granola meeting notes', action:()=>switchView('meetings'), bg:'rgba(52,211,153,0.15)', color:'#34d399' },
+    { icon:'🧠', label:'Intelligence', sub:'Market signals & competitor watch', action:()=>switchView('intelligence'), bg:'rgba(248,113,113,0.15)', color:'#f87171' },
+    { icon:'📋', label:'Daily Briefing', sub:'AI-generated today\'s priorities', action:()=>{ switchView('dashboard'); setTimeout(loadDailyBriefing, 200); }, bg:'rgba(201,162,39,0.15)', color:'#c9a227' },
+    { icon:'⚡', label:'Score Deals', sub:'AI risk & opportunity scoring', action:()=>runDealScoring(), bg:'rgba(251,146,60,0.15)', color:'#fb923c' },
+    { icon:'📧', label:'Search Email', sub:'Gmail smart search', action:()=>{ const s=document.querySelector('.search-wrap input'); if(s){s.focus();} }, bg:'rgba(248,113,113,0.15)', color:'#f87171' },
+    { icon:'💾', label:'View Memory', sub:'AI context memory store', action:()=>showMemoryPanel(), bg:'rgba(45,212,191,0.15)', color:'#2dd4bf' },
+    { icon:'🎯', label:'ICP Checker', sub:'Score a prospect in real-time', action:()=>switchView('productivity'), bg:'rgba(201,162,39,0.15)', color:'#c9a227' },
+  ];
+
+  let filtered = [...CMD_ITEMS];
+  let selectedIdx = 0;
+
+  function renderItems(items) {
+    const el = document.getElementById('cmdResults');
+    if (!el) return;
+    el.innerHTML = items.length ? items.map((item, i) => `
+      <div class="cmd-item${i===selectedIdx?' selected':''}" onclick="executeCmdItem(${i})">
+        <div class="cmd-icon" style="background:${item.bg};color:${item.color}">${item.icon}</div>
+        <div><div class="cmd-label">${item.label}</div><div class="cmd-sub">${item.sub}</div></div>
+      </div>
+    `).join('') : '<div style="padding:16px 20px;color:#475569;font-size:13px">No results</div>';
+  }
+
+  window.executeCmdItem = (i) => {
+    const item = filtered[i];
+    if (item) { item.action(); closePalette(); }
+  };
+
+  function closePalette() {
+    el.classList.remove('open');
+    document.getElementById('cmdInput').value = '';
+    document.getElementById('cmdAiResult').textContent = '';
+    document.getElementById('cmdAiInput').value = '';
+    filtered = [...CMD_ITEMS];
+    selectedIdx = 0;
+    renderItems(filtered);
+  }
+
+  document.getElementById('cmdInput').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    filtered = q ? CMD_ITEMS.filter(i => i.label.toLowerCase().includes(q) || i.sub.toLowerCase().includes(q)) : [...CMD_ITEMS];
+    selectedIdx = 0;
+    renderItems(filtered);
+  });
+
+  document.getElementById('cmdInput').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { selectedIdx = Math.min(selectedIdx+1, filtered.length-1); renderItems(filtered); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { selectedIdx = Math.max(selectedIdx-1, 0); renderItems(filtered); e.preventDefault(); }
+    else if (e.key === 'Enter') { executeCmdItem(selectedIdx); }
+    else if (e.key === 'Escape') { closePalette(); }
+    else if (e.key === 'Tab') { document.getElementById('cmdAiInput').focus(); e.preventDefault(); }
+  });
+
+  document.getElementById('cmdAiInput').addEventListener('keydown', async e => {
+    if (e.key !== 'Enter') return;
+    const q = e.target.value.trim();
+    if (!q) return;
+    const resultEl = document.getElementById('cmdAiResult');
+    resultEl.textContent = '⌛ Thinking…';
+    try {
+      const r = await fetch('/api/ask/deep', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({ prompt: q, inject_context: true }) });
+      const text = await r.json();
+      resultEl.textContent = typeof text === 'string' ? text : JSON.stringify(text);
+    } catch(err) {
+      resultEl.textContent = 'Error: ' + err.message;
+    }
+  });
+
+  el.addEventListener('click', e => { if (e.target === el) closePalette(); });
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      if (el.classList.contains('open')) { closePalette(); }
+      else {
+        el.classList.add('open');
+        filtered = [...CMD_ITEMS];
+        selectedIdx = 0;
+        renderItems(filtered);
+        setTimeout(() => document.getElementById('cmdInput')?.focus(), 50);
+      }
+    }
+    if (e.key === 'Escape' && el.classList.contains('open')) { closePalette(); }
+  });
+
+  renderItems(CMD_ITEMS);
+})();
+
+// ── Daily Briefing Panel ─────────────────────────────────────────────────────
+let _briefingCache = null;
+let _briefingLoadedAt = 0;
+
+async function loadDailyBriefing(forceRefresh = false) {
+  const container = document.getElementById('dailyBriefingPanel');
+  if (!container) return;
+
+  // Cache for 15 minutes
+  const now = Date.now();
+  if (!forceRefresh && _briefingCache && (now - _briefingLoadedAt) < 900000) {
+    renderBriefingPanel(container, _briefingCache);
+    return;
+  }
+
+  container.innerHTML = `<div style="padding:16px;color:var(--text-muted);font-size:12px">⌛ Generating your briefing…</div>`;
+
+  try {
+    const resp = await fetch('/api/intelligence/daily', { credentials: 'same-origin' });
+    if (!resp.ok) throw new Error('Briefing API returned ' + resp.status);
+    const data = await resp.json();
+    _briefingCache = data;
+    _briefingLoadedAt = now;
+    renderBriefingPanel(container, data);
+    dbg('Daily briefing loaded', 'ok');
+  } catch (e) {
+    container.innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px">Briefing unavailable: ${e.message}</div>`;
+    dbg('Daily briefing failed: ' + e.message, 'err');
+  }
+}
+
+function renderBriefingPanel(container, data) {
+  const { briefing, stats, today_events=[], closing_this_week=[], overdue_deals=[] } = data;
+  const pv = (stats.pipeline_value||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+  const wpv = (stats.weighted_pipeline||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+
+  const briefHtml = briefing
+    ? briefing
+        .replace(/🎯 TOP PRIORITY/g, '<span style="color:#c9a227;font-weight:700">🎯 TOP PRIORITY</span>')
+        .replace(/⚡ ACT NOW/g, '<span style="color:#fb923c;font-weight:700">⚡ ACT NOW</span>')
+        .replace(/🔥 WATCH/g, '<span style="color:#f87171;font-weight:700">🔥 WATCH</span>')
+        .replace(/\n/g, '<br>')
+    : 'No briefing available';
+
+  container.innerHTML = `
+    <div style="padding:14px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:11px;font-weight:700;color:var(--accent-text);text-transform:uppercase;letter-spacing:0.8px">AI Daily Briefing</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:10px;color:var(--text-muted)">${new Date(data.generated_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>
+          <button onclick="loadDailyBriefing(true)" style="font-size:10px;padding:3px 8px;border-radius:5px;background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent-text);cursor:pointer">Refresh</button>
+        </div>
+      </div>
+      <div style="font-size:12px;line-height:1.7;color:var(--text-primary);margin-bottom:12px">${briefHtml}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px">
+        <div style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:800;color:#60a5fa">${stats.meetings_today}</div>
+          <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Today</div>
+        </div>
+        <div style="background:rgba(201,162,39,0.08);border:1px solid rgba(201,162,39,0.15);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:800;color:#c9a227">${stats.deals_closing_this_week}</div>
+          <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Closing</div>
+        </div>
+        <div style="background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.15);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:800;color:#f87171">${stats.deals_overdue}</div>
+          <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Overdue</div>
+        </div>
+        <div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.15);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:14px;font-weight:800;color:#34d399">${stats.unread_emails}</div>
+          <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Unread</div>
+        </div>
+      </div>
+      ${today_events.length ? `
+        <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Today's Meetings</div>
+          ${today_events.slice(0,4).map(e=>{
+            const t = new Date(e.start?.dateTime || e.start?.date);
+            const timeStr = t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+            const atts = (e.attendees||[]).slice(0,3).join(', ');
+            return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+              <div style="font-size:10px;color:#60a5fa;min-width:55px;font-weight:600">${timeStr}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.summary||'Meeting')}</div>
+                ${atts?`<div style="font-size:10px;color:var(--text-muted)">${esc(atts)}</div>`:''}
+              </div>
+              <button onclick="generateBrief(${JSON.stringify(JSON.stringify({title:e.summary,attendees:e.attendees,startTime:e.start?.dateTime})).replace(/"/g,'&quot;')})" style="font-size:9px;padding:3px 7px;border-radius:4px;background:rgba(201,162,39,0.12);border:1px solid rgba(201,162,39,0.25);color:#c9a227;cursor:pointer;flex-shrink:0">Brief</button>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// ── Meeting Brief Generator (Frontend) ──────────────────────────────────────
+async function generateBrief(eventJsonStr) {
+  let eventData;
+  try { eventData = typeof eventJsonStr === 'string' ? JSON.parse(eventJsonStr) : eventJsonStr; }
+  catch(e) { eventData = { title: String(eventJsonStr) }; }
+
+  const { title, attendees = [], startTime } = eventData;
+
+  // Show brief in a modal
+  showBriefModal(title, null, true);
+
+  try {
+    const resp = await fetch('/api/brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        title: title || 'Meeting',
+        attendees: Array.isArray(attendees)
+          ? attendees.filter(a=>!a.self).map(a=>a.email||a.displayName||a).filter(Boolean)
+          : [],
+        startTime
+      })
+    });
+    if (!resp.ok) throw new Error('Brief API returned ' + resp.status);
+    const data = await resp.json();
+    showBriefModal(data.title, data.brief, false);
+    dbg('Meeting brief generated for: ' + data.title, 'ok');
+  } catch (e) {
+    showBriefModal(title, 'Error generating brief: ' + e.message, false);
+    dbg('Meeting brief failed: ' + e.message, 'err');
+  }
+}
+
+function showBriefModal(title, content, loading) {
+  let modal = document.getElementById('briefModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'briefModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:8888;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px)';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div style="background:#111827;border:1px solid rgba(201,162,39,0.35);border-radius:16px;width:560px;max-width:90vw;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
+      <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:10px">
+        <span style="font-size:16px">📋</span>
+        <span style="font-weight:700;font-size:14px;color:#e2e8f0;flex:1">${esc(title||'Meeting Brief')}</span>
+        <button onclick="document.getElementById('briefModal').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:2px 6px">×</button>
+      </div>
+      <div style="padding:16px 20px;overflow-y:auto;flex:1;font-size:12px;line-height:1.7;color:#94a3b8">
+        ${loading
+          ? '<div style="text-align:center;padding:24px;color:#c9a227">⌛ Generating brief with live email + meeting context…</div>'
+          : (content||'').replace(/\*\*(.*?)\*\*/g,'<strong style="color:#e2e8f0">$1</strong>').replace(/\n/g,'<br>')}
+      </div>
+      ${!loading && content ? `
+        <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px">
+          <button onclick="copilotInjectBrief(${JSON.stringify(JSON.stringify(content)).replace(/"/g,'&quot;')})" style="flex:1;padding:8px;background:rgba(201,162,39,0.15);border:1px solid rgba(201,162,39,0.3);border-radius:6px;color:#c9a227;font-size:12px;font-weight:600;cursor:pointer">Open in Copilot</button>
+          <button onclick="document.getElementById('briefModal').remove()" style="padding:8px 14px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#64748b;font-size:12px;cursor:pointer">Close</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+}
+
+function copilotInjectBrief(briefStr) {
+  document.getElementById('briefModal')?.remove();
+  switchView('copilot');
+  setTimeout(() => {
+    const chatInput = document.getElementById('copilotInput') || document.querySelector('.copilot-input textarea') || document.querySelector('[placeholder*="Ask"]');
+    if (chatInput) {
+      chatInput.value = 'I have a meeting coming up. Here is my brief:\n\n' + (typeof briefStr==='string'?briefStr:JSON.stringify(briefStr)) + '\n\nWhat are the 3 most important things I should lead with?';
+      chatInput.dispatchEvent(new Event('input'));
+      chatInput.focus();
+    }
+  }, 800);
+}
+
+// ── Deal Risk Scoring ────────────────────────────────────────────────────────
+let _dealScores = {};
+
+async function runDealScoring() {
+  dbg('Running deal scoring…');
+  try {
+    const dealsResp = await call(`${ZOHO}__executeCOQLQuery`, { body: { select_query: "select id,Deal_Name,Stage,Amount,Closing_Date,Probability,Account_Name,Contact_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 25" }});
+    const deals = dealsResp?.data || [];
+    if (!deals.length) { dbg('No open deals to score', 'err'); return; }
+
+    const resp = await fetch('/api/intelligence/deals/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ deals })
+    });
+    if (!resp.ok) throw new Error('Score API returned ' + resp.status);
+    const { scores } = await resp.json();
+
+    // Cache scores by deal name for display
+    scores.forEach(s => {
+      _dealScores[s.name] = s;
+    });
+
+    dbg(`Deal scoring complete: ${scores.length} deals scored`, 'ok');
+
+    // Show scores panel
+    showDealScoresPanel(scores);
+  } catch (e) {
+    dbg('Deal scoring failed: ' + e.message, 'err');
+  }
+}
+
+function showDealScoresPanel(scores) {
+  let panel = document.getElementById('dealScoresPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'dealScoresPanel';
+    panel.style.cssText = 'position:fixed;top:80px;right:24px;z-index:7000;width:380px;background:#111827;border:1px solid rgba(201,162,39,0.3);border-radius:12px;box-shadow:0 16px 60px rgba(0,0,0,0.7);max-height:70vh;overflow:hidden;display:flex;flex-direction:column';
+    document.body.appendChild(panel);
+  }
+
+  const sorted = [...scores].sort((a,b) => b.risk_score - a.risk_score);
+
+  panel.innerHTML = `
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px">
+      <span style="font-size:14px">⚡</span>
+      <span style="font-weight:700;font-size:13px;color:#e2e8f0;flex:1">Deal Risk Scores</span>
+      <button onclick="document.getElementById('dealScoresPanel').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:16px">×</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:8px 0">
+      ${sorted.map(s => {
+        const riskColor = s.risk_score>=7?'#f87171':s.risk_score>=4?'#fb923c':'#34d399';
+        const oppColor = s.opp_score>=7?'#34d399':s.opp_score>=4?'#c9a227':'#64748b';
+        return `
+          <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <div style="font-size:12px;font-weight:600;color:#e2e8f0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.name)}</div>
+              <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:${riskColor}22;color:${riskColor};font-weight:700">Risk ${s.risk_score}/10</div>
+              <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:${oppColor}22;color:${oppColor};font-weight:700">Opp ${s.opp_score}/10</div>
+            </div>
+            <div style="font-size:11px;color:#94a3b8">${esc(s.risk_reason||'')}</div>
+            ${s.action ? `<div style="font-size:11px;color:#c9a227;margin-top:2px">→ ${esc(s.action)}</div>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06);font-size:10px;color:#475569">${scores.length} deals scored • Click deal in Pipeline for details</div>
+  `;
+}
+
+// ── Memory Panel ─────────────────────────────────────────────────────────────
+async function showMemoryPanel() {
+  let panel = document.getElementById('memoryPanel');
+  if (panel) { panel.remove(); return; }
+
+  panel = document.createElement('div');
+  panel.id = 'memoryPanel';
+  panel.style.cssText = 'position:fixed;top:80px;left:24px;z-index:7000;width:380px;background:#111827;border:1px solid rgba(45,212,191,0.3);border-radius:12px;box-shadow:0 16px 60px rgba(0,0,0,0.7);max-height:70vh;overflow:hidden;display:flex;flex-direction:column';
+  panel.innerHTML = `
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px">
+      <span style="font-size:14px">💾</span>
+      <span style="font-weight:700;font-size:13px;color:#e2e8f0;flex:1">AI Memory</span>
+      <button onclick="document.getElementById('memoryPanel').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:16px">×</button>
+    </div>
+    <div style="padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <input id="memSearchInput" placeholder="Search memories…" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px 10px;color:#e2e8f0;font-size:12px;outline:none" oninput="searchMemories(this.value)"/>
+    </div>
+    <div id="memoryList" style="overflow-y:auto;flex:1;padding:8px 0">
+      <div style="padding:12px 16px;color:#64748b;font-size:12px">⌛ Loading…</div>
+    </div>
+    <div style="padding:8px 14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px">
+      <button onclick="clearAllMemories()" style="padding:5px 10px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:5px;color:#f87171;font-size:11px;cursor:pointer">Clear All</button>
+    </div>
+  `;
+  document.body.appendChild(panel);
+  await searchMemories('');
+}
+
+async function searchMemories(query) {
+  const list = document.getElementById('memoryList');
+  if (!list) return;
+  try {
+    const resp = await fetch('/api/memory?q=' + encodeURIComponent(query), { credentials: 'same-origin' });
+    const data = await resp.json();
+    const mems = (data.results || []).slice().reverse();
+    list.innerHTML = mems.length ? mems.map(m => `
+      <div style="padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <div style="font-size:11px;color:#94a3b8;line-height:1.5">${esc(m.memory||'')}</div>
+        <div style="font-size:9px;color:#475569;margin-top:3px">${m.metadata?.type||''} · ${new Date(m.created_at).toLocaleDateString()}</div>
+      </div>
+    `).join('') : '<div style="padding:12px 16px;color:#475569;font-size:12px">No memories stored yet. Ask AI questions and it will remember context.</div>';
+  } catch(e) {
+    list.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:12px">Error: ' + e.message + '</div>';
+  }
+}
+
+async function clearAllMemories() {
+  if (!confirm('Clear all AI memory? This cannot be undone.')) return;
+  await fetch('/api/memory', { method: 'DELETE', credentials: 'same-origin' });
+  document.getElementById('memoryPanel')?.remove();
+  dbg('Memory cleared', 'ok');
+}
+
+// ── Keyboard Shortcut Hints ──────────────────────────────────────────────────
+(function addKbdHint() {
+  const hint = document.createElement('div');
+  hint.style.cssText = 'position:fixed;bottom:16px;right:16px;background:rgba(17,24,39,0.9);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:#64748b;z-index:100;cursor:pointer;transition:opacity 0.3s';
+  hint.innerHTML = '⌘K Quick actions';
+  hint.onclick = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }));
+  // fade out after 8s
+  setTimeout(() => { hint.style.opacity = '0.4'; }, 8000);
+  document.body.appendChild(hint);
+})();
+
+// ── Auto-load Daily Briefing on Dashboard ────────────────────────────────────
+// Inject briefing panel into dashboard view on first load
+const _origLoadDashboard = typeof loadDashboard === 'function' ? loadDashboard : null;
+
+// Patch into dashboard rendering — add briefing section if not already there
+(function patchDashboard() {
+  // Wait for DOM ready
+  document.addEventListener('DOMContentLoaded', () => {
+    // Inject a briefing container into the dashboard view
+    const dashView = document.getElementById('view-dashboard');
+    if (dashView && !document.getElementById('dailyBriefingPanel')) {
+      const briefCard = document.createElement('div');
+      briefCard.className = 'card';
+      briefCard.id = 'dailyBriefingCard';
+      briefCard.innerHTML = '<div id="dailyBriefingPanel" style="min-height:60px"><div style="padding:16px;color:var(--text-muted);font-size:12px">Click "Load Briefing" to generate your AI daily briefing</div></div>';
+      dashView.insertBefore(briefCard, dashView.firstChild);
+    }
+  });
+})();
+
+// Auto-trigger briefing when switching to dashboard view
+const _origSwitchView = typeof switchView === 'function' ? switchView : null;
+if (typeof switchView === 'function') {
+  const _sv = switchView;
+  window.switchView = function(view) {
+    _sv(view);
+    if (view === 'dashboard') {
+      // Small delay to let dashboard render, then load briefing
+      const panel = document.getElementById('dailyBriefingPanel');
+      if (panel) {
+        setTimeout(() => loadDailyBriefing(), 300);
+      }
+    }
+  };
+}
+
+
 </script>
 </body>
 </html>
