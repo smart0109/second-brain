@@ -38,7 +38,19 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .sr-source { font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(52,211,153,0.15); color: var(--green); font-weight: 500; }
 
 /* Tabs */
+.fav-bar { display:none; background:var(--bg-surface); border-bottom:1px solid var(--border); padding:4px 24px; position:sticky; top:52px; z-index:91; gap:6px; align-items:center; }
+.fav-bar.has-items { display:flex; }
+.fav-bar-label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; margin-right:4px; white-space:nowrap; }
+.fav-chip { display:inline-flex; align-items:center; gap:4px; padding:4px 12px; font-size:11px; font-weight:600; border-radius:14px; cursor:pointer; background:rgba(201,162,39,0.1); border:1px solid rgba(201,162,39,0.25); color:#c9a227; transition:all 0.2s ease; white-space:nowrap; }
+.fav-chip:hover { background:rgba(201,162,39,0.2); transform:translateY(-1px); }
+.fav-chip .fav-unpin { font-size:9px; opacity:0.5; margin-left:2px; }
+.fav-chip .fav-unpin:hover { opacity:1; color:#f87171; }
+.tab .pin-btn { display:none; position:absolute; top:2px; right:2px; font-size:10px; width:16px; height:16px; line-height:16px; text-align:center; border-radius:50%; background:rgba(201,162,39,0.15); color:#c9a227; border:none; cursor:pointer; opacity:0.6; }
+.tab:hover .pin-btn { display:block; }
+.tab .pin-btn:hover { opacity:1; background:rgba(201,162,39,0.3); }
+.tab .pin-btn.pinned { display:block; opacity:0.8; color:#c9a227; }
 .tabs { display: flex; background: var(--bg-surface); border-bottom: 1px solid var(--border); padding: 0 24px; position: sticky; top: 52px; z-index: 90; overflow-x: auto; gap: 2px; }
+.fav-bar.has-items ~ .tabs { top: 82px; }
 .tab { padding: 12px 18px; font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.25s var(--transition-smooth); white-space: nowrap; letter-spacing: 0.3px; position: relative; }
 .tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.02); }
 .tab.active { color: var(--accent-text); border-bottom-color: var(--accent); font-weight: 700; }
@@ -562,6 +574,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <button class="vip-btn" onclick="loadContact('Scott Sirdevan','ssirdevan@vorro.net')">Scott</button>
       <button class="vip-btn" onclick="loadContact('Bill Mastin','bmastin@cadienttalent.com')">Bill</button>
     </div>
+  </div>
+  <div class="fav-bar" id="favBar">
+    <span class="fav-bar-label">&#11088; Pinned</span>
+    <div id="favChips" style="display:flex;gap:6px;flex-wrap:wrap;overflow-x:auto"></div>
   </div>
   <div class="tabs" id="tabBar">
     <!-- Shared across all views -->
@@ -2161,6 +2177,79 @@ async function loadProdFeedback(){
     renderThreadList(threads,el,'No product feedback threads found in the last 30 days');
   }catch(e){el.innerHTML='<div class="empty-state" style="color:var(--red)">Failed: '+esc(e.message)+'</div>';}
 }
+
+// ══════════════════════════════════════
+// ── FAVORITES / PIN SYSTEM ──
+// ══════════════════════════════════════
+let _favorites=[];
+try{_favorites=JSON.parse(localStorage.getItem('hq_favorites')||'[]');}catch(e){_favorites=[];}
+
+function saveFavorites(){
+  try{localStorage.setItem('hq_favorites',JSON.stringify(_favorites));}catch(e){}
+}
+
+function togglePin(viewId,e){
+  if(e)e.stopPropagation();
+  const idx=_favorites.indexOf(viewId);
+  if(idx>-1){_favorites.splice(idx,1);}
+  else{_favorites.push(viewId);}
+  saveFavorites();
+  renderFavBar();
+  updatePinButtons();
+}
+
+function renderFavBar(){
+  const bar=document.getElementById('favBar');
+  const chips=document.getElementById('favChips');
+  if(!bar||!chips)return;
+  if(!_favorites.length){bar.classList.remove('has-items');chips.innerHTML='';return;}
+  bar.classList.add('has-items');
+  let html='';
+  for(const viewId of _favorites){
+    const tab=document.querySelector('.tab[data-view="'+viewId+'"]');
+    if(!tab)continue;
+    const label=tab.textContent.trim();
+    const color=tab.style.color||'var(--text-primary)';
+    html+='<div class="fav-chip" onclick="switchView(\''+viewId+'\')" style="color:'+color+';border-color:'+color+'33;background:'+color+'11">';
+    html+=label;
+    html+='<span class="fav-unpin" onclick="event.stopPropagation();togglePin(\''+viewId+'\')" title="Unpin">&#10005;</span>';
+    html+='</div>';
+  }
+  chips.innerHTML=html;
+  // Adjust tabs sticky position
+  const tabs=document.getElementById('tabBar');
+  if(tabs){tabs.style.top=_favorites.length?'82px':'52px';}
+}
+
+function updatePinButtons(){
+  document.querySelectorAll('.tab .pin-btn').forEach(btn=>{
+    const viewId=btn.closest('.tab')?.dataset.view;
+    if(!viewId)return;
+    const isPinned=_favorites.includes(viewId);
+    btn.classList.toggle('pinned',isPinned);
+    btn.innerHTML=isPinned?'&#9733;':'&#9734;';
+    btn.title=isPinned?'Unpin from favorites':'Pin to favorites';
+  });
+}
+
+function initFavorites(){
+  // Add pin buttons to all visible tabs
+  document.querySelectorAll('.tab[data-view]').forEach(tab=>{
+    if(tab.querySelector('.pin-btn'))return;
+    const viewId=tab.dataset.view;
+    if(viewId==='dashboard')return; // Today is always there
+    const btn=document.createElement('button');
+    btn.className='pin-btn';
+    btn.onclick=function(e){togglePin(viewId,e);};
+    tab.style.position='relative';
+    tab.appendChild(btn);
+  });
+  updatePinButtons();
+  renderFavBar();
+}
+
+// Initialize on DOM ready
+initFavorites();
 
 // ── View Switching ──
 function switchView(v){
@@ -7217,7 +7306,6 @@ function renderFollowups(){
       const meta=catMeta[cat];
       html+=renderFuGroup(cat,items,meta);
     }
-    el.innerHTML=html;
     el.innerHTML=html;
   }
 }
