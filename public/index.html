@@ -904,7 +904,34 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
               <span>&#129302; AI Response</span>
               <button id="btnSpeak" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer;display:none" title="Read response aloud">&#128264; Read Aloud</button>
             </div>
-            <div class="cr-body" id="copilotResponseBody"><div class="empty-state">Click an action button after adding transcript content</div></div>
+            <div class="cr-body" id="copilotResponseBody"><div class="empty-state">Click an action button or enable Auto-Coach for real-time intelligence</div></div>
+          </div>
+
+          <!-- LIVE COACHING FEED -->
+          <div style="margin-top:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <div class="section-header" style="margin:0">Live Coaching Feed</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="coachStatus" style="font-size:9px;color:var(--text-muted)">Off</span>
+                <label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer">
+                  <input type="checkbox" id="autoCoachToggle" onchange="toggleAutoCoach()" style="opacity:0;width:0;height:0">
+                  <span style="position:absolute;inset:0;background:var(--border);border-radius:10px;transition:0.3s"></span>
+                  <span id="autoCoachDot" style="position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:0.3s"></span>
+                </label>
+                <span style="font-size:10px;font-weight:600;color:var(--text-secondary)">Auto-Coach</span>
+              </div>
+            </div>
+            <div id="coachingFeed" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg-card)">
+              <div class="empty-state" style="padding:16px;font-size:11px">Enable Auto-Coach to get real-time rebuttals, suggested talking points, and content recommendations as the conversation progresses.</div>
+            </div>
+          </div>
+
+          <!-- SUGGESTED ASSETS -->
+          <div style="margin-top:10px">
+            <div class="section-header">Suggested Assets</div>
+            <div id="copilotSuggestedAssets" style="display:flex;gap:6px;flex-wrap:wrap">
+              <div class="empty-state" style="padding:10px;font-size:11px;width:100%">Assets will auto-surface based on conversation topics</div>
+            </div>
           </div>
 
           <div class="copilot-context-panel" id="copilotContextPanel">
@@ -4785,9 +4812,16 @@ function initCopilotSpeech(){
     for(let i=e.resultIndex;i<e.results.length;i++){
       const t=e.results[i][0].transcript;
       if(e.results[i].isFinal){
-        copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence});
+        const speaker=document.getElementById('copilotSpeaker')?.value||'';
+        copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence,speaker});
         renderCopilotTranscript();
         checkObjections(t);
+        // Instant topic detection + auto-coach trigger
+        const brand=detectBrandFromContext();
+        const topics=[];
+        for(const tp of TOPIC_PATTERNS){if(tp.pattern.test(t))topics.push(tp);}
+        if(topics.length)surfaceAssets(topics,brand);
+        if(_autoCoachOn&&!_coachBusy)setTimeout(runAutoCoach,1000);
       } else { interim=t; }
     }
     if(interim) renderCopilotInterim(interim);
@@ -4860,6 +4894,13 @@ function addManualTranscript(){
   ta.value='';
   renderCopilotTranscript();
   checkObjections(text);
+  // Instant topic detection + asset surfacing (even without auto-coach)
+  const brand=detectBrandFromContext();
+  const topics=[];
+  for(const tp of TOPIC_PATTERNS){if(tp.pattern.test(text))topics.push(tp);}
+  if(topics.length)surfaceAssets(topics,brand);
+  // If auto-coach is on, trigger immediate analysis instead of waiting for timer
+  if(_autoCoachOn&&!_coachBusy)setTimeout(runAutoCoach,500);
 }
 function addCopilotSpeaker(){
   const name=prompt('Enter speaker name:');
@@ -5261,12 +5302,228 @@ function clearCopilotSession(){
   copilotTranscriptLines=[];
   copilotMeetingContext='';
   copilotAttendeeData={};
+  _coachAnalyzedIdx=0;
+  _coachFeedItems=[];
+  _autoCoachOn=false;
+  if(_autoCoachTimer){clearInterval(_autoCoachTimer);_autoCoachTimer=null;}
+  const tog=document.getElementById('autoCoachToggle');if(tog)tog.checked=false;
+  const dot=document.getElementById('autoCoachDot');if(dot){dot.style.left='2px';dot.style.background='#fff';}
+  const cs=document.getElementById('coachStatus');if(cs)cs.textContent='Off';
   renderCopilotTranscript();
   const _crb=document.getElementById('copilotResponseBody');if(_crb)_crb.innerHTML='<div class="empty-state">Session cleared</div>';
   const _car=document.getElementById('copilotAutoRebuttal');if(_car)_car.innerHTML='';
   const _ccc=document.getElementById('copilotContextCards');if(_ccc)_ccc.innerHTML='';
+  const _cf=document.getElementById('coachingFeed');if(_cf)_cf.innerHTML='<div class="empty-state" style="padding:16px;font-size:11px">Enable Auto-Coach to get real-time intelligence.</div>';
+  const _sa=document.getElementById('copilotSuggestedAssets');if(_sa)_sa.innerHTML='<div class="empty-state" style="padding:10px;font-size:11px;width:100%">Assets will auto-surface based on conversation topics</div>';
   if(copilotListening)toggleListening();
   document.getElementById('copilotProspectContext').style.display='none';
+}
+
+// ══════════════════════════════════════
+// ── REAL-TIME COACHING ENGINE ──
+// ══════════════════════════════════════
+let _autoCoachOn=false;
+let _autoCoachTimer=null;
+let _coachAnalyzedIdx=0; // tracks which transcript lines have been analyzed
+let _coachFeedItems=[];
+let _coachBusy=false;
+
+// Topic detection patterns for content surfacing
+const TOPIC_PATTERNS=[
+  {pattern:/pricing|cost|budget|roi|investment|spend|expense/i, topic:'pricing', label:'Pricing/ROI'},
+  {pattern:/competitor|alternative|also looking|comparing|vs\b|versus|icims|greenhouse|workday|paradox|mulesoft|boomi/i, topic:'competitor', label:'Competitive Intel'},
+  {pattern:/implementation|timeline|how long|migration|onboard|deploy|rollout/i, topic:'implementation', label:'Implementation'},
+  {pattern:/case study|example|proof|reference|who else|other clients|success story/i, topic:'social_proof', label:'Social Proof'},
+  {pattern:/demo|see it|show me|walk.*through|how does it work/i, topic:'demo', label:'Demo/Walkthrough'},
+  {pattern:/security|hipaa|compliance|audit|soc|gdpr|encryption/i, topic:'compliance', label:'Compliance/Security'},
+  {pattern:/integration|connect|api|fhir|hl7|edi|interop/i, topic:'integration', label:'Integration'},
+  {pattern:/retention|turnover|attrition|quit|leave|churn/i, topic:'retention', label:'Retention'},
+  {pattern:/sourcing|candidate|talent pool|pipeline|recruit/i, topic:'sourcing', label:'Talent Sourcing'},
+  {pattern:/screening|interview|assess|evaluation|phone screen/i, topic:'screening', label:'Screening'},
+  {pattern:/contract|agreement|terms|negotiate|renewal|commitment/i, topic:'closing', label:'Deal Closing'},
+  {pattern:/next step|follow up|schedule|meeting|call back/i, topic:'next_steps', label:'Next Steps'}
+];
+
+// Asset mapping by topic and brand
+const ASSET_MAP={
+  cadient:{
+    pricing:{assets:['SmartSuite ROI Calculator','Cost-per-Hire Benchmark Report'],icon:'&#128176;',color:'#4caf50'},
+    competitor:{assets:['Competitive Battlecard','Feature Comparison Matrix'],icon:'&#9876;',color:'#f44336'},
+    implementation:{assets:['Implementation Timeline','Onboarding Checklist'],icon:'&#128197;',color:'#2196f3'},
+    social_proof:{assets:['Mini Case Study','Client Success Metrics'],icon:'&#127942;',color:'#ff9800'},
+    demo:{assets:['SmartSuite Product Tour','SmartScreen Live Demo'],icon:'&#127916;',color:'#9c27b0'},
+    retention:{assets:['SmartTenure Overview','Predictive Retention Report'],icon:'&#128200;',color:'#00bcd4'},
+    sourcing:{assets:['SmartSource One-Pager','AI Sourcing Comparison'],icon:'&#128269;',color:'#3f51b5'},
+    screening:{assets:['SmartScreen One-Pager','Screening ROI Calculator'],icon:'&#128221;',color:'#607d8b'},
+    closing:{assets:['Pricing Proposal Template','Contract Summary'],icon:'&#128220;',color:'#795548'},
+    next_steps:{assets:['Meeting Summary Template','Follow-up Email Draft'],icon:'&#128231;',color:'#009688'}
+  },
+  vorro:{
+    pricing:{assets:['BridgeGate ROI Calculator','Integration Cost Analysis'],icon:'&#128176;',color:'#4caf50'},
+    competitor:{assets:['iPaaS Competitive Battlecard','MuleSoft vs BridgeGate'],icon:'&#9876;',color:'#f44336'},
+    implementation:{assets:['6-Week Implementation Plan','Deployment Options'],icon:'&#128197;',color:'#2196f3'},
+    social_proof:{assets:['Healthcare Integration Case Study','52% Cost Reduction Proof Point'],icon:'&#127942;',color:'#ff9800'},
+    compliance:{assets:['HIPAA Compliance Guide','SOC 2 Certification Details'],icon:'&#128274;',color:'#e91e63'},
+    integration:{assets:['FHIR/HL7 Standards Guide','EHR Connectivity Matrix'],icon:'&#128279;',color:'#673ab7'},
+    closing:{assets:['Pricing Proposal Template','Service Agreement Summary'],icon:'&#128220;',color:'#795548'},
+    next_steps:{assets:['Meeting Summary Template','Follow-up Email Draft'],icon:'&#128231;',color:'#009688'}
+  }
+};
+
+function toggleAutoCoach(){
+  const tog=document.getElementById('autoCoachToggle');
+  _autoCoachOn=tog.checked;
+  const dot=document.getElementById('autoCoachDot');
+  const cs=document.getElementById('coachStatus');
+  if(_autoCoachOn){
+    if(dot){dot.style.left='18px';dot.style.background='#4caf50';}
+    if(cs)cs.textContent='Active';
+    tog.parentElement.querySelector('span:first-of-type').style.background='rgba(76,175,80,0.4)';
+    // Start the auto-coach loop (every 15s)
+    _coachAnalyzedIdx=Math.max(0,copilotTranscriptLines.length-1);
+    _autoCoachTimer=setInterval(runAutoCoach,15000);
+    addCoachFeedItem('system','Auto-Coach activated. Real-time rebuttals, advice, and content will appear as the conversation progresses.',null);
+    // Run immediately if there's already transcript
+    if(copilotTranscriptLines.length>0)setTimeout(runAutoCoach,1000);
+  } else {
+    if(dot){dot.style.left='2px';dot.style.background='#fff';}
+    if(cs)cs.textContent='Off';
+    tog.parentElement.querySelector('span:first-of-type').style.background='var(--border)';
+    if(_autoCoachTimer){clearInterval(_autoCoachTimer);_autoCoachTimer=null;}
+    addCoachFeedItem('system','Auto-Coach paused.',null);
+  }
+}
+
+async function runAutoCoach(){
+  if(_coachBusy||!_autoCoachOn)return;
+  const newLines=copilotTranscriptLines.slice(_coachAnalyzedIdx);
+  if(!newLines.length)return;
+  _coachBusy=true;
+  _coachAnalyzedIdx=copilotTranscriptLines.length;
+
+  const newText=newLines.map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
+  const brand=detectBrandFromContext();
+
+  // 1. Detect topics and surface assets (instant, no AI call)
+  const detectedTopics=[];
+  for(const tp of TOPIC_PATTERNS){
+    if(tp.pattern.test(newText))detectedTopics.push(tp);
+  }
+  if(detectedTopics.length)surfaceAssets(detectedTopics,brand);
+
+  // 2. Check for objections (instant rebuttals from knowledge base)
+  for(const p of OBJECTION_PATTERNS){
+    if(p.pattern.test(newText)){
+      const kb=KNOWLEDGE_BASE[brand]||KNOWLEDGE_BASE.cadient;
+      for(const[key,val]of Object.entries(kb.objectionHandlers)){
+        if(newText.toLowerCase().includes(key)){
+          addCoachFeedItem('rebuttal','Objection detected ("'+key+'"). Suggested response: '+val,'&#9889;');
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. AI-powered contextual analysis (async)
+  try{
+    const kb=KNOWLEDGE_BASE[brand];
+    const coachPrompt=`You are a real-time sales meeting coach for ${kb.company}. Analyze the latest exchange and provide exactly 3 things in this format:
+
+SIGNAL: [One sentence: what does this part of the conversation reveal about the prospect's intent, interest level, or concern?]
+
+SAY THIS: [A specific, word-for-word suggestion Manish should say next. Under 40 words. Conversational tone.]
+
+WATCH FOR: [One sentence: what to listen for in the next 2 minutes that would signal a buying signal or objection.]
+
+Be specific to what was actually said. Never generic. Reference ${kb.product} features only if relevant.`;
+
+    const coachData=[
+      {label:'New transcript lines',value:newText},
+      {label:'Full conversation so far',value:getFullTranscript()},
+      {label:'Meeting context',value:copilotMeetingContext},
+      {label:'Attendee data',value:JSON.stringify(copilotAttendeeData)},
+      {label:'Brand',value:brand}
+    ];
+
+    const aiResponse=await ask(coachPrompt,coachData,{fast:true});
+    if(aiResponse&&!aiResponse.includes('AI response unavailable')&&!aiResponse.includes('unavailable')){
+      // Parse the structured response
+      const signalMatch=aiResponse.match(/SIGNAL:\s*(.+?)(?=\n|SAY THIS:|$)/s);
+      const sayMatch=aiResponse.match(/SAY THIS:\s*(.+?)(?=\n|WATCH FOR:|$)/s);
+      const watchMatch=aiResponse.match(/WATCH FOR:\s*(.+?)$/s);
+
+      if(signalMatch)addCoachFeedItem('signal',signalMatch[1].trim(),'&#128161;');
+      if(sayMatch)addCoachFeedItem('advise',sayMatch[1].trim(),'&#128172;');
+      if(watchMatch)addCoachFeedItem('watch',watchMatch[1].trim(),'&#128065;');
+    } else {
+      // AI unavailable, give knowledge-base-only coaching
+      if(detectedTopics.length){
+        const topicNames=detectedTopics.map(t=>t.label).join(', ');
+        addCoachFeedItem('signal','Topics detected: '+topicNames+'. Consider steering toward '+kb.product+' advantages in these areas.','&#128161;');
+      }
+    }
+  }catch(e){
+    // Silent fail for AI, coaching feed still gets KB-based items
+  }
+  _coachBusy=false;
+}
+
+function addCoachFeedItem(type,text,icon){
+  const feed=document.getElementById('coachingFeed');
+  if(!feed)return;
+  const colors={system:'#64748b',rebuttal:'#ff9800',signal:'#60a5fa',advise:'#4caf50',watch:'#a78bfa',topic:'#f472b6'};
+  const labels={system:'System',rebuttal:'Rebuttal',signal:'Signal',advise:'Say This',watch:'Watch For',topic:'Topic'};
+  const now=new Date();
+  const timeStr=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
+
+  // Remove empty state if present
+  const empty=feed.querySelector('.empty-state');
+  if(empty)empty.remove();
+
+  const item=document.createElement('div');
+  item.style.cssText='padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;line-height:1.6;animation:slideIn 0.3s ease;';
+  item.innerHTML=`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+      <span style="font-size:13px">${icon||'&#128172;'}</span>
+      <span style="font-weight:600;color:${colors[type]||'#94a3b8'};font-size:10px;text-transform:uppercase;letter-spacing:0.5px">${labels[type]||type}</span>
+      <span style="margin-left:auto;font-size:9px;color:var(--text-muted)">${timeStr}</span>
+    </div>
+    <div style="color:var(--text-primary)">${esc(text)}</div>
+    ${type==='advise'?'<button onclick="navigator.clipboard.writeText(this.parentElement.querySelector(\'div:last-of-type\').textContent);this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy to use\',1500)" style="margin-top:4px;font-size:9px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--accent-text);cursor:pointer">Copy to use</button>':''}
+  `;
+  feed.insertBefore(item,feed.firstChild);
+
+  // Keep max 20 items
+  while(feed.children.length>20)feed.removeChild(feed.lastChild);
+
+  _coachFeedItems.unshift({type,text,time:now});
+}
+
+function surfaceAssets(topics,brand){
+  const el=document.getElementById('copilotSuggestedAssets');
+  if(!el)return;
+  const assetDB=ASSET_MAP[brand]||ASSET_MAP.cadient;
+  let html='';
+  const seen=new Set();
+  for(const tp of topics){
+    const assets=assetDB[tp.topic];
+    if(!assets)continue;
+    for(const a of assets.assets){
+      if(seen.has(a))continue;
+      seen.add(a);
+      html+=`<div style="display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border:1px solid ${assets.color}33;border-radius:6px;background:${assets.color}11;font-size:10px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='${assets.color}'" onmouseout="this.style.borderColor='${assets.color}33'" onclick="copilotAction('advise')">
+        <span style="font-size:14px">${assets.icon}</span>
+        <div>
+          <div style="font-weight:600;color:var(--text-primary)">${esc(a)}</div>
+          <div style="font-size:9px;color:${assets.color}">${esc(tp.label)}</div>
+        </div>
+      </div>`;
+    }
+  }
+  if(html){
+    el.innerHTML=html;
+    addCoachFeedItem('topic','Relevant assets surfaced: '+topics.map(t=>t.label).join(', ')+'. See Suggested Assets panel below.','&#128218;');
+  }
 }
 
 async function searchCopilotProspect(){
@@ -5384,7 +5641,8 @@ async function populateCopilotMeetings(){
 let prodTasks={active:[],waiting:[],someday:[],done:[]};
 let prodMemory={people:[],projects:[],preferences:[],decisions:[]};
 let prodGlossary=[];
-async function ask(p,d){
+async function ask(p,d,opts){
+  const fast=opts?.fast||false;
   // Try Cowork askClaude first (fast Haiku model, works in artifact context)
   if(window.cowork&&window.cowork.askClaude){
     try{
@@ -5395,19 +5653,22 @@ async function ask(p,d){
   }
   // Fallback to server API
   try{
-    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[]})});
-    if(!res.ok)throw new Error('HTTP '+res.status);
+    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[],fast})});
+    if(!res.ok){
+      const errText=await res.text().catch(()=>'');
+      throw new Error('HTTP '+res.status+(errText?' '+errText:''));
+    }
     const json=await res.json();
     return typeof json==='string'?json:(json.text||json.content||json.response||json.answer||JSON.stringify(json));
   }catch(e){
     dbg('askClaude failed: '+e.message,'err');
     // Build useful fallback from raw data if available
     if(d&&d.length){
-      let fallback='**AI prep unavailable** (Cowork and server API both failed).\n\nHere is the raw context data collected:\n\n';
+      let fallback='**AI unavailable** (set ANTHROPIC_API_KEY on Render). Raw context:\n\n';
       d.forEach(item=>{if(item&&item.label&&item.value)fallback+=`**${item.label}:**\n${typeof item.value==='string'?item.value.slice(0,500):JSON.stringify(item.value).slice(0,500)}\n\n`;});
       return fallback;
     }
-    return 'AI response unavailable. Access via Cowork or set ANTHROPIC_API_KEY on server.';
+    return 'AI response unavailable. Set ANTHROPIC_API_KEY on server.';
   }
 }
 

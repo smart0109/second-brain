@@ -1467,15 +1467,25 @@ app.post('/api/ask', requireAuth, async (req, res) => {
     return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
   }
 
-  const { prompt, data } = req.body;
+  const { prompt, data, fast } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
 
   // Build the user message: prompt + serialized data context
   let userContent = prompt;
   if (data && Array.isArray(data) && data.length > 0) {
-    const contextParts = data.map((d) => (typeof d === 'string' ? d : JSON.stringify(d)));
+    const contextParts = data.map((d) => {
+      if (typeof d === 'string') return d;
+      if (d && d.label && d.value) return `[${d.label}]: ${typeof d.value === 'string' ? d.value : JSON.stringify(d.value)}`;
+      return JSON.stringify(d);
+    });
     userContent += '\n\n--- DATA CONTEXT ---\n' + contextParts.join('\n\n');
   }
+
+  // Use Haiku for fast coaching responses, Sonnet for detailed analysis
+  const model = fast ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-20250514';
+  const maxTokens = fast ? 512 : 1024;
+
+  const systemPrompt = 'You are a real-time sales meeting intelligence assistant for a CRO named Manish. He manages two companies: Cadient (AI-powered talent/HR platform with SmartSuite) and Vorro (healthcare integration platform with BridgeGate EiPaaS). Be direct, data-driven, and actionable. Never generic. Always reference specifics from the conversation. Keep responses concise and immediately usable in a live meeting context.';
 
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1486,8 +1496,9 @@ app.post('/api/ask', requireAuth, async (req, res) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
+        model,
+        max_tokens: maxTokens,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       }),
     });
