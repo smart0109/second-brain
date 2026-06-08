@@ -7973,56 +7973,229 @@ function showDealScoresPanel(scores) {
 }
 
 // ── Memory Panel ─────────────────────────────────────────────────────────────
-async function showMemoryPanel() {
+async function showMemoryPanel(opts) {
+  // opts: { ns, org, tab } — defaults to personal / current org / memory tab
   let panel = document.getElementById('memoryPanel');
-  if (panel) { panel.remove(); return; }
+  if (panel && !opts) { panel.remove(); return; }
+  if (panel) panel.remove();
+
+  const ns  = (opts && opts.ns)  || 'personal';
+  const tab = (opts && opts.tab) || 'memory';   // 'memory' | 'backups' | 'audit'
+  let orgId = (opts && opts.org) || window._memOrg || 'basis-vectors';
+
+  // Fetch org list to populate selector
+  let orgs = [];
+  try { const r = await fetch('/api/orgs'); const d = await r.json(); orgs = d.orgs || []; window._memOrgList = orgs; } catch(e) {}
+  if (!window._memOrg) window._memOrg = orgId;
+
+  const isAdmin = (orgs.find(o => o.id === orgId) || {}).is_admin;
+
+  const orgOptions = orgs.map(o =>
+    `<option value="${o.id}" ${o.id === orgId ? 'selected' : ''}>${o.name}${o.is_admin ? ' (admin)' : ''}</option>`
+  ).join('');
 
   panel = document.createElement('div');
   panel.id = 'memoryPanel';
-  panel.style.cssText = 'position:fixed;top:80px;left:24px;z-index:7000;width:380px;background:#111827;border:1px solid rgba(45,212,191,0.3);border-radius:12px;box-shadow:0 16px 60px rgba(0,0,0,0.7);max-height:70vh;overflow:hidden;display:flex;flex-direction:column';
+  panel.style.cssText = 'position:fixed;top:70px;left:20px;z-index:7000;width:420px;background:#111827;border:1px solid rgba(201,162,39,0.35);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.8);max-height:76vh;overflow:hidden;display:flex;flex-direction:column';
+
   panel.innerHTML = `
-    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px">
-      <span style="font-size:14px">💾</span>
-      <span style="font-weight:700;font-size:13px;color:#e2e8f0;flex:1">AI Memory</span>
-      <button onclick="document.getElementById('memoryPanel').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:16px">×</button>
+    <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="color:#c9a227;font-weight:600;font-size:13px;flex:0 0 auto">Memory</span>
+      <select id="memOrgSelect" onchange="switchMemOrg(this.value)"
+        style="background:#1f2937;border:1px solid rgba(255,255,255,0.15);border-radius:5px;color:#e5e7eb;font-size:11px;padding:3px 6px;flex:1;min-width:0">
+        ${orgOptions}
+      </select>
+      <button onclick="document.getElementById('memoryPanel').remove()"
+        style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:17px;padding:0 2px;flex:0 0 auto">&times;</button>
     </div>
-    <div style="padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
-      <input id="memSearchInput" placeholder="Search memories…" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px 10px;color:#e2e8f0;font-size:12px;outline:none" oninput="searchMemories(this.value)"/>
+
+    <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.07)">
+      <button onclick="switchMemTab('memory','${orgId}','${ns}')" id="memTabMemory"
+        style="flex:1;padding:7px;background:${tab==='memory'?'rgba(201,162,39,0.12)':'none'};border:none;border-bottom:2px solid ${tab==='memory'?'#c9a227':'transparent'};color:${tab==='memory'?'#c9a227':'rgba(255,255,255,0.4)'};font-size:11px;cursor:pointer">
+        Notes
+      </button>
+      <button onclick="switchMemTab('backups','${orgId}','${ns}')" id="memTabBackups"
+        style="flex:1;padding:7px;background:${tab==='backups'?'rgba(201,162,39,0.12)':'none'};border:none;border-bottom:2px solid ${tab==='backups'?'#c9a227':'transparent'};color:${tab==='backups'?'#c9a227':'rgba(255,255,255,0.4)'};font-size:11px;cursor:pointer">
+        Backups
+      </button>
+      ${isAdmin ? `<button onclick="switchMemTab('audit','${orgId}','${ns}')" id="memTabAudit"
+        style="flex:1;padding:7px;background:${tab==='audit'?'rgba(201,162,39,0.12)':'none'};border:none;border-bottom:2px solid ${tab==='audit'?'#c9a227':'transparent'};color:${tab==='audit'?'#c9a227':'rgba(255,255,255,0.4)'};font-size:11px;cursor:pointer">
+          Audit Log
+        </button>` : ''}
+      ${isAdmin ? `<button onclick="switchMemTab('pending','${orgId}','${ns}')" id="memTabPending"
+        style="flex:1;padding:7px;background:${tab==='pending'?'rgba(239,68,68,0.12)':'none'};border:none;border-bottom:2px solid ${tab==='pending'?'#f87171':'transparent'};color:${tab==='pending'?'#f87171':'rgba(255,255,255,0.4)'};font-size:11px;cursor:pointer">
+          Pending
+        </button>` : ''}
     </div>
-    <div id="memoryList" style="overflow-y:auto;flex:1;padding:8px 0">
-      <div style="padding:12px 16px;color:#64748b;font-size:12px">⌛ Loading…</div>
-    </div>
-    <div style="padding:8px 14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px">
-      <button onclick="clearAllMemories()" style="padding:5px 10px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:5px;color:#f87171;font-size:11px;cursor:pointer">Clear All</button>
-    </div>
-  `;
+
+    ${tab === 'memory' ? `
+      <div style="padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:6px;align-items:center">
+        <button onclick="switchMemNs('personal','${orgId}')"
+          style="padding:3px 10px;border-radius:5px;font-size:11px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;background:${ns==='personal'?'rgba(96,165,250,0.2)':'transparent'};color:${ns==='personal'?'#60a5fa':'rgba(255,255,255,0.4)'}">
+          My Notes
+        </button>
+        <button onclick="switchMemNs('company','${orgId}')"
+          style="padding:3px 10px;border-radius:5px;font-size:11px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;background:${ns==='company'?'rgba(201,162,39,0.2)':'transparent'};color:${ns==='company'?'#c9a227':'rgba(255,255,255,0.4)'}">
+          Company
+        </button>
+        <input id="memSearch" placeholder="Search..." oninput="searchMemMem(this.value,'${ns}','${orgId}')"
+          style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;padding:4px 8px;color:#e5e7eb;font-size:11px"/>
+      </div>` : ''}
+
+    <div id="memPanelBody" style="flex:1;overflow-y:auto;padding:8px 10px"></div>
+
+    <div style="padding:8px 12px;border-top:1px solid rgba(255,255,255,0.07);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:10px;color:rgba(255,255,255,0.25)">${ns==='company'?'Admin-protected — changes need approval':'Private — admin-readable'}</span>
+      ${tab==='memory' ? `<button onclick="clearMemMem('${ns}','${orgId}')"
+        style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);border-radius:5px;color:#f87171;padding:3px 9px;font-size:11px;cursor:pointer">
+        Clear
+      </button>` : ''}
+    </div>`;
+
   document.body.appendChild(panel);
-  await searchMemories('');
+
+  if (tab === 'memory')   loadMemMem(ns, orgId);
+  if (tab === 'backups')  loadMemBackups(orgId);
+  if (tab === 'audit')    loadMemAudit(orgId);
+  if (tab === 'pending')  loadMemPending(orgId);
 }
 
-async function searchMemories(query) {
-  const list = document.getElementById('memoryList');
-  if (!list) return;
+function switchMemOrg(orgId) { window._memOrg = orgId; showMemoryPanel({ org: orgId }); }
+function switchMemNs(ns, orgId)  { showMemoryPanel({ ns, org: orgId, tab: 'memory' }); }
+function switchMemTab(tab, orgId, ns) { showMemoryPanel({ ns, org: orgId, tab }); }
+
+async function loadMemMem(ns, orgId) {
+  const body = document.getElementById('memPanelBody'); if (!body) return;
+  body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">Loading...</div>';
   try {
-    const resp = await fetch('/api/memory?q=' + encodeURIComponent(query), { credentials: 'same-origin' });
-    const data = await resp.json();
-    const mems = (data.results || []).slice().reverse();
-    list.innerHTML = mems.length ? mems.map(m => `
-      <div style="padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.04)">
-        <div style="font-size:11px;color:#94a3b8;line-height:1.5">${esc(m.memory||'')}</div>
-        <div style="font-size:9px;color:#475569;margin-top:3px">${m.metadata?.type||''} · ${new Date(m.created_at).toLocaleDateString()}</div>
-      </div>
-    `).join('') : '<div style="padding:12px 16px;color:#475569;font-size:12px">No memories stored yet. Ask AI questions and it will remember context.</div>';
-  } catch(e) {
-    list.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:12px">Error: ' + e.message + '</div>';
-  }
+    const r = await fetch(`/api/memory?namespace=${ns}&org=${orgId}&limit=50`);
+    const d = await r.json();
+    const mems = d.results || [];
+    if (!mems.length) { body.innerHTML = `<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">No ${ns} memory yet.</div>`; return; }
+    body.innerHTML = [...mems].reverse().map(m => `
+      <div style="padding:8px;margin-bottom:5px;background:rgba(255,255,255,0.04);border-radius:6px;border-left:2px solid ${ns==='company'?'#c9a227':'#3b82f6'}">
+        <div style="color:#e5e7eb;font-size:12px;line-height:1.5">${String(m.memory||m.content||JSON.stringify(m)).replace(/</g,'&lt;')}</div>
+        <div style="color:rgba(255,255,255,0.25);font-size:10px;margin-top:3px">${m.created_at?new Date(m.created_at).toLocaleString():''} ${m.metadata?.written_by?'· '+m.metadata.written_by:''}</div>
+      </div>`).join('');
+  } catch(e) { body.innerHTML = '<div style="color:#f87171;font-size:12px">Error loading.</div>'; }
 }
 
-async function clearAllMemories() {
-  if (!confirm('Clear all AI memory? This cannot be undone.')) return;
-  await fetch('/api/memory', { method: 'DELETE', credentials: 'same-origin' });
-  document.getElementById('memoryPanel')?.remove();
-  dbg('Memory cleared', 'ok');
+async function loadMemBackups(orgId) {
+  const body = document.getElementById('memPanelBody'); if (!body) return;
+  body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">Loading backups...</div>';
+  try {
+    const r = await fetch(`/api/memory/backups?org=${orgId}`);
+    const d = await r.json();
+    if (d.error) { body.innerHTML = `<div style="color:#f87171;font-size:12px;padding:6px">${d.error}</div>`; return; }
+    const snaps = d.backups || [];
+    if (!snaps.length) { body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">No backups yet. Backups auto-create on every approved company memory write.</div>'; return; }
+    body.innerHTML = snaps.map((b, i) => `
+      <div style="padding:9px;margin-bottom:6px;background:rgba(255,255,255,0.04);border-radius:6px;border-left:2px solid #10b981;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="color:#e5e7eb;font-size:12px;font-weight:500">Backup ${i+1} ${i===0?'<span style="color:#10b981;font-size:10px">(newest)</span>':''}</div>
+          <div style="color:rgba(255,255,255,0.35);font-size:10px">${b.created_at?new Date(b.created_at).toLocaleString():''} · ${b.size||0} entries · by ${b.triggered_by||'system'}</div>
+        </div>
+        <button onclick="restoreMemBackup(${i},'${orgId}')"
+          style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:5px;color:#6ee7b7;font-size:10px;padding:3px 8px;cursor:pointer;white-space:nowrap">
+          Restore
+        </button>
+      </div>`).join('');
+  } catch(e) { body.innerHTML = '<div style="color:#f87171;font-size:12px">Error loading backups.</div>'; }
+}
+
+async function loadMemAudit(orgId) {
+  const body = document.getElementById('memPanelBody'); if (!body) return;
+  body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">Loading audit log...</div>';
+  try {
+    const r = await fetch(`/api/audit-log?org=${orgId}&limit=100`);
+    const d = await r.json();
+    if (d.error) { body.innerHTML = `<div style="color:#f87171;font-size:12px;padding:6px">${d.error}</div>`; return; }
+    const entries = d.entries || [];
+    if (!entries.length) { body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">No audit log entries yet.</div>'; return; }
+    const actionColor = { write_committed:'#3b82f6', approved:'#10b981', rejected:'#f87171', deleted:'#f87171', backup_restored:'#f59e0b', org_created:'#a78bfa', read:'rgba(255,255,255,0.15)', read_blocked:'#f87171', write_blocked:'#f87171', company_write_queued:'#f59e0b' };
+    body.innerHTML = [...entries].reverse().slice(0,80).map(e => `
+      <div style="padding:7px;margin-bottom:4px;background:rgba(255,255,255,0.03);border-radius:5px;border-left:2px solid ${actionColor[e.action]||'rgba(255,255,255,0.15)'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+          <span style="color:#e5e7eb;font-size:11px;font-weight:500">${e.action}</span>
+          <span style="color:rgba(255,255,255,0.3);font-size:10px">${e.requested_at?new Date(e.requested_at).toLocaleTimeString():''}</span>
+        </div>
+        <div style="color:rgba(255,255,255,0.45);font-size:10px">by ${e.requested_by} · ${e.ip} · ${(e.user_agent||'').slice(0,40)}</div>
+        ${e.messages?`<div style="color:rgba(255,255,255,0.3);font-size:10px;margin-top:2px">${JSON.stringify(e.messages).slice(0,80)}...</div>`:''}
+      </div>`).join('');
+  } catch(e) { body.innerHTML = '<div style="color:#f87171;font-size:12px">Error loading audit log.</div>'; }
+}
+
+async function loadMemPending(orgId) {
+  const body = document.getElementById('memPanelBody'); if (!body) return;
+  body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">Loading pending proposals...</div>';
+  try {
+    const r = await fetch(`/api/memory/pending?org=${orgId}`);
+    const d = await r.json();
+    if (d.error) { body.innerHTML = `<div style="color:#f87171;font-size:12px;padding:6px">${d.error}</div>`; return; }
+    const pending = (d.pending || []).filter(e => e.status === 'PENDING');
+    if (!pending.length) { body.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">No pending proposals.</div>'; return; }
+    body.innerHTML = pending.map(e => `
+      <div style="padding:9px;margin-bottom:7px;background:rgba(245,158,11,0.06);border-radius:6px;border-left:2px solid #f59e0b">
+        <div style="color:#e5e7eb;font-size:12px;margin-bottom:3px">${e.messages?e.messages.map(m=>m.content||'').join(' / ').slice(0,120):'(no content)'}</div>
+        <div style="color:rgba(255,255,255,0.35);font-size:10px;margin-bottom:6px">Proposed by ${e.proposed_by} · ${e.proposed_at?new Date(e.proposed_at).toLocaleString():''}</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="approveMemPending('${e.id}','${orgId}')"
+            style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:5px;color:#6ee7b7;font-size:11px;padding:4px 10px;cursor:pointer">
+            Approve
+          </button>
+          <button onclick="rejectMemPending('${e.id}','${orgId}')"
+            style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:5px;color:#f87171;font-size:11px;padding:4px 10px;cursor:pointer">
+            Reject
+          </button>
+        </div>
+      </div>`).join('');
+  } catch(e) { body.innerHTML = '<div style="color:#f87171;font-size:12px">Error loading pending.</div>'; }
+}
+
+async function searchMemMem(q, ns, orgId) {
+  const body = document.getElementById('memPanelBody'); if (!body) return;
+  try {
+    const r = await fetch(`/api/memory?namespace=${ns}&org=${orgId}&q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    const mems = d.results || [];
+    body.innerHTML = mems.length
+      ? mems.map(m => `<div style="padding:7px;margin-bottom:4px;background:rgba(255,255,255,0.04);border-radius:5px"><div style="color:#e5e7eb;font-size:12px">${String(m.memory||m.content||'').replace(/</g,'&lt;')}</div></div>`).join('')
+      : `<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:6px">No results for "${q}"</div>`;
+  } catch(e) {}
+}
+
+async function clearMemMem(ns, orgId) {
+  const msg = ns === 'company' ? 'Clear ALL company memory for this org? Admin action.' : 'Clear your personal notes? Cannot be undone.';
+  if (!confirm(msg)) return;
+  await fetch(`/api/memory?namespace=${ns}&org=${orgId}`, { method: 'DELETE' });
+  loadMemMem(ns, orgId);
+}
+
+async function restoreMemBackup(idx, orgId) {
+  if (!confirm(`Restore backup ${idx+1}? Current company memory will be saved as a new backup first.`)) return;
+  const r = await fetch(`/api/memory/backups/${idx}/restore?org=${orgId}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+  const d = await r.json();
+  alert(d.success ? `Restored ${d.size} entries from ${new Date(d.restored_from).toLocaleString()}` : (d.error || 'Restore failed'));
+  loadMemBackups(orgId);
+}
+
+async function approveMemPending(entryId, orgId) {
+  const r = await fetch(`/api/memory/pending/${entryId}/approve?org=${orgId}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+  const d = await r.json();
+  if (d.success) loadMemPending(orgId);
+  else alert(d.error || 'Approve failed');
+}
+
+async function rejectMemPending(entryId, orgId) {
+  const reason = prompt('Reason for rejection (optional):');
+  const r = await fetch(`/api/memory/pending/${entryId}/reject?org=${orgId}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ reason }) });
+  const d = await r.json();
+  if (d.success) loadMemPending(orgId);
+  else alert(d.error || 'Reject failed');
+}
+
+async function clearAllMemories(ns, orgId) {
+  await clearMemMem(ns || 'personal', orgId || window._memOrg || 'basis-vectors');
 }
 
 // ── Keyboard Shortcut Hints ──────────────────────────────────────────────────
