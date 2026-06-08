@@ -1526,35 +1526,90 @@ app.post('/api/ask', requireAuth, async (req, res) => {
 // ── In-Process Memory Store (lightweight Mem0 alternative) ──────────────────
 const _memoryStore = new Map(); // userId → [{memory, metadata, created_at}]
 
-// GET /api/memory?q=query   — search memories
+// ─── Two-Tier Memory System ────────────────────────────────────────────────
+// namespace=company  → admin-protected shared knowledge (read freely, write needs approval)
+// namespace=personal → per-user private notes (write freely, admin-readable)
+// ?user=firstname    → whose personal store to read/write (defaults to current user)
+// ADMINS: manish, prateek, scott  (only they may approve company writes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const COMPANY_MEMORY_KEY = '__company__';
+const ADMINS = ['manish', 'manish696@gmail.com'];
+
+function _getUserId(req) {
+  return (req.session?.email || process.env.ALLOWED_EMAIL || 'manish').toLowerCase().split('@')[0];
+}
+
+function _isAdmin(userId) {
+  return ADMINS.some(a => userId.includes(a.split('@')[0]));
+}
+
+// GET /api/memory?q=query&namespace=personal|company&user=firstname
 app.get('/api/memory', requireAuth, async (req, res) => {
-  const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+  const currentUser = _getUserId(req);
+  const ns = req.query.namespace || 'personal';
+  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.query.user || currentUser);
   const query = (req.query.q || '').toLowerCase();
   const mem0Key = process.env.MEM0_API_KEY;
+
+  // Personal notes: enforce privacy (only self or admin can read)
+  if (ns === 'personal' && targetUser !== currentUser && !_isAdmin(currentUser)) {
+    return res.status(403).json({ error: 'Cannot read another user's personal notes' });
+  }
 
   if (mem0Key) {
     try {
       const resp = await fetch('https://api.mem0.ai/v1/memories/search/', {
         method: 'POST',
         headers: { 'Authorization': `Token ${mem0Key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query || 'recent context', user_id: userId, limit: 20 })
+        body: JSON.stringify({ query: query || 'recent context', user_id: targetUser, limit: 20 })
       });
-      if (resp.ok) return res.json(await resp.json());
+      if (resp.ok) {
+        const data = await resp.json();
+        return res.json({ ...data, namespace: ns, user: targetUser });
+      }
     } catch (e) { console.error('Mem0 search error:', e.message); }
   }
 
-  const memories = _memoryStore.get(userId) || [];
+  const memories = _memoryStore.get(targetUser) || [];
   const filtered = query
     ? memories.filter(m => m.memory?.toLowerCase().includes(query))
     : memories;
-  res.json({ results: filtered.slice(-50) });
+  res.json({ results: filtered.slice(-50), namespace: ns, user: targetUser });
 });
 
-// POST /api/memory   — store new memory
+// POST /api/memory  — write a memory
+// namespace=personal: writes immediately
+// namespace=company:  queues for admin approval (returns pending status)
 app.post('/api/memory', requireAuth, async (req, res) => {
-  const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+  const currentUser = _getUserId(req);
+  const ns = req.body.namespace || 'personal';
+  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.body.user || currentUser);
   const { messages, metadata } = req.body;
   if (!messages) return res.status(400).json({ error: 'messages required' });
+
+  // Personal notes: only self or admin may write
+  if (ns === 'personal' && targetUser !== currentUser && !_isAdmin(currentUser)) {
+    return res.status(403).json({ error: 'Cannot write to another user's personal notes' });
+  }
+
+  // Company memory: non-admins get a pending queue entry, not a direct write
+  if (ns === 'company' && !_isAdmin(currentUser)) {
+    const pending = _memoryStore.get('__company_pending__') || [];
+    const entry = {
+      proposed_by: currentUser,
+      proposed_at: new Date().toISOString(),
+      messages,
+      metadata,
+      status: 'PENDING'
+    };
+    _memoryStore.set('__company_pending__', [...pending, entry]);
+    return res.json({
+      status: 'pending_approval',
+      message: 'Company memory change queued for admin approval.',
+      entry
+    });
+  }
 
   const mem0Key = process.env.MEM0_API_KEY;
   if (mem0Key) {
@@ -1562,27 +1617,75 @@ app.post('/api/memory', requireAuth, async (req, res) => {
       const resp = await fetch('https://api.mem0.ai/v1/memories/', {
         method: 'POST',
         headers: { 'Authorization': `Token ${mem0Key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, user_id: userId, metadata })
+        body: JSON.stringify({ messages, user_id: targetUser, metadata })
       });
-      if (resp.ok) return res.json(await resp.json());
+      if (resp.ok) return res.json({ ...(await resp.json()), namespace: ns });
     } catch (e) { console.error('Mem0 add error:', e.message); }
   }
 
-  const existing = _memoryStore.get(userId) || [];
+  const existing = _memoryStore.get(targetUser) || [];
   const newMems = messages.map(m => ({
     memory: m.content,
-    metadata: metadata || {},
+    namespace: ns,
+    metadata: { ...metadata, written_by: currentUser },
     created_at: new Date().toISOString()
   }));
-  _memoryStore.set(userId, [...existing, ...newMems].slice(-300));
-  res.json({ results: newMems, source: 'in-process' });
+  _memoryStore.set(targetUser, [...existing, ...newMems].slice(-300));
+  res.json({ results: newMems, namespace: ns, source: 'in-process' });
 });
 
-// DELETE /api/memory   — clear all memories
+// DELETE /api/memory  — clear memories
+// namespace=company: admin only; namespace=personal: self or admin
 app.delete('/api/memory', requireAuth, (req, res) => {
-  const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
-  _memoryStore.delete(userId);
-  res.json({ success: true });
+  const currentUser = _getUserId(req);
+  const ns = req.query.namespace || 'personal';
+  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.query.user || currentUser);
+
+  if (ns === 'company' && !_isAdmin(currentUser)) {
+    return res.status(403).json({ error: 'Only admins can clear company memory' });
+  }
+  if (ns === 'personal' && targetUser !== currentUser && !_isAdmin(currentUser)) {
+    return res.status(403).json({ error: 'Cannot clear another user's personal notes' });
+  }
+
+  _memoryStore.delete(targetUser);
+  res.json({ success: true, namespace: ns, user: targetUser });
+});
+
+// GET /api/memory/pending  — admin: review pending company memory proposals
+app.get('/api/memory/pending', requireAuth, (req, res) => {
+  const currentUser = _getUserId(req);
+  if (!_isAdmin(currentUser)) return res.status(403).json({ error: 'Admin only' });
+  res.json({ pending: _memoryStore.get('__company_pending__') || [] });
+});
+
+// POST /api/memory/pending/:index/approve  — admin approves a pending change
+app.post('/api/memory/pending/:index/approve', requireAuth, async (req, res) => {
+  const currentUser = _getUserId(req);
+  if (!_isAdmin(currentUser)) return res.status(403).json({ error: 'Admin only' });
+
+  const pending = _memoryStore.get('__company_pending__') || [];
+  const idx = parseInt(req.params.index, 10);
+  if (!pending[idx]) return res.status(404).json({ error: 'Pending entry not found' });
+
+  const entry = pending[idx];
+  entry.status = 'APPROVED';
+  entry.approved_by = currentUser;
+  entry.approved_at = new Date().toISOString();
+
+  // Commit it to company memory
+  const existing = _memoryStore.get(COMPANY_MEMORY_KEY) || [];
+  const newMems = entry.messages.map(m => ({
+    memory: m.content,
+    namespace: 'company',
+    metadata: { ...entry.metadata, proposed_by: entry.proposed_by, approved_by: currentUser },
+    created_at: new Date().toISOString()
+  }));
+  _memoryStore.set(COMPANY_MEMORY_KEY, [...existing, ...newMems].slice(-500));
+  pending[idx] = entry;
+  _memoryStore.set('__company_pending__', pending);
+
+  res.json({ success: true, approved: entry, stored: newMems });
 });
 
 // ── Meeting Brief Generator ──────────────────────────────────────────────────
