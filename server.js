@@ -2046,6 +2046,287 @@ Return ONLY valid JSON array, no markdown:
 
 
 
+
+// ---------------------------------------------------------------------------
+// Multi-Tenant Memory System
+// ---------------------------------------------------------------------------
+// Two namespaces per org:
+//   company  — shared org knowledge, admin-protected, writes need approval
+//   personal — per-user private notes, self-writable, admin-readable
+//
+// Backups: 3 rolling snapshots per org. Auto-taken before every approved write.
+// Audit log: every action logged exhaustively (who, IP, UA, session, content, outcome).
+// Orgs: bootstrapped from ORGS_CONFIG env var (JSON). Default org: basis-vectors.
+// ---------------------------------------------------------------------------
+
+const _memStore    = new Map();   // `${org}:company` or `${org}:user:${u}`
+const _pendQueue   = new Map();   // org -> pending[]
+const _backups     = new Map();   // org -> [snap1, snap2, snap3] newest-first
+const _auditLog    = new Map();   // org -> entry[]
+
+let _orgs = {};
+try { _orgs = JSON.parse(process.env.ORGS_CONFIG || '{}'); } catch(e) {}
+if (!_orgs['basis-vectors']) {
+  _orgs['basis-vectors'] = {
+    name: 'Basis Vectors Capital',
+    admins: ['manish', 'manish696@gmail.com', 'prateek', 'scott'],
+    created_at: new Date().toISOString(),
+    created_by: 'manish'
+  };
+}
+
+function _uid(req)  { return (req.session?.email || process.env.ALLOWED_EMAIL || 'manish').toLowerCase().split('@')[0]; }
+function _org(req)  { return ((req.query?.org || req.body?.org || 'basis-vectors') + '').toLowerCase().replace(/[^a-z0-9-]/g, '-'); }
+function _isOrgAdmin(uid, orgId) {
+  const o = _orgs[orgId];
+  return o && o.admins.some(a => uid === a || uid === a.split('@')[0]);
+}
+function _mkey(orgId, ns, user) { return ns === 'company' ? `${orgId}:company` : `${orgId}:user:${user}`; }
+
+function _audit(req, orgId, action, extra) {
+  const log = _auditLog.get(orgId) || [];
+  log.push({
+    id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+    org: orgId,
+    action,
+    requested_by: _uid(req),
+    requested_by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown',
+    requested_at: new Date().toISOString(),
+    ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
+    user_agent: req.headers['user-agent'] || 'unknown',
+    session_id: req.sessionID || 'none',
+    ...extra
+  });
+  if (log.length > 10000) log.splice(0, log.length - 10000);
+  _auditLog.set(orgId, log);
+}
+
+function _takeBackup(orgId, triggeredBy) {
+  const key = _mkey(orgId, 'company');
+  const current = _memStore.get(key) || [];
+  if (!current.length) return null;
+  const snap = { snapshot: JSON.parse(JSON.stringify(current)), created_at: new Date().toISOString(), size: current.length, triggered_by: triggeredBy };
+  const list = _backups.get(orgId) || [];
+  list.unshift(snap);
+  if (list.length > 3) list.length = 3;
+  _backups.set(orgId, list);
+  return snap;
+}
+
+// GET /api/memory
+app.get('/api/memory', requireAuth, async (req, res) => {
+  const uid = _uid(req), orgId = _org(req), ns = req.query.namespace || 'personal';
+  const targetUser = ns === 'company' ? null : (req.query.user || uid);
+  const q = (req.query.q || '').toLowerCase();
+  if (!_orgs[orgId]) return res.status(404).json({ error: `Org '${orgId}' not found` });
+  if (ns === 'personal' && targetUser !== uid && !_isOrgAdmin(uid, orgId)) {
+    _audit(req, orgId, 'read_blocked', { ns, target: targetUser, reason: 'privacy' });
+    return res.status(403).json({ error: "Cannot read another user's personal notes" });
+  }
+  _audit(req, orgId, 'read', { ns, target: targetUser || 'company', query: q || null });
+
+  const mem0Key = process.env.MEM0_API_KEY;
+  const m0uid = ns === 'company' ? `${orgId}__company` : `${orgId}__${targetUser}`;
+  if (mem0Key) {
+    try {
+      const r = await fetch('https://api.mem0.ai/v1/memories/search/', {
+        method: 'POST', headers: { Authorization: `Token ${mem0Key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q || 'recent context', user_id: m0uid, limit: 20 })
+      });
+      if (r.ok) return res.json({ ...(await r.json()), namespace: ns, org: orgId });
+    } catch(e) {}
+  }
+  const mems = _memStore.get(_mkey(orgId, ns, targetUser)) || [];
+  const filtered = q ? mems.filter(m => (m.memory || '').toLowerCase().includes(q)) : mems;
+  res.json({ results: filtered.slice(-50), namespace: ns, org: orgId, user: targetUser, total: filtered.length });
+});
+
+// POST /api/memory
+app.post('/api/memory', requireAuth, async (req, res) => {
+  const uid = _uid(req), orgId = _org(req), ns = req.body.namespace || 'personal';
+  const targetUser = ns === 'company' ? null : (req.body.user || uid);
+  const { messages, metadata } = req.body;
+  if (!messages) return res.status(400).json({ error: 'messages required' });
+  if (!_orgs[orgId]) return res.status(404).json({ error: `Org '${orgId}' not found` });
+  const isAdmin = _isOrgAdmin(uid, orgId);
+
+  if (ns === 'personal' && targetUser !== uid && !isAdmin) {
+    _audit(req, orgId, 'write_blocked', { ns, target: targetUser, reason: 'not_self_or_admin', messages });
+    return res.status(403).json({ error: "Cannot write to another user's personal notes" });
+  }
+
+  // Company write by non-admin → queue
+  if (ns === 'company' && !isAdmin) {
+    const q = _pendQueue.get(orgId) || [];
+    const entry = {
+      id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+      proposed_by: uid, proposed_by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown',
+      proposed_at: new Date().toISOString(),
+      ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
+      user_agent: req.headers['user-agent'] || 'unknown',
+      session_id: req.sessionID || 'none',
+      org: orgId, messages, metadata: metadata || {}, status: 'PENDING', decision: null
+    };
+    q.push(entry);
+    _pendQueue.set(orgId, q);
+    _audit(req, orgId, 'company_write_queued', { entry_id: entry.id, messages, metadata, pending_count: q.length });
+    return res.json({ status: 'pending_approval', message: 'Queued for org admin approval.', entry_id: entry.id, entry, org_admins: _orgs[orgId].admins });
+  }
+
+  // Admin direct write → backup first
+  if (ns === 'company') {
+    const bk = _takeBackup(orgId, uid);
+    _audit(req, orgId, 'backup_rotated', { size: bk?.size || 0, trigger: 'pre_admin_write' });
+  }
+
+  const mem0Key = process.env.MEM0_API_KEY;
+  const m0uid = ns === 'company' ? `${orgId}__company` : `${orgId}__${targetUser}`;
+  if (mem0Key) {
+    try {
+      const r = await fetch('https://api.mem0.ai/v1/memories/', {
+        method: 'POST', headers: { Authorization: `Token ${mem0Key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, user_id: m0uid, metadata })
+      });
+      if (r.ok) {
+        _audit(req, orgId, 'write_committed', { ns, user: targetUser, via: 'mem0', messages });
+        return res.json({ ...(await r.json()), namespace: ns, org: orgId });
+      }
+    } catch(e) {}
+  }
+
+  const key = _mkey(orgId, ns, targetUser);
+  const existing = _memStore.get(key) || [];
+  const newMems = messages.map(m => ({ memory: m.content, namespace: ns, org: orgId, metadata: { ...metadata, written_by: uid }, created_at: new Date().toISOString() }));
+  _memStore.set(key, [...existing, ...newMems].slice(-300));
+  _audit(req, orgId, 'write_committed', { ns, user: targetUser, via: 'in-process', count: newMems.length, messages });
+  res.json({ results: newMems, namespace: ns, org: orgId, source: 'in-process' });
+});
+
+// DELETE /api/memory
+app.delete('/api/memory', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = _org(req), ns = req.query.namespace || 'personal';
+  const targetUser = ns === 'company' ? null : (req.query.user || uid);
+  if (!_orgs[orgId]) return res.status(404).json({ error: `Org '${orgId}' not found` });
+  const isAdmin = _isOrgAdmin(uid, orgId);
+  if (ns === 'company' && !isAdmin) { _audit(req, orgId, 'delete_blocked', { ns, reason: 'not_admin' }); return res.status(403).json({ error: 'Admin only' }); }
+  if (ns === 'personal' && targetUser !== uid && !isAdmin) { _audit(req, orgId, 'delete_blocked', { ns, target: targetUser, reason: 'not_self_or_admin' }); return res.status(403).json({ error: "Cannot clear another user's notes" }); }
+  if (ns === 'company') _takeBackup(orgId, uid + '_delete');
+  _memStore.delete(_mkey(orgId, ns, targetUser));
+  _audit(req, orgId, 'deleted', { ns, user: targetUser || 'company' });
+  res.json({ success: true, namespace: ns, org: orgId, user: targetUser });
+});
+
+// GET /api/memory/pending — admin: view queue
+app.get('/api/memory/pending', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = _org(req);
+  if (!_isOrgAdmin(uid, orgId)) return res.status(403).json({ error: 'Admin only' });
+  res.json({ org: orgId, pending: _pendQueue.get(orgId) || [] });
+});
+
+// POST /api/memory/pending/:entryId/approve
+app.post('/api/memory/pending/:entryId/approve', requireAuth, async (req, res) => {
+  const uid = _uid(req), orgId = _org(req);
+  if (!_isOrgAdmin(uid, orgId)) { _audit(req, orgId, 'approve_blocked', { reason: 'not_admin', id: req.params.entryId }); return res.status(403).json({ error: 'Admin only' }); }
+  const queue = _pendQueue.get(orgId) || [];
+  const idx = queue.findIndex(e => e.id === req.params.entryId);
+  if (idx === -1) return res.status(404).json({ error: 'Entry not found' });
+  const entry = queue[idx];
+  if (entry.status !== 'PENDING') return res.status(400).json({ error: `Already ${entry.status}` });
+
+  const bk = _takeBackup(orgId, uid + '_approve');
+  const key = _mkey(orgId, 'company');
+  const existing = _memStore.get(key) || [];
+  const newMems = entry.messages.map(m => ({ memory: m.content, namespace: 'company', org: orgId, metadata: { ...entry.metadata, proposed_by: entry.proposed_by, approved_by: uid }, created_at: new Date().toISOString() }));
+  _memStore.set(key, [...existing, ...newMems].slice(-500));
+
+  entry.status = 'APPROVED';
+  entry.decision = { action: 'approved', by: uid, by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown', at: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown', note: req.body.note || null };
+  queue[idx] = entry;
+  _pendQueue.set(orgId, queue);
+  _audit(req, orgId, 'approved', { entry_id: entry.id, proposed_by: entry.proposed_by, proposed_at: entry.proposed_at, backup_size: bk?.size || 0, committed: newMems.length, messages: entry.messages, note: req.body.note || null });
+  res.json({ success: true, org: orgId, approved: entry, stored: newMems });
+});
+
+// POST /api/memory/pending/:entryId/reject
+app.post('/api/memory/pending/:entryId/reject', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = _org(req);
+  if (!_isOrgAdmin(uid, orgId)) return res.status(403).json({ error: 'Admin only' });
+  const queue = _pendQueue.get(orgId) || [];
+  const idx = queue.findIndex(e => e.id === req.params.entryId);
+  if (idx === -1) return res.status(404).json({ error: 'Entry not found' });
+  const entry = queue[idx];
+  entry.status = 'REJECTED';
+  entry.decision = { action: 'rejected', by: uid, by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown', at: new Date().toISOString(), reason: req.body.reason || null };
+  queue[idx] = entry;
+  _pendQueue.set(orgId, queue);
+  _audit(req, orgId, 'rejected', { entry_id: entry.id, proposed_by: entry.proposed_by, reason: req.body.reason || null, messages: entry.messages });
+  res.json({ success: true, org: orgId, rejected: entry });
+});
+
+// GET /api/memory/backups — admin: list backups
+app.get('/api/memory/backups', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = _org(req);
+  if (!_isOrgAdmin(uid, orgId)) return res.status(403).json({ error: 'Admin only' });
+  const snaps = (_backups.get(orgId) || []).map((b, i) => ({ index: i, created_at: b.created_at, size: b.size, triggered_by: b.triggered_by }));
+  res.json({ org: orgId, backups: snaps, count: snaps.length });
+});
+
+// POST /api/memory/backups/:index/restore
+app.post('/api/memory/backups/:index/restore', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = _org(req);
+  if (!_isOrgAdmin(uid, orgId)) return res.status(403).json({ error: 'Admin only' });
+  const snaps = _backups.get(orgId) || [];
+  const idx = parseInt(req.params.index, 10);
+  if (!snaps[idx]) return res.status(404).json({ error: 'Backup not found' });
+  _takeBackup(orgId, uid + '_pre_restore');
+  _memStore.set(_mkey(orgId, 'company'), JSON.parse(JSON.stringify(snaps[idx].snapshot)));
+  _audit(req, orgId, 'backup_restored', { backup_index: idx, backup_created_at: snaps[idx].created_at, size: snaps[idx].snapshot.length });
+  res.json({ success: true, org: orgId, restored_from: snaps[idx].created_at, size: snaps[idx].snapshot.length });
+});
+
+// GET /api/audit-log — admin: full exhaustive log
+app.get('/api/audit-log', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = _org(req);
+  if (!_isOrgAdmin(uid, orgId)) return res.status(403).json({ error: 'Admin only' });
+  let log = _auditLog.get(orgId) || [];
+  if (req.query.action) log = log.filter(e => e.action === req.query.action);
+  if (req.query.user)   log = log.filter(e => e.requested_by === req.query.user);
+  const limit = Math.min(parseInt(req.query.limit, 10) || 200, 2000);
+  res.json({ org: orgId, total: log.length, entries: log.slice(-limit) });
+});
+
+// GET /api/orgs — list orgs
+app.get('/api/orgs', requireAuth, (req, res) => {
+  const uid = _uid(req);
+  const orgs = Object.entries(_orgs).map(([id, cfg]) => ({ id, name: cfg.name, is_admin: _isOrgAdmin(uid, id), admin_count: cfg.admins.length, created_at: cfg.created_at }));
+  res.json({ orgs, current_user: uid });
+});
+
+// POST /api/orgs — create a new org (global admin only)
+app.post('/api/orgs', requireAuth, (req, res) => {
+  const uid = _uid(req);
+  if (!_isOrgAdmin(uid, 'basis-vectors')) return res.status(403).json({ error: 'Global admin only' });
+  const { id, name, admins } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'id and name required' });
+  const orgId = id.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  if (_orgs[orgId]) return res.status(409).json({ error: `Org '${orgId}' already exists` });
+  _orgs[orgId] = { name, admins: admins || [uid], created_at: new Date().toISOString(), created_by: uid };
+  _audit(req, orgId, 'org_created', { org_name: name, admins: admins || [uid] });
+  res.status(201).json({ success: true, org: orgId, config: _orgs[orgId] });
+});
+
+// POST /api/orgs/:orgId/admins — add an admin to an org
+app.post('/api/orgs/:orgId/admins', requireAuth, (req, res) => {
+  const uid = _uid(req), orgId = req.params.orgId;
+  if (!_orgs[orgId]) return res.status(404).json({ error: 'Org not found' });
+  if (!_isOrgAdmin(uid, orgId)) return res.status(403).json({ error: 'Admin only' });
+  const { user } = req.body;
+  if (!user) return res.status(400).json({ error: 'user required' });
+  if (!_orgs[orgId].admins.includes(user)) { _orgs[orgId].admins.push(user); _audit(req, orgId, 'admin_added', { new_admin: user }); }
+  res.json({ success: true, org: orgId, admins: _orgs[orgId].admins });
+});
+
+
 // ---------------------------------------------------------------------------
 // SPA catch-all
 // ---------------------------------------------------------------------------
