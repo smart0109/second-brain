@@ -2888,7 +2888,7 @@ function renderDrafts(drafts){
   if(!drafts.length){el.innerHTML='<div class="empty-state">No drafts</div>';return}
   el.innerHTML=drafts.slice(0,25).map(d=>{
     const subj=d.subject||d.message?.subject||'(no subject)';
-    const to=d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[];
+    const to=[].concat(d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[]);
     return `<a class="item" href="${draftUrl(d.id)}" target="_blank"><div class="item-row">
       <div class="item-icon mail" style="background:rgba(251,146,60,0.15);color:#fb923c">&#9998;</div>
       <div class="item-content"><div class="item-title">${esc(truncate(subj,50))}</div>
@@ -2957,7 +2957,7 @@ async function loadRecentContacts(){
     const contactMap={};
     threads.forEach(t=>{
       (t.messages||[]).forEach(m=>{
-        const from=m.sender||'';const to=m.to||'';
+        const from=m.sender||'';const to=[].concat(m.to||'');
         [from,to].forEach(addr=>{
           if(!addr)return;
           const email=(addr.match(/<([^>]+)>/)||[null,addr])[1]||addr;
@@ -4067,7 +4067,7 @@ async function loadTeam(){
   // Fetch Cadient + Vorro deals + tasks in parallel
   const [tasksR,dealsR,vorroDealsR]=await Promise.allSettled([
     call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Subject,Status,Due_Date,Owner,Priority from Tasks where Status != 'Completed' order by Due_Date asc limit 50"}}).catch(()=>null),
-    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}).catch(()=>null),
+    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Owner,Account_Name,Closing_Date from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 200"}}).catch(()=>null),
     fetch('/api/crm/vorro/deals',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null)
   ]);
   const tasks=(tasksR.status==='fulfilled'?(tasksR.value?.data||[]):[]);
@@ -4334,7 +4334,27 @@ async function loadMeetingsView(){
   if(calR.status==='fulfilled'){
     const events=calR.value?.events||[];
     if(events.length){
-      calEl.innerHTML=events.map((e,i)=>{
+      // Group events by date
+    const eventsByDate={};
+    events.forEach((e,i)=>{
+      const startDt=e.start?.dateTime||e.start?.date||'';
+      const dateKey=startDt?new Date(startDt).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'}):'Unknown';
+      if(!eventsByDate[dateKey])eventsByDate[dateKey]=[];
+      eventsByDate[dateKey].push({e,i});
+    });
+    // Render with date group headers
+    const today=new Date();today.setHours(0,0,0,0);
+    const tomorrow=new Date(today);tomorrow.setDate(tomorrow.getDate()+1);
+    let calHtml='';
+    Object.entries(eventsByDate).forEach(([dateKey,items])=>{
+      // Label: Today, Tomorrow, or the date
+      const firstStart=items[0].e.start?.dateTime||items[0].e.start?.date||'';
+      const evtDate=new Date(firstStart);evtDate.setHours(0,0,0,0);
+      let label=dateKey;
+      if(evtDate.getTime()===today.getTime())label='Today - '+dateKey;
+      else if(evtDate.getTime()===tomorrow.getTime())label='Tomorrow - '+dateKey;
+      calHtml+=`<div style="font-size:11px;font-weight:700;color:#60a5fa;padding:10px 0 4px 0;margin-top:8px;border-bottom:1px solid rgba(96,165,250,0.15);text-transform:uppercase;letter-spacing:0.5px">${label} <span style="color:#64748b;font-weight:400">(${items.length} meeting${items.length>1?'s':''})</span></div>`;
+      calHtml+=items.map(({e,i})=>{
         const start=e.start?.dateTime||e.start?.date||'';
         const attendees=(e.attendees||[]).filter(a=>!a.self);
         const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4);
@@ -4359,7 +4379,7 @@ async function loadMeetingsView(){
         } else if(hasNotes){
           statusBadge='<span style="color:#fb923c;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.15);margin-right:4px">Notes Only</span>';
         } else {
-          statusBadge='<span style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px">No Prep</span>';
+          statusBadge='<span onclick="event.stopPropagation();genMeetingPrep(this,\''+escAttr(e.summary||'')+'\',\''+escAttr((e.attendees||[]).filter(a=>!a.self).map(a=>a.email).join(','))+'\',\''+escAttr(fmt(start))+'\',\''+escAttr((e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email?.split(\'@\')[0]).join(','))+'\');" style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px;cursor:pointer;border:1px solid rgba(100,116,139,0.3)" title="Click to generate meeting prep">No Prep</span>';
         }
         return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="expandMeeting('${escAttr(meetId||'')}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}','${escAttr(names.join(','))}','${escAttr(fmt(start))}')">
           <div class="item-row">
@@ -4373,6 +4393,8 @@ async function loadMeetingsView(){
           <div id="${uid}" class="meeting-context" style="display:none"></div>
         </div>`;
       }).join('');
+    });
+    calEl.innerHTML=calHtml;
     }else{calEl.innerHTML='<div class="empty-state">No calendar events this week</div>';}
   }else{calEl.innerHTML='<div class="empty-state">Failed to load calendar</div>';}
   // Render Granola meetings separately
@@ -7180,6 +7202,11 @@ function renderArtifacts(){
         html+='<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px">'+item.name+badge+'</div>';
         html+='<div style="font-size:11px;color:var(--text-secondary);line-height:1.3">'+item.desc+'</div>';
         html+='</div>';
+        if(!isPending){
+          html+='<div style="display:flex;flex-direction:column;gap:4px;margin-left:8px">';
+          html+='<button onclick="event.stopPropagation();shareArtifactLink(\''+item.url+'\',\''+item.name.replace(/'/g,"")+'\',this)" style="background:none;border:1px solid rgba(232,121,249,0.3);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#e879f9;white-space:nowrap" title="Copy share link">&#128279; Share</button>';
+          html+='</div>';
+        }
         html+='</div>';
         html+='</div></div>';
       }
@@ -7232,7 +7259,7 @@ async function loadFollowups(){
     });
     _fuDrafts=drafts.map(d=>{
       const subj=(d.subject||d.message?.subject||'(no subject)').toString();
-      const to=(d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[]);
+      const to=[].concat(d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[]);
       const snippet=(d.snippet||d.message?.snippet||'').toString();
       const body=(d.message?.plaintextBody||d.message?.body||snippet||'').toString();
       const id=d.id||'';
@@ -8204,6 +8231,73 @@ async function clearAllMemories(ns, orgId) {
 // ── Auto-load Daily Briefing on Dashboard ────────────────────────────────────
 // Inject briefing panel into dashboard view on first load
 // [REMOVED patchDashboard + briefing wrapper]
+
+// ── Generate Meeting Prep ──
+async function genMeetingPrep(btn,title,emailsStr,timeStr,namesStr){
+  if(!title){dbg('genMeetingPrep: no title','err');return;}
+  btn.innerHTML='&#9203; Generating...';
+  btn.style.color='#fb923c';btn.style.background='rgba(251,146,60,0.15)';btn.style.borderColor='rgba(251,146,60,0.3)';
+  try{
+    const emails=(emailsStr||'').split(',').filter(Boolean);
+    const names=(namesStr||'').split(',').filter(Boolean);
+    // Search Gmail for recent threads with attendees
+    let context='';
+    if(emails.length){
+      const q=emails.slice(0,3).map(e=>`{from:${e} to:${e}}`).join(' ');
+      const tRes=await call(GMAIL+'__search_threads',{query:q+' newer_than:30d',pageSize:5}).catch(()=>null);
+      const threads=tRes?.threads||[];
+      if(threads.length){
+        context='Recent email context with attendees:\n';
+        threads.slice(0,3).forEach(t=>{
+          const m=t.messages?.[t.messages.length-1]||{};
+          context+=`- ${m.subject||'(no subject)'}: ${(m.plaintextBody||m.body||m.snippet||'').slice(0,200)}\n`;
+        });
+      }
+    }
+    // Search Zoho CRM for related accounts/deals
+    let crmContext='';
+    if(names.length){
+      for(const n of names.slice(0,2)){
+        const sr=await call(ZOHO+'__searchRecords',{module:'Contacts',criteria:`(Full_Name:equals:${n})`,per_page:1}).catch(()=>null);
+        if(sr?.data?.length){
+          const c=sr.data[0];
+          crmContext+=`CRM Contact: ${c.Full_Name||''} - ${c.Title||''} at ${c.Account_Name?.name||c.Account_Name||''}\n`;
+        }
+      }
+    }
+    // Build prep body
+    const prepBody=`Meeting: ${title}\nTime: ${timeStr}\nAttendees: ${namesStr}\n\n${context}\n${crmContext}\n---\nPrepared by Manish\'s HQ`;
+    // Create Gmail draft
+    const draftRes=await call(GMAIL+'__create_draft',{subject:'Prep: '+title,body:prepBody,to:'manish696@gmail.com'}).catch(e=>{dbg('Draft create failed: '+e,'err');return null;});
+    if(draftRes){
+      btn.innerHTML='&#9989; Prep Ready';
+      btn.style.color='#34d399';btn.style.background='rgba(52,211,153,0.15)';btn.style.borderColor='rgba(52,211,153,0.3)';
+      btn.onclick=function(ev){ev.stopPropagation();window.open(draftUrl(draftRes.id||draftRes.draftId||''),'_blank');};
+    }else{
+      btn.innerHTML='&#10060; Failed';btn.style.color='#f87171';
+    }
+  }catch(e){
+    dbg('genMeetingPrep error: '+e,'err');
+    btn.innerHTML='&#10060; Error';btn.style.color='#f87171';
+  }
+}
+
+// ── Artifact Share Link ──
+function shareArtifactLink(url,name,btn){
+  if(!url){dbg('No URL to share','err');return;}
+  navigator.clipboard.writeText(url).then(()=>{
+    const orig=btn.innerHTML;
+    btn.innerHTML='&#9989; Copied!';
+    btn.style.color='#34d399';
+    setTimeout(()=>{btn.innerHTML=orig;btn.style.color='';},2000);
+  }).catch(()=>{
+    // Fallback
+    const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    const orig=btn.innerHTML;btn.innerHTML='&#9989; Copied!';btn.style.color='#34d399';
+    setTimeout(()=>{btn.innerHTML=orig;btn.style.color='';},2000);
+  });
+}
+
 </script>
 </body>
 </html>
