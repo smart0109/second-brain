@@ -4379,7 +4379,7 @@ async function loadMeetingsView(){
         } else if(hasNotes){
           statusBadge='<span style="color:#fb923c;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.15);margin-right:4px">Notes Only</span>';
         } else {
-          statusBadge='<span onclick="event.stopPropagation();genMeetingPrep(this,\''+escAttr(e.summary||'')+'\',\''+escAttr((e.attendees||[]).filter(a=>!a.self).map(a=>a.email).join(','))+'\',\''+escAttr(fmt(start))+'\',\''+escAttr((e.attendees||[]).filter(a=>!a.self).map(a=>a.displayName||a.email?.split(\'@\')[0]).join(','))+'\');" style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px;cursor:pointer;border:1px solid rgba(100,116,139,0.3)" title="Click to generate meeting prep">No Prep</span>';
+          statusBadge='<span class="gen-prep-btn" data-title="'+escAttr(e.summary||'')+'" data-emails="'+escAttr(emails.join(','))+'" data-time="'+escAttr(fmt(start))+'" data-names="'+escAttr(names.join(','))+'" onclick="event.stopPropagation();genMeetingPrep(this)" style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px;cursor:pointer;border:1px solid rgba(100,116,139,0.3)" title="Click to generate meeting prep">No Prep</span>';
         }
         return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="expandMeeting('${escAttr(meetId||'')}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}','${escAttr(names.join(','))}','${escAttr(fmt(start))}')">
           <div class="item-row">
@@ -7204,7 +7204,7 @@ function renderArtifacts(){
         html+='</div>';
         if(!isPending){
           html+='<div style="display:flex;flex-direction:column;gap:4px;margin-left:8px">';
-          html+='<button onclick="event.stopPropagation();shareArtifactLink(\''+item.url+'\',\''+item.name.replace(/'/g,"")+'\',this)" style="background:none;border:1px solid rgba(232,121,249,0.3);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#e879f9;white-space:nowrap" title="Copy share link">&#128279; Share</button>';
+          html+='<button onclick="event.stopPropagation();shareArtifactLink(this)" data-url="'+item.url+'" data-name="'+(item.name||'').replace(/"/g,'&amp;quot;')+'" style="background:none;border:1px solid rgba(232,121,249,0.3);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#e879f9;white-space:nowrap" title="Copy share link">&#128279; Share</button>';
           html+='</div>';
         }
         html+='</div>';
@@ -8233,7 +8233,8 @@ async function clearAllMemories(ns, orgId) {
 // [REMOVED patchDashboard + briefing wrapper]
 
 // ── Generate Meeting Prep ──
-async function genMeetingPrep(btn,title,emailsStr,timeStr,namesStr){
+async function genMeetingPrep(btn){
+  const title=btn.dataset.title||'';const emailsStr=btn.dataset.emails||'';const timeStr=btn.dataset.time||'';const namesStr=btn.dataset.names||'';
   if(!title){dbg('genMeetingPrep: no title','err');return;}
   btn.innerHTML='&#9203; Generating...';
   btn.style.color='#fb923c';btn.style.background='rgba(251,146,60,0.15)';btn.style.borderColor='rgba(251,146,60,0.3)';
@@ -8283,7 +8284,9 @@ async function genMeetingPrep(btn,title,emailsStr,timeStr,namesStr){
 }
 
 // ── Artifact Share Link ──
-function shareArtifactLink(url,name,btn){
+function shareArtifactLink(btnOrUrl,name,btn){
+  if(!btn){btn=btnOrUrl;}
+  const url=btn.dataset?btn.dataset.url:btnOrUrl;
   if(!url){dbg('No URL to share','err');return;}
   navigator.clipboard.writeText(url).then(()=>{
     const orig=btn.innerHTML;
