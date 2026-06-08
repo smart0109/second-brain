@@ -1476,6 +1476,41 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 </div>
 
 <script>
+// === ERRORBUS: Self-Healing Error Framework v1.0 ===
+class ErrorBus{
+constructor(){this._log=[];this._counts={};this._maxRepeat=2;this._endpoint='/api/errors';this._queue=[];this._init();}
+_init(){
+const orig=window.onerror;
+window.onerror=(msg,s,line,col,err)=>{this.capture(err||new Error(msg),'global',{s,line,col});if(orig)orig(msg,s,line,col,err);return false;};
+window.addEventListener('unhandledrejection',e=>{this.capture(e.reason||new Error('Unhandled rejection'),'promise',{});});
+this._flushInterval=setInterval(()=>this._flush(),30000);
+}
+_hash(msg,s){let h=0;const st=(msg||'')+'|'+(s||'');for(let i=0;i<st.length;i++){h=((h<<5)-h+st.charCodeAt(i))|0;}return 'e_'+Math.abs(h).toString(36);}
+capture(err,context,meta){
+const msg=err?.message||String(err);const stack=err?.stack||'';const s=context||'unknown';const hash=this._hash(msg,s);
+this._counts[hash]=(this._counts[hash]||0)+1;
+const entry={hash,msg:msg.slice(0,500),stack:stack.slice(0,1000),context:s,meta:meta||{},count:this._counts[hash],ts:new Date().toISOString(),url:location.pathname,ua:navigator.userAgent.slice(0,100)};
+this._log.push(entry);this._queue.push(entry);
+if(typeof dbg==='function'){dbg('[ErrorBus] '+s+': '+msg.slice(0,80),'err');}
+if(this._counts[hash]>=this._maxRepeat){entry.circuitBreak=true;this._flushNow();}
+if(this._queue.length>=10)this._flushNow();
+return entry;
+}
+wrap(fn,name){const bus=this;const wn=name||fn.name||'anon';return async function(...a){try{return await fn.apply(this,a);}catch(e){bus.capture(e,wn,{});throw e;}};}
+wrapSync(fn,name){const bus=this;const wn=name||fn.name||'anon';return function(...a){try{return fn.apply(this,a);}catch(e){bus.capture(e,wn,{});throw e;}};}
+async _flush(){if(!this._queue.length)return;const batch=this._queue.splice(0,50);try{await fetch(this._endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({errors:batch})});}catch(e){console.warn('[ErrorBus] flush fail:',e.message);this._queue.unshift(...batch);}}
+_flushNow(){this._flush();}
+getLog(){return this._log.slice(-100);}
+getCircuitBreaks(){return Object.entries(this._counts).filter(([_,c])=>c>=this._maxRepeat).map(([h,count])=>{const e=this._log.find(x=>x.hash===h);return{hash:h,count,msg:e?.msg,context:e?.context};});}
+stats(){return{total:this._log.length,unique:Object.keys(this._counts).length,circuitBreaks:this.getCircuitBreaks().length,pending:this._queue.length};}
+}
+const _eBus=new ErrorBus();
+function _lsGet(k,fb){try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch(e){_eBus.capture(e,'ls.get',{k});return fb;}}
+function _lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){_eBus.capture(e,'ls.set',{k});}}
+function _lsGetRaw(k,fb){try{return localStorage.getItem(k)||fb;}catch(e){_eBus.capture(e,'ls.getRaw',{k});return fb;}}
+function _lsSetRaw(k,v){try{localStorage.setItem(k,v);}catch(e){_eBus.capture(e,'ls.setRaw',{k});}}
+// === END ERRORBUS ===
+
 // ── MCP IDs ──
 const GMAIL='mcp__9561144e-87f0-4ebc-b6ce-79cb22df9c27';
 const CAL='mcp__3df8d99f-29e6-4b72-aff5-d20c243cd8cc';
@@ -1534,11 +1569,11 @@ async function call(t,a){
     return r;
   }catch(e){
     dbg(`#${id} FAIL ${shortName}: ${e.message}`,'err');
+    if(typeof _eBus!=='undefined')_eBus.capture(e,'call:'+shortName,{callId:id});
     throw e;
   }
 }
-window.onerror=function(msg,src,line,col,err){dbg(`GLOBAL ERROR L${line}: ${msg}`,'err');console.error('Global:',msg,line,err);return false;};
-window.addEventListener('unhandledrejection',e=>{dbg(`UNHANDLED REJECT: ${e.reason?.message||e.reason}`,'err');console.error('Unhandled promise:',e.reason);});
+// [ErrorBus handles global error capture above]
 
 // ── Asset Library ──
 const ASSET_LIB = {
@@ -2182,10 +2217,10 @@ async function loadProdFeedback(){
 // ── FAVORITES / PIN SYSTEM ──
 // ══════════════════════════════════════
 let _favorites=[];
-try{_favorites=JSON.parse(localStorage.getItem('hq_favorites')||'[]');}catch(e){_favorites=[];}
+try{_favorites=_lsGet('hq_favorites',[]);}catch(e){_favorites=[];}
 
 function saveFavorites(){
-  try{localStorage.setItem('hq_favorites',JSON.stringify(_favorites));}catch(e){}
+  _lsSet('hq_favorites',_favorites);
 }
 
 function togglePin(viewId,e){
@@ -2446,7 +2481,7 @@ window._nextQuote=function(){
 };
 
 // Time zones — editable via click
-let _clockZones=JSON.parse(localStorage.getItem('sb_clock_zones')||'null')||[
+let _clockZones=_lsGet('sb_clock_zones',null)||[
   {label:'NYC',tz:'America/New_York'},
   {label:'London',tz:'Europe/London'},
   {label:'IST',tz:'Asia/Kolkata'},
@@ -2478,13 +2513,13 @@ window._editClock=function(idx){
 };
 window._setClock=function(idx,label,tz){
   _clockZones[idx]={label,tz};
-  localStorage.setItem('sb_clock_zones',JSON.stringify(_clockZones));
+  _lsSet('sb_clock_zones',_clockZones);
   renderClocks();
   const p=document.getElementById('clockPicker');if(p)p.remove();
 };
 
 // Weather — uses wttr.in (no API key needed)
-let _weatherZip=localStorage.getItem('sb_weather_zip')||'07086';
+let _weatherZip=_lsGetRaw('sb_weather_zip','07086');
 async function loadWeather(){
   const el=document.getElementById('weatherTemp');
   const loc=document.getElementById('weatherLoc');
@@ -2523,7 +2558,7 @@ window._changeWeatherZip=function(){
   const zip=prompt('Enter ZIP code or city name:',_weatherZip);
   if(zip&&zip.trim()){
     _weatherZip=zip.trim();
-    localStorage.setItem('sb_weather_zip',_weatherZip);
+    _lsSetRaw('sb_weather_zip',_weatherZip);
     loadWeather();
   }
 };
@@ -2535,11 +2570,10 @@ function initHeroBar(){
   if(qEl)qEl.innerHTML='"'+esc(q.q)+'"<div class="quote-attr">'+esc(q.a)+'</div>';
   // Clocks
   renderClocks();
-  setInterval(renderClocks,30000); // update every 30s
-  // Weather
+  window._clockIv=setInterval(renderClocks,30000);
   loadWeather();
-  // Rotate quote every 60s
-  setInterval(()=>window._nextQuote(),60000);
+  window._quoteIv=setInterval(()=>window._nextQuote(),60000);
+  window.addEventListener('beforeunload',()=>{clearInterval(window._clockIv);clearInterval(window._quoteIv);});
 }
 
 function renderCalendar(events){
@@ -2606,24 +2640,24 @@ function renderCalendar(events){
 }
 
 // Thread pin/remove state (persisted in localStorage)
-const _threadPins=JSON.parse(localStorage.getItem('sb_thread_pins')||'[]');
-const _threadDismissed=JSON.parse(localStorage.getItem('sb_thread_dismissed')||'[]');
+const _threadPins=_lsGet('sb_thread_pins',[]);
+const _threadDismissed=_lsGet('sb_thread_dismissed',[]);
 let _allThreads=[];
 
 function pinThread(threadId,evt){
   evt.preventDefault();evt.stopPropagation();
   const idx=_threadPins.indexOf(threadId);
   if(idx>-1)_threadPins.splice(idx,1);else _threadPins.push(threadId);
-  localStorage.setItem('sb_thread_pins',JSON.stringify(_threadPins));
+  _lsSet('sb_thread_pins',_threadPins);
   renderThreads(_allThreads);
 }
 function dismissThread(threadId,evt){
   evt.preventDefault();evt.stopPropagation();
-  if(!_threadDismissed.includes(threadId)){_threadDismissed.push(threadId);localStorage.setItem('sb_thread_dismissed',JSON.stringify(_threadDismissed));}
+  if(!_threadDismissed.includes(threadId)){_threadDismissed.push(threadId);_lsSet('sb_thread_dismissed',_threadDismissed);}
   renderThreads(_allThreads);
 }
 function undoDismissAll(){
-  _threadDismissed.length=0;localStorage.setItem('sb_thread_dismissed','[]');
+  _threadDismissed.length=0;_lsSet('sb_thread_dismissed',[]);
   renderThreads(_allThreads);
 }
 
@@ -3592,10 +3626,7 @@ function switchPipelineBrand(brand){
   renderPipelineView(brand);
 }
 
-function applyStageFilter(){
-  _currentStageFilter='';
-  renderPipelineView(_currentPipeBrand);
-}
+// [REMOVED dead applyStageFilter]
 
 function getDealsForBrand(brand){
   if(brand==='cadient')return _cadientDeals;
@@ -4949,7 +4980,7 @@ function initCopilotSpeech(){
     }
   };
   copilotRecognition.onend=()=>{
-    if(copilotListening){try{copilotRecognition.start()}catch(e){}}
+    if(copilotListening){try{copilotRecognition.start()}catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}}
   };
 }
 
@@ -4957,7 +4988,7 @@ function toggleListening(){
   if(!copilotRecognition){initCopilotSpeech();if(!copilotRecognition)return;}
   if(copilotListening){
     copilotListening=false;
-    try{copilotRecognition.stop()}catch(e){}
+    try{copilotRecognition.stop()}catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
     document.getElementById('btnListen').textContent='Start Listening';
     document.getElementById('btnListen').className='listen-btn idle';
     document.getElementById('listenStatus').textContent='Stopped';
@@ -5108,7 +5139,7 @@ async function generateAutoRebuttal(text,objType,brand){
       <div class="car-tag">&#9889; AI Rebuttal (${esc(objType)})</div>
       <div class="car-body">${esc(aiRebuttal)}</div>
     </div>`;
-  }catch(e){}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
 function detectBrandFromContext(){
@@ -5187,7 +5218,7 @@ function renderCopilotResponse(type,text){
   };
   const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50'};
   const headerEl=document.querySelector('.copilot-response .cr-header');
-  headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span><button id="btnSpeak" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer" title="Read response aloud">&#128264; Read Aloud</button>`;
+  headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span><button id="btnSpeak2" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer" title="Read response aloud">&#128264; Read Aloud</button>`;
   _ttsText=typeof text==='string'?text:JSON.stringify(text);
   const body=document.getElementById('copilotResponseBody');
 
@@ -5334,7 +5365,7 @@ async function loadCopilotStripMeeting(idx){
       const tEl=document.getElementById('copilotTranscript');
       if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "${esc(m.summary||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`;
     }
-  }catch(e){}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
 async function loadAttendeeContext(attendees){
@@ -5837,7 +5868,7 @@ async function loadCalendarTasks(){
         addTaskIfNew('active',{title:e.summary,context:att?'with '+att:'',person:att,due:d?d.slice(0,10):'',source:'calendar'});
       }
     });
-  }catch(e){}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
 async function loadEmailTasks(){
@@ -5852,7 +5883,7 @@ async function loadEmailTasks(){
         addTaskIfNew('active',{title:msg.subject,context:'from '+sender,person:sender,due:'',source:'email'});
       }
     });
-  }catch(e){}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
 async function loadGranolaTasks(){
@@ -5870,9 +5901,9 @@ async function loadGranolaTasks(){
             addTaskIfNew('active',{title:item.title,context:item.context||'from meeting',person:item.person||'',due:item.due||'',source:'granola'});
           });
         }
-      }catch(e){}
+      }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
     }
-  }catch(e){}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
 async function loadDealTasks(){
@@ -5890,7 +5921,7 @@ async function loadDealTasks(){
     vDeals.filter(d=>d.Closing_Date&&d.Closing_Date>=now&&d.Closing_Date<=weekStr).forEach(d=>{
       addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Vorro &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm'});
     });
-  }catch(e){}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
 function addTaskIfNew(col,task){
@@ -6108,7 +6139,7 @@ async function loadMeetingLoad(){
     });
     html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._loadLoaded=false;loadMeetingLoad()">Refresh</button></div>`;
     el.innerHTML=html;ld.style.display='none';el.style.display='block';
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
 }
 
 // ── OKR Tracker ──
@@ -6151,7 +6182,7 @@ async function loadOKRTracker(){
     });
     html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._okrLoaded=false;loadOKRTracker()">Refresh</button></div>`;
     el.innerHTML=html;ld.style.display='none';el.style.display='block';
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
 }
 
 // ── Energy Tracker ──
@@ -6165,9 +6196,9 @@ async function loadEnergyTracker(){
     const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
     const calR=await call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
     const events=(calR?.events||[]).filter(e=>e.summary);
-    const stored=JSON.parse(localStorage.getItem('energyTracker')||'{}');
+    const stored=_lsGet('energyTracker',{});
     renderEnergyView(el,ld,events,stored);
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
 }
 
 function renderEnergyView(el,ld,events,stored){
@@ -6205,9 +6236,9 @@ function renderEnergyView(el,ld,events,stored){
 }
 
 function setEnergy(key,value){
-  const stored=JSON.parse(localStorage.getItem('energyTracker')||'{}');
+  const stored=_lsGet('energyTracker',{});
   if(stored[key]===value){delete stored[key];}else{stored[key]=value;}
-  localStorage.setItem('energyTracker',JSON.stringify(stored));
+  _lsSet('energyTracker',stored);
   const el=document.getElementById('energyContent');
   const ld=document.getElementById('energyLoading');
   renderEnergyView(el,ld,window._energyEvents||[],stored);
@@ -6261,7 +6292,7 @@ async function loadFocusBlocks(){
     }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found tomorrow</div>`;}
     html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._focusLoaded=false;loadFocusBlocks()">Refresh</button></div>`;
     el.innerHTML=html;ld.style.display='none';el.style.display='block';
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message)+'</div>';}
+  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
 }
 
 function findFocusGaps(events,day){
@@ -6353,7 +6384,7 @@ async function loadMemoryView(){
           ).join('');
           return;
         }
-      }catch(e){}
+      }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
     }
     memDecisions.innerHTML='<div class="memory-empty">No recent decisions found in Granola</div>';
   }catch(e){
@@ -6457,8 +6488,8 @@ async function prodScanActivity(){
           addTaskIfNew(col,{title:item.title,context:item.context||'',person:item.person||'',due:item.due||'',source:'scan'});
         });
       });
-    }catch(e){}
-  }catch(e){}
+    }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
   renderKanban();
 }
 
@@ -6811,14 +6842,14 @@ async function loadStaleThreads(){
 
     stale.sort((a,b)=>b.daysSince-a.daysSince);
     // Persist dismissed stale threads
-    const _staleDismissed=JSON.parse(localStorage.getItem('sb_stale_dismissed')||'[]');
+    const _staleDismissed=_lsGet('sb_stale_dismissed',[]);
     const visibleStale=stale.filter(s=>!_staleDismissed.includes(s.thread.id));
     if(!visibleStale.length){el.style.display='none';return;}
     window._staleDismiss=function(threadId,evt){
       evt.preventDefault();evt.stopPropagation();
-      const arr=JSON.parse(localStorage.getItem('sb_stale_dismissed')||'[]');
+      const arr=_lsGet('sb_stale_dismissed',[]);
       if(!arr.includes(threadId))arr.push(threadId);
-      localStorage.setItem('sb_stale_dismissed',JSON.stringify(arr));
+      _lsSet('sb_stale_dismissed',arr);
       const row=document.getElementById('stale_'+threadId.replace(/[^a-zA-Z0-9]/g,''));
       if(row)row.remove();
       const remaining=document.querySelectorAll('.stale-item');
@@ -6826,7 +6857,7 @@ async function loadStaleThreads(){
       else{document.querySelector('.sb-title').innerHTML='&#9888; '+remaining.length+' thread'+(remaining.length>1?'s':'')+' awaiting your reply';}
     };
     window._staleRestoreAll=function(){
-      localStorage.setItem('sb_stale_dismissed','[]');
+      _lsSet('sb_stale_dismissed',[]);
       loadStaleThreads();
     };
     el.style.display='block';
@@ -7696,137 +7727,7 @@ async function launchMeetingCoach(){
 // ===========================================================================
 
 // ── Command Palette (Cmd+K / Ctrl+K) ────────────────────────────────────────
-(function initCommandPalette() {
-  const style = document.createElement('style');
-  style.textContent = `
-    #cmdPalette { position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:none;align-items:flex-start;justify-content:center;padding-top:15vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px); }
-    #cmdPalette.open { display:flex; }
-    #cmdBox { width:600px;max-width:90vw;background:#111827;border:1px solid rgba(201,162,39,0.4);border-radius:16px;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.8); }
-    #cmdInput { width:100%;padding:16px 20px;font-size:15px;font-family:var(--font-display);background:transparent;border:none;outline:none;color:#f1f5f9;border-bottom:1px solid rgba(255,255,255,0.08); }
-    #cmdInput::placeholder { color:#475569; }
-    #cmdResults { max-height:380px;overflow-y:auto; }
-    .cmd-item { padding:10px 20px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.04); }
-    .cmd-item:hover,.cmd-item.selected { background:rgba(201,162,39,0.12); }
-    .cmd-icon { width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0; }
-    .cmd-label { font-size:13px;font-weight:600;color:#e2e8f0; }
-    .cmd-sub { font-size:11px;color:#64748b;margin-top:1px; }
-    .cmd-kb { font-size:10px;color:#475569;margin-left:auto;flex-shrink:0; }
-    #cmdFooter { padding:8px 20px;font-size:10px;color:#475569;display:flex;gap:12px;border-top:1px solid rgba(255,255,255,0.05); }
-    #cmdAiBar { padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06); }
-    #cmdAiInput { width:100%;background:rgba(201,162,39,0.07);border:1px solid rgba(201,162,39,0.2);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;outline:none; }
-    #cmdAiInput::placeholder { color:#475569; }
-    #cmdAiResult { margin-top:8px;font-size:12px;color:#94a3b8;line-height:1.6;max-height:120px;overflow-y:auto; }
-  `;
-  document.head.appendChild(style);
-
-  const el = document.createElement('div');
-  el.id = 'cmdPalette';
-  el.innerHTML = `
-    <div id="cmdBox">
-      <input id="cmdInput" placeholder="Search views, actions, or ask AI…" autocomplete="off" spellcheck="false"/>
-      <div id="cmdResults"></div>
-      <div id="cmdAiBar">
-        <input id="cmdAiInput" placeholder="Ask AI with live context (Enter to send)…"/>
-        <div id="cmdAiResult"></div>
-      </div>
-      <div id="cmdFooter">
-        <span>↑↓ navigate</span><span>↵ select</span><span>Esc close</span><span>⌘K open</span>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(el);
-
-  const CMD_ITEMS = [
-    { icon:'🏠', label:'Dashboard', sub:'Home screen', action:()=>switchView('dashboard'), bg:'rgba(96,165,250,0.15)', color:'#60a5fa' },
-    { icon:'🔭', label:'Pipeline', sub:'Cadient deal kanban', action:()=>switchView('pipeline'), bg:'rgba(251,146,60,0.15)', color:'#fb923c' },
-    { icon:'🤖', label:'AI Copilot', sub:'Chat with live CRM + calendar context', action:()=>switchView('copilot'), bg:'rgba(167,139,250,0.15)', color:'#a78bfa' },
-    { icon:'📅', label:'Meetings', sub:'Granola meeting notes', action:()=>switchView('meetings'), bg:'rgba(52,211,153,0.15)', color:'#34d399' },
-    { icon:'🧠', label:'Intelligence', sub:'Market signals & competitor watch', action:()=>switchView('intelligence'), bg:'rgba(248,113,113,0.15)', color:'#f87171' },
-    { icon:'📋', label:'Daily Briefing', sub:'AI-generated today\'s priorities', action:()=>{ switchView('dashboard'); setTimeout(loadDailyBriefing, 200); }, bg:'rgba(201,162,39,0.15)', color:'#c9a227' },
-    { icon:'⚡', label:'Score Deals', sub:'AI risk & opportunity scoring', action:()=>runDealScoring(), bg:'rgba(251,146,60,0.15)', color:'#fb923c' },
-    { icon:'📧', label:'Search Email', sub:'Gmail smart search', action:()=>{ const s=document.querySelector('.search-wrap input'); if(s){s.focus();} }, bg:'rgba(248,113,113,0.15)', color:'#f87171' },
-    { icon:'💾', label:'View Memory', sub:'AI context memory store', action:()=>showMemoryPanel(), bg:'rgba(45,212,191,0.15)', color:'#2dd4bf' },
-    { icon:'🎯', label:'ICP Checker', sub:'Score a prospect in real-time', action:()=>switchView('productivity'), bg:'rgba(201,162,39,0.15)', color:'#c9a227' },
-  ];
-
-  let filtered = [...CMD_ITEMS];
-  let selectedIdx = 0;
-
-  function renderItems(items) {
-    const el = document.getElementById('cmdResults');
-    if (!el) return;
-    el.innerHTML = items.length ? items.map((item, i) => `
-      <div class="cmd-item${i===selectedIdx?' selected':''}" onclick="executeCmdItem(${i})">
-        <div class="cmd-icon" style="background:${item.bg};color:${item.color}">${item.icon}</div>
-        <div><div class="cmd-label">${item.label}</div><div class="cmd-sub">${item.sub}</div></div>
-      </div>
-    `).join('') : '<div style="padding:16px 20px;color:#475569;font-size:13px">No results</div>';
-  }
-
-  window.executeCmdItem = (i) => {
-    const item = filtered[i];
-    if (item) { item.action(); closePalette(); }
-  };
-
-  function closePalette() {
-    el.classList.remove('open');
-    document.getElementById('cmdInput').value = '';
-    document.getElementById('cmdAiResult').textContent = '';
-    document.getElementById('cmdAiInput').value = '';
-    filtered = [...CMD_ITEMS];
-    selectedIdx = 0;
-    renderItems(filtered);
-  }
-
-  document.getElementById('cmdInput').addEventListener('input', e => {
-    const q = e.target.value.toLowerCase();
-    filtered = q ? CMD_ITEMS.filter(i => i.label.toLowerCase().includes(q) || i.sub.toLowerCase().includes(q)) : [...CMD_ITEMS];
-    selectedIdx = 0;
-    renderItems(filtered);
-  });
-
-  document.getElementById('cmdInput').addEventListener('keydown', e => {
-    if (e.key === 'ArrowDown') { selectedIdx = Math.min(selectedIdx+1, filtered.length-1); renderItems(filtered); e.preventDefault(); }
-    else if (e.key === 'ArrowUp') { selectedIdx = Math.max(selectedIdx-1, 0); renderItems(filtered); e.preventDefault(); }
-    else if (e.key === 'Enter') { executeCmdItem(selectedIdx); }
-    else if (e.key === 'Escape') { closePalette(); }
-    else if (e.key === 'Tab') { document.getElementById('cmdAiInput').focus(); e.preventDefault(); }
-  });
-
-  document.getElementById('cmdAiInput').addEventListener('keydown', async e => {
-    if (e.key !== 'Enter') return;
-    const q = e.target.value.trim();
-    if (!q) return;
-    const resultEl = document.getElementById('cmdAiResult');
-    resultEl.textContent = '⌛ Thinking…';
-    try {
-      const r = await fetch('/api/ask/deep', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify({ prompt: q, inject_context: true }) });
-      const text = await r.json();
-      resultEl.textContent = typeof text === 'string' ? text : JSON.stringify(text);
-    } catch(err) {
-      resultEl.textContent = 'Error: ' + err.message;
-    }
-  });
-
-  el.addEventListener('click', e => { if (e.target === el) closePalette(); });
-
-  document.addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-      e.preventDefault();
-      if (el.classList.contains('open')) { closePalette(); }
-      else {
-        el.classList.add('open');
-        filtered = [...CMD_ITEMS];
-        selectedIdx = 0;
-        renderItems(filtered);
-        setTimeout(() => document.getElementById('cmdInput')?.focus(), 50);
-      }
-    }
-    if (e.key === 'Escape' && el.classList.contains('open')) { closePalette(); }
-  });
-
-  renderItems(CMD_ITEMS);
-})();
+// [REMOVED initCommandPalette]
 
 // ── Daily Briefing Panel ─────────────────────────────────────────────────────
 let _briefingCache = null;
@@ -8072,149 +7973,64 @@ function showDealScoresPanel(scores) {
 }
 
 // ── Memory Panel ─────────────────────────────────────────────────────────────
-async function showMemoryPanel(defaultNs) {
+async function showMemoryPanel() {
   let panel = document.getElementById('memoryPanel');
-  if (panel && !defaultNs) { panel.remove(); return; }
-  if (panel) panel.remove();
+  if (panel) { panel.remove(); return; }
 
-  const ns = defaultNs || 'personal';
   panel = document.createElement('div');
   panel.id = 'memoryPanel';
-  panel.style.cssText = 'position:fixed;top:80px;left:24px;z-index:7000;width:400px;background:#111827;border:1px solid rgba(45,212,191,0.3);border-radius:12px;box-shadow:0 16px 60px rgba(0,0,0,0.7);max-height:72vh;overflow:hidden;display:flex;flex-direction:column';
-
+  panel.style.cssText = 'position:fixed;top:80px;left:24px;z-index:7000;width:380px;background:#111827;border:1px solid rgba(45,212,191,0.3);border-radius:12px;box-shadow:0 16px 60px rgba(0,0,0,0.7);max-height:70vh;overflow:hidden;display:flex;flex-direction:column';
   panel.innerHTML = `
-    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <span style="color:#c9a227;font-weight:600;font-size:13px">Memory</span>
-      <div style="display:flex;gap:6px">
-        <button onclick="switchMemoryNs('personal')" id="memBtnPersonal"
-          style="padding:3px 10px;border-radius:6px;font-size:11px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;background:${ns==='personal'?'#1e3a5f':'transparent'};color:${ns==='personal'?'#60a5fa':'rgba(255,255,255,0.5)'}">
-          My Notes
-        </button>
-        <button onclick="switchMemoryNs('company')" id="memBtnCompany"
-          style="padding:3px 10px;border-radius:6px;font-size:11px;border:1px solid rgba(255,255,255,0.15);cursor:pointer;background:${ns==='company'?'#2d1b00':'transparent'};color:${ns==='company'?'#c9a227':'rgba(255,255,255,0.5)'}">
-          Company
-        </button>
-      </div>
-      <button onclick="document.getElementById('memoryPanel').remove()" style="background:none;border:none;color:rgba(255,255,255,0.4);cursor:pointer;font-size:16px;padding:0 4px">&times;</button>
+    <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px">
+      <span style="font-size:14px">💾</span>
+      <span style="font-weight:700;font-size:13px;color:#e2e8f0;flex:1">AI Memory</span>
+      <button onclick="document.getElementById('memoryPanel').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:16px">×</button>
     </div>
-    <div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05)">
-      <input id="memSearchInput" placeholder="Search ${ns} memory..." oninput="searchMemories(this.value,'${ns}')"
-        style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;color:#e5e7eb;font-size:12px;box-sizing:border-box"/>
+    <div style="padding:8px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <input id="memSearchInput" placeholder="Search memories…" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:6px 10px;color:#e2e8f0;font-size:12px;outline:none" oninput="searchMemories(this.value)"/>
     </div>
-    <div id="memoryList" style="flex:1;overflow-y:auto;padding:8px 12px"></div>
-    <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.07);display:flex;gap:8px;align-items:center">
-      ${ns==='company'
-        ? '<span style="font-size:10px;color:#f59e0b;flex:1">Company memory — admin-protected. Changes need approval.</span>'
-        : '<span style="font-size:10px;color:rgba(255,255,255,0.3);flex:1">Personal notes — only you and admins can see these.</span>'}
-      <button onclick="clearAllMemories('${ns}')"
-        style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:6px;color:#f87171;padding:4px 10px;font-size:11px;cursor:pointer">
-        Clear
-      </button>
-    </div>`;
-
+    <div id="memoryList" style="overflow-y:auto;flex:1;padding:8px 0">
+      <div style="padding:12px 16px;color:#64748b;font-size:12px">⌛ Loading…</div>
+    </div>
+    <div style="padding:8px 14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:6px">
+      <button onclick="clearAllMemories()" style="padding:5px 10px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:5px;color:#f87171;font-size:11px;cursor:pointer">Clear All</button>
+    </div>
+  `;
   document.body.appendChild(panel);
-  loadMemories(ns);
+  await searchMemories('');
 }
 
-function switchMemoryNs(ns) {
-  showMemoryPanel(ns);
-}
-
-async function loadMemories(ns) {
+async function searchMemories(query) {
   const list = document.getElementById('memoryList');
   if (!list) return;
-  list.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:8px">Loading...</div>';
   try {
-    const r = await fetch(`/api/memory?namespace=${ns}&limit=50`);
-    const data = await r.json();
-    const mems = data.results || [];
-    if (!mems.length) {
-      list.innerHTML = `<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:8px">No ${ns} memories yet.</div>`;
-      return;
-    }
-    list.innerHTML = mems.slice().reverse().map(m => `
-      <div style="padding:8px;margin-bottom:6px;background:rgba(255,255,255,0.04);border-radius:6px;border-left:2px solid ${ns==='company'?'#c9a227':'rgba(45,212,191,0.4)'}">
-        <div style="color:#e5e7eb;font-size:12px;line-height:1.4">${m.memory || m.content || JSON.stringify(m)}</div>
-        <div style="color:rgba(255,255,255,0.3);font-size:10px;margin-top:4px">${m.created_at ? new Date(m.created_at).toLocaleDateString() : ''}</div>
-      </div>`).join('');
+    const resp = await fetch('/api/memory?q=' + encodeURIComponent(query), { credentials: 'same-origin' });
+    const data = await resp.json();
+    const mems = (data.results || []).slice().reverse();
+    list.innerHTML = mems.length ? mems.map(m => `
+      <div style="padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <div style="font-size:11px;color:#94a3b8;line-height:1.5">${esc(m.memory||'')}</div>
+        <div style="font-size:9px;color:#475569;margin-top:3px">${m.metadata?.type||''} · ${new Date(m.created_at).toLocaleDateString()}</div>
+      </div>
+    `).join('') : '<div style="padding:12px 16px;color:#475569;font-size:12px">No memories stored yet. Ask AI questions and it will remember context.</div>';
   } catch(e) {
-    list.innerHTML = '<div style="color:#f87171;font-size:12px">Error loading memories.</div>';
+    list.innerHTML = '<div style="padding:12px 16px;color:#f87171;font-size:12px">Error: ' + e.message + '</div>';
   }
 }
 
-async function searchMemories(q, ns) {
-  const list = document.getElementById('memoryList');
-  if (!list) return;
-  try {
-    const r = await fetch(`/api/memory?q=${encodeURIComponent(q)}&namespace=${ns||'personal'}`);
-    const data = await r.json();
-    const mems = data.results || [];
-    list.innerHTML = mems.length
-      ? mems.map(m => `<div style="padding:7px;margin-bottom:5px;background:rgba(255,255,255,0.04);border-radius:6px"><div style="color:#e5e7eb;font-size:12px">${m.memory || m.content}</div></div>`).join('')
-      : '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:8px">No results.</div>';
-  } catch(e) {}
-}
-
-async function clearAllMemories(ns) {
-  const nsLabel = ns || 'personal';
-  const msg = nsLabel === 'company'
-    ? 'Clear ALL company memory? This affects every user. Admin action — confirm?'
-    : 'Clear your personal notes? This cannot be undone.';
-  if (!confirm(msg)) return;
-  try {
-    await fetch(`/api/memory?namespace=${nsLabel}`, { method: 'DELETE' });
-    loadMemories(nsLabel);
-  } catch(e) {}
+async function clearAllMemories() {
+  if (!confirm('Clear all AI memory? This cannot be undone.')) return;
+  await fetch('/api/memory', { method: 'DELETE', credentials: 'same-origin' });
+  document.getElementById('memoryPanel')?.remove();
+  dbg('Memory cleared', 'ok');
 }
 
 // ── Keyboard Shortcut Hints ──────────────────────────────────────────────────
-(function addKbdHint() {
-  const hint = document.createElement('div');
-  hint.style.cssText = 'position:fixed;bottom:16px;right:16px;background:rgba(17,24,39,0.9);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 12px;font-size:11px;color:#64748b;z-index:100;cursor:pointer;transition:opacity 0.3s';
-  hint.innerHTML = '⌘K Quick actions';
-  hint.onclick = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }));
-  // fade out after 8s
-  setTimeout(() => { hint.style.opacity = '0.4'; }, 8000);
-  document.body.appendChild(hint);
-})();
+// [REMOVED addKbdHint]
 
 // ── Auto-load Daily Briefing on Dashboard ────────────────────────────────────
 // Inject briefing panel into dashboard view on first load
-const _origLoadDashboard = typeof loadDashboard === 'function' ? loadDashboard : null;
-
-// Patch into dashboard rendering — add briefing section if not already there
-(function patchDashboard() {
-  // Wait for DOM ready
-  document.addEventListener('DOMContentLoaded', () => {
-    // Inject a briefing container into the dashboard view
-    const dashView = document.getElementById('view-dashboard');
-    if (dashView && !document.getElementById('dailyBriefingPanel')) {
-      const briefCard = document.createElement('div');
-      briefCard.className = 'card';
-      briefCard.id = 'dailyBriefingCard';
-      briefCard.innerHTML = '<div id="dailyBriefingPanel" style="min-height:60px"><div style="padding:16px;color:var(--text-muted);font-size:12px">Click "Load Briefing" to generate your AI daily briefing</div></div>';
-      dashView.insertBefore(briefCard, dashView.firstChild);
-    }
-  });
-})();
-
-// Auto-trigger briefing when switching to dashboard view
-const _origSwitchView = typeof switchView === 'function' ? switchView : null;
-if (typeof switchView === 'function') {
-  const _sv = switchView;
-  window.switchView = function(view) {
-    _sv(view);
-    if (view === 'dashboard') {
-      // Small delay to let dashboard render, then load briefing
-      const panel = document.getElementById('dailyBriefingPanel');
-      if (panel) {
-        setTimeout(() => loadDailyBriefing(), 300);
-      }
-    }
-  };
-}
-
-
+// [REMOVED patchDashboard + briefing wrapper]
 </script>
 </body>
 </html>
