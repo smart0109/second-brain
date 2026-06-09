@@ -341,12 +341,43 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .copilot-action-btn .cab-hint { font-size: 9px; color: var(--text-muted); margin-top: 2px; }
 .copilot-action-btn.explain { border-left: 3px solid var(--blue); }
 .copilot-action-btn.rebuttal { border-left: 3px solid var(--orange); }
-.copilot-action-btn.tone { border-left: 3px solid var(--purple); }
 .copilot-action-btn.advise { border-left: 3px solid var(--green); }
 .copilot-response { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; min-height: 100px; overflow: hidden; }
 .copilot-response .cr-header { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
 .copilot-response .cr-body { padding: 14px; font-size: 12px; line-height: 1.7; color: var(--text-secondary); max-height: 300px; overflow-y: auto; }
 .copilot-response .cr-body.loading { text-align: center; color: var(--text-muted); padding: 28px; }
+/* Parallel AI Panels */
+.copilot-panels-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+@media (max-width: 1100px) { .copilot-panels-grid { grid-template-columns: 1fr; } }
+.copilot-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; min-height: 120px; overflow: hidden; transition: border-color 0.2s; }
+.copilot-panel.panel-explain { border-top: 2px solid var(--blue); }
+.copilot-panel.panel-rebuttal { border-top: 2px solid var(--orange); }
+.copilot-panel.panel-advise { border-top: 2px solid var(--green); }
+.copilot-panel .cp-header { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.copilot-panel .cp-body { padding: 10px 12px; font-size: 11px; line-height: 1.6; color: var(--text-secondary); max-height: 280px; overflow-y: auto; }
+.copilot-panel .cp-body.loading { text-align: center; color: var(--text-muted); padding: 20px; }
+.copilot-run-all-btn { padding: 10px 18px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent-dim); color: var(--accent-text); font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; width: 100%; text-align: center; margin-bottom: 8px; }
+.copilot-run-all-btn:hover { background: var(--accent); color: #fff; }
+.copilot-run-all-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Live Tone Indicator */
+.tone-indicator { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.2); transition: all 0.4s ease; margin-left: auto; }
+.tone-indicator .tone-dot { width: 6px; height: 6px; border-radius: 50%; transition: background 0.4s; }
+.tone-indicator.tone-engaged { background: rgba(76,175,80,0.15); border-color: rgba(76,175,80,0.3); color: #4caf50; }
+.tone-indicator.tone-engaged .tone-dot { background: #4caf50; }
+.tone-indicator.tone-skeptical { background: rgba(255,193,7,0.15); border-color: rgba(255,193,7,0.3); color: #ffc107; }
+.tone-indicator.tone-skeptical .tone-dot { background: #ffc107; }
+.tone-indicator.tone-hostile { background: rgba(244,67,54,0.15); border-color: rgba(244,67,54,0.3); color: #f44336; }
+.tone-indicator.tone-hostile .tone-dot { background: #f44336; }
+.tone-indicator.tone-curious { background: rgba(33,150,243,0.15); border-color: rgba(33,150,243,0.3); color: #2196f3; }
+.tone-indicator.tone-curious .tone-dot { background: #2196f3; }
+.tone-indicator.tone-neutral { background: rgba(100,116,139,0.15); border-color: rgba(100,116,139,0.2); color: var(--text-muted); }
+.tone-indicator.tone-neutral .tone-dot { background: var(--text-muted); }
+@keyframes tone-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.tone-indicator.tone-updating { animation: tone-pulse 1s ease-in-out; }
+/* Speaker diarization */
+.copilot-audio-bar .capture-sys-btn { padding: 5px 10px; border-radius: 5px; border: 1px solid var(--border); font-size: 10px; cursor: pointer; background: var(--bg-elevated); color: var(--text-secondary); transition: all 0.15s; }
+.copilot-audio-bar .capture-sys-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+.copilot-audio-bar .capture-sys-btn.active { background: var(--purple); color: #fff; border-color: var(--purple); }
 .copilot-tone-bar { display: flex; gap: 4px; margin-bottom: 8px; }
 .copilot-tone-pill { padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; }
 .tone-positive { background: rgba(52,211,153,0.15); color: var(--green); }
@@ -870,8 +901,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div>
           <div class="copilot-audio-bar">
             <button id="btnListen" class="listen-btn idle" onclick="toggleListening()">Start Listening</button>
+            <button id="btnCaptureSys" class="capture-sys-btn" onclick="toggleSystemCapture()" title="Capture system audio for speaker separation">&#127911; System Audio</button>
             <span id="listenStatus" class="listen-status">Idle - Click to start</span>
             <div id="listenDot" class="listen-dot off"></div>
+            <div id="liveToneIndicator" class="tone-indicator tone-neutral" title="Live conversation tone"><div class="tone-dot"></div><span id="toneLabel">Neutral</span></div>
           </div>
           <div class="section-header">Live Transcript</div>
           <div id="copilotTranscript" class="copilot-transcript">
@@ -893,21 +926,17 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         </div>
 
         <div>
-          <div class="copilot-actions-bar">
+          <button id="btnRunAll" class="copilot-run-all-btn" onclick="copilotRunAll()">&#9889; Run All (Explain + Rebuttal + Advise)</button>
+          <div class="copilot-actions-bar" style="grid-template-columns:1fr 1fr 1fr">
             <div class="copilot-action-btn explain" onclick="copilotAction('explain')">
               <div class="cab-icon">&#128161;</div>
               <div class="cab-label">Explain</div>
-              <div class="cab-hint">Break down what was said</div>
+              <div class="cab-hint">Plain English summary</div>
             </div>
             <div class="copilot-action-btn rebuttal" onclick="copilotAction('rebuttal')">
               <div class="cab-icon">&#9889;</div>
               <div class="cab-label">Rebuttal</div>
-              <div class="cab-hint">Counter-argument with data</div>
-            </div>
-            <div class="copilot-action-btn tone" onclick="copilotAction('tone')">
-              <div class="cab-icon">&#127912;</div>
-              <div class="cab-label">Tone</div>
-              <div class="cab-hint">Emotional analysis</div>
+              <div class="cab-hint">Counter their objection</div>
             </div>
             <div class="copilot-action-btn advise" onclick="copilotAction('advise')">
               <div class="cab-icon">&#128172;</div>
@@ -916,12 +945,27 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
             </div>
           </div>
 
-          <div id="copilotResponse" class="copilot-response">
+          <div class="copilot-panels-grid">
+            <div id="panelExplain" class="copilot-panel panel-explain">
+              <div class="cp-header" style="color:#2196f3">&#128161; What They Said</div>
+              <div class="cp-body" id="panelExplainBody"><div class="empty-state" style="font-size:10px">Click Explain or Run All</div></div>
+            </div>
+            <div id="panelRebuttal" class="copilot-panel panel-rebuttal">
+              <div class="cp-header" style="color:#ff9800">&#9889; Rebuttal</div>
+              <div class="cp-body" id="panelRebuttalBody"><div class="empty-state" style="font-size:10px">Click Rebuttal or Run All</div></div>
+            </div>
+            <div id="panelAdvise" class="copilot-panel panel-advise">
+              <div class="cp-header" style="color:#4caf50">&#128172; Your Answer</div>
+              <div class="cp-body" id="panelAdviseBody"><div class="empty-state" style="font-size:10px">Click Advise or Run All</div></div>
+            </div>
+          </div>
+
+          <div id="copilotResponse" class="copilot-response" style="display:none">
             <div class="cr-header" style="display:flex;align-items:center;justify-content:space-between">
               <span>&#129302; AI Response</span>
               <button id="btnSpeak" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer;display:none" title="Read response aloud">&#128264; Read Aloud</button>
             </div>
-            <div class="cr-body" id="copilotResponseBody"><div class="empty-state">Click an action button or enable Auto-Coach for real-time intelligence</div></div>
+            <div class="cr-body" id="copilotResponseBody"></div>
           </div>
 
           <!-- LIVE COACHING FEED -->
@@ -4978,7 +5022,12 @@ function initCopilotSpeech(){
     for(let i=e.resultIndex;i<e.results.length;i++){
       const t=e.results[i][0].transcript;
       if(e.results[i].isFinal){
-        const speaker=document.getElementById('copilotSpeaker')?.value||'';
+        let speaker=document.getElementById('copilotSpeaker')?.value||'';
+        // Smart speaker attribution: if system audio is capturing and level is high,
+        // the other person is likely speaking (mic picks up bleed-through)
+        if(_sysCapturing&&window._sysAudioLevel>15&&speaker==='Manish'){
+          speaker='Other';
+        }
         copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence,speaker});
         renderCopilotTranscript();
         checkObjections(t);
@@ -5015,6 +5064,8 @@ function toggleListening(){
     document.getElementById('btnListen').className='listen-btn idle';
     document.getElementById('listenStatus').textContent='Stopped';
     document.getElementById('listenDot').className='listen-dot off';
+    stopToneMonitor();
+    stopSystemCapture();
   } else {
     copilotListening=true;
     try{copilotRecognition.start()}catch(e){copilotRecognition.stop();setTimeout(()=>copilotRecognition.start(),200)}
@@ -5022,6 +5073,7 @@ function toggleListening(){
     document.getElementById('btnListen').className='listen-btn active';
     document.getElementById('listenStatus').textContent='Listening... speak into your microphone';
     document.getElementById('listenDot').className='listen-dot on';
+    startToneMonitor();
   }
 }
 
@@ -5060,6 +5112,7 @@ function addManualTranscript(){
   ta.value='';
   renderCopilotTranscript();
   checkObjections(text);
+  startToneMonitor();
   // Instant topic detection + asset surfacing (even without auto-coach)
   const brand=detectBrandFromContext();
   const topics=[];
@@ -5096,6 +5149,120 @@ function populateSpeakersFromAttendees(attendees){
 function getRecentTranscript(minutes){
   const cutoff=Date.now()-(minutes||10)*60000;
   return copilotTranscriptLines.filter(l=>l.time.getTime()>cutoff).map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
+}
+
+// ── Live Tone Indicator ──
+let _toneTimer=null;
+let _lastToneUpdate=0;
+function startToneMonitor(){
+  if(_toneTimer)return;
+  _toneTimer=setInterval(updateLiveTone,30000);
+}
+function stopToneMonitor(){
+  if(_toneTimer){clearInterval(_toneTimer);_toneTimer=null;}
+}
+async function updateLiveTone(){
+  if(!copilotTranscriptLines.length)return;
+  if(Date.now()-_lastToneUpdate<25000)return;
+  _lastToneUpdate=Date.now();
+  const indicator=document.getElementById('liveToneIndicator');
+  const label=document.getElementById('toneLabel');
+  if(!indicator)return;
+  indicator.classList.add('tone-updating');
+  const recent=getRecentTranscript(5);
+  if(!recent){indicator.classList.remove('tone-updating');return;}
+  try{
+    const toneResult=await ask('Analyze the conversation tone in ONE WORD only. Choose exactly one: engaged, skeptical, hostile, curious, or neutral. Reply with ONLY that one word, nothing else.',[{label:'Recent transcript',value:recent}]);
+    const word=(toneResult||'neutral').trim().toLowerCase().replace(/[^a-z]/g,'');
+    const validTones=['engaged','skeptical','hostile','curious','neutral'];
+    const tone=validTones.includes(word)?word:'neutral';
+    indicator.className='tone-indicator tone-'+tone;
+    if(label)label.textContent=tone.charAt(0).toUpperCase()+tone.slice(1);
+  }catch(e){
+    if(label)label.textContent='Neutral';
+    indicator.className='tone-indicator tone-neutral';
+  }
+  indicator.classList.remove('tone-updating');
+}
+
+// ── System Audio Capture (Speaker Diarization) ──
+let _sysAudioStream=null;
+let _sysRecognition=null;
+let _sysCapturing=false;
+
+async function toggleSystemCapture(){
+  const btn=document.getElementById('btnCaptureSys');
+  if(_sysCapturing){
+    stopSystemCapture();
+    if(btn){btn.classList.remove('active');btn.innerHTML='&#127911; System Audio';}
+    return;
+  }
+  try{
+    // Request system audio via getDisplayMedia
+    _sysAudioStream=await navigator.mediaDevices.getDisplayMedia({audio:true,video:true});
+    // Stop video track immediately (we only want audio)
+    _sysAudioStream.getVideoTracks().forEach(t=>t.stop());
+    const audioTracks=_sysAudioStream.getAudioTracks();
+    if(!audioTracks.length){
+      alert('No system audio track available. Make sure you selected a tab or screen with audio.');
+      _sysAudioStream=null;return;
+    }
+    _sysCapturing=true;
+    if(btn){btn.classList.add('active');btn.innerHTML='&#127911; Capturing...';}
+
+    // Create AudioContext to monitor system audio levels
+    const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const source=audioCtx.createMediaStreamSource(new MediaStream(audioTracks));
+    const analyser=audioCtx.createAnalyser();
+    analyser.fftSize=256;
+    source.connect(analyser);
+    const dataArray=new Uint8Array(analyser.frequencyBinCount);
+
+    // Use Web Speech API on the system audio if possible, else use level detection
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(SR){
+      // Note: Web Speech API can't take arbitrary streams in most browsers
+      // We use level detection as primary method + tag non-mic speech as "Other"
+    }
+
+    // Level-based speaker detection: when system audio is loud and mic recognition
+    // is NOT producing results, tag incoming transcript lines as the other speaker
+    let _sysLevelInterval=setInterval(()=>{
+      if(!_sysCapturing){clearInterval(_sysLevelInterval);audioCtx.close();return;}
+      analyser.getByteFrequencyData(dataArray);
+      const avg=dataArray.reduce((a,b)=>a+b,0)/dataArray.length;
+      // Store system audio level for speaker attribution
+      window._sysAudioLevel=avg;
+    },200);
+
+    // Listen for track end
+    audioTracks[0].onended=()=>stopSystemCapture();
+
+    // Add "Other" speaker if not present
+    const sel=document.getElementById('copilotSpeaker');
+    if(sel){
+      let hasOther=false;
+      for(let o of sel.options){if(o.value==='Other'){hasOther=true;break;}}
+      if(!hasOther){const opt=document.createElement('option');opt.value='Other';opt.textContent='Other (System Audio)';sel.appendChild(opt);}
+    }
+
+  }catch(e){
+    if(e.name==='NotAllowedError'){
+      console.log('System audio capture cancelled by user');
+    }else{
+      alert('System audio capture failed: '+e.message);
+    }
+    _sysCapturing=false;
+    if(btn){btn.classList.remove('active');btn.innerHTML='&#127911; System Audio';}
+  }
+}
+
+function stopSystemCapture(){
+  _sysCapturing=false;
+  if(_sysAudioStream){_sysAudioStream.getTracks().forEach(t=>t.stop());_sysAudioStream=null;}
+  window._sysAudioLevel=0;
+  const btn=document.getElementById('btnCaptureSys');
+  if(btn){btn.classList.remove('active');btn.innerHTML='&#127911; System Audio';}
 }
 
 function getFullTranscript(){
@@ -5171,56 +5338,112 @@ function detectBrandFromContext(){
 }
 
 // ── Action Buttons ──
-async function copilotAction(type){
-  const transcript=getRecentTranscript(10);
-  if(!transcript&&!copilotTranscriptLines.length){
-    document.getElementById('copilotResponseBody').innerHTML='<div style="padding:12px;text-align:center;color:#fb923c;font-weight:600;font-size:13px;background:rgba(251,146,60,0.15);border-radius:6px">Type or paste meeting conversation in the transcript box first, then click this button again.</div>';
-    // Flash the manual input area
-    const ta=document.getElementById('copilotManualInput');
-    if(ta){ta.style.borderColor='#e65100';ta.focus();setTimeout(()=>{ta.style.borderColor='#ddd'},3000);}
-    return;
-  }
-
-  // Highlight active button
-  document.querySelectorAll('.copilot-action-btn').forEach(b=>b.classList.remove('active'));
-  const activeBtn=document.querySelector(`.copilot-action-btn.${type}`);
-  if(activeBtn)activeBtn.classList.add('active');
-  copilotLastActionType=type;
-
-  const body=document.getElementById('copilotResponseBody');
-  body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Thinking...</div>';
-
+function _getCopilotPrompts(){
   const brand=detectBrandFromContext();
   const kb=KNOWLEDGE_BASE[brand];
-
-  const sessionTone=`IMPORTANT: Maintain a consistent, professional yet warm tone throughout this entire session. You are Manish's real-time meeting intelligence layer. Be direct, data-driven, and actionable. Never generic. Always reference specific things from the transcript, attendee data, and product knowledge. If previous responses were given in this session, maintain continuity.`;
-  const prompts={
-    explain:`${sessionTone}\n\nReview the most recent part of the transcript and give Manish a clear, plain-English summary of what was just said. Specifically:\n(1) SUMMARY: In 2-3 sentences, what did the speaker just communicate? What is the key point?\n(2) JARGON DECODER: If ANY acronyms, technical terms, industry jargon, company-specific language, or abbreviations were used (like ERP, PIM, MDM, SKU, EDI, API, SaaS, ARR, NRR, churn, etc.), list each one with a plain-English definition. If the speaker mentioned a company, product, or platform name Manish might not know, look it up and explain what it is.\n(3) WHAT THIS MEANS FOR YOU: One sentence on why this matters in the context of this meeting and what Manish should take away from it.\nBe concise and practical. Do NOT repeat the transcript back. Translate complexity into clarity.`,
-    rebuttal:`${sessionTone}\n\nThe prospect has expressed hesitation, disinterest, or an objection. Manish needs a strong, natural comeback he can say RIGHT NOW in conversation. Generate:\n(1) ACKNOWLEDGE: One sentence that shows you heard them and validates their concern (never dismiss).\n(2) PIVOT: The counter-argument with specific data, metrics, or client results from ${kb.company}. Reference actual numbers from the knowledge base (cost savings, time reduction, retention lift, etc.).\n(3) SAY THIS: A word-for-word response Manish can deliver naturally in conversation. Under 60 words. Conversational, not salesy.\nIf the objection is about pricing, timing, existing solutions, competitors, or implementation complexity, tailor the rebuttal specifically to that objection type. Use the transcript to understand exactly what they said and counter it precisely.`,
-    tone:`${sessionTone}\n\nAnalyze the emotional state of the conversation. Report: (1) Overall tone (interested/skeptical/hostile/engaged/confused/excited), (2) Specific signals from the transcript, (3) Deal trending positive or negative, (4) What emotional levers to pull next. Be specific about which words/phrases signal the tone.`,
-    advise:`${sessionTone}\n\nBased on what was JUST said in the last 1-2 minutes of transcript, tell Manish exactly how to respond. This is for when someone asked a question or made a statement that Manish needs to answer.\n(1) WHAT THEY ASKED/SAID: One sentence summary of their question or statement.\n(2) THE ANSWER: The factual answer using ${kb.company} product knowledge, metrics, case studies, or industry data. Be specific with numbers.\n(3) SAY THIS: A word-for-word response Manish can deliver right now. Under 80 words. Natural, confident, conversational. Not a pitch - an answer to their specific question.\n(4) FOLLOW UP WITH: One killer follow-up question Manish can ask to advance the conversation after answering.\nIf the question is about something outside the knowledge base, say so honestly and suggest what Manish can offer to follow up on.`
+  const sessionTone='IMPORTANT: Maintain a consistent, professional yet warm tone. You are Manish\'s real-time meeting intelligence layer. Be direct, data-driven, and actionable. Never generic. Always reference specific things from the transcript and product knowledge.';
+  return {
+    explain:`${sessionTone}\n\nReview the most recent transcript and give a clear, plain-English summary:\n(1) SUMMARY: 2-3 sentences, key point.\n(2) JARGON DECODER: Acronyms, technical terms, company/product names with plain-English definitions.\n(3) WHAT THIS MEANS: One sentence on why it matters.\nBe concise. Do NOT repeat the transcript.`,
+    rebuttal:`${sessionTone}\n\nThe prospect expressed hesitation or objection. Generate:\n(1) ACKNOWLEDGE: One sentence validating their concern.\n(2) PIVOT: Counter-argument with specific data/metrics from ${kb.company}.\n(3) SAY THIS: Word-for-word response under 60 words. Conversational, not salesy.\nTailor to the specific objection. Use the transcript to counter precisely.`,
+    advise:`${sessionTone}\n\nBased on the last 1-2 minutes, tell Manish how to respond:\n(1) WHAT THEY ASKED/SAID: One sentence summary.\n(2) THE ANSWER: Using ${kb.company} product knowledge, metrics, case studies.\n(3) SAY THIS: Word-for-word under 80 words. Natural, confident.\n(4) FOLLOW UP WITH: One killer follow-up question.\nIf outside knowledge base, say so and suggest follow-up.`
   };
+}
 
-  const data=[
+function _getCopilotData(){
+  const transcript=getRecentTranscript(10);
+  return [
     {label:'Recent transcript (last 10 min)',value:transcript||getFullTranscript()},
     {label:'Full conversation',value:getFullTranscript()},
     {label:'Meeting context',value:copilotMeetingContext},
     {label:'Attendee data',value:JSON.stringify(copilotAttendeeData)},
     {label:'Product knowledge',value:getKnowledgeString()},
-    {label:'Brand detected',value:brand}
+    {label:'Brand detected',value:detectBrandFromContext()}
   ];
+}
+
+async function copilotAction(type){
+  const transcript=getRecentTranscript(10);
+  if(!transcript&&!copilotTranscriptLines.length){
+    const panelBody=document.getElementById('panel'+type.charAt(0).toUpperCase()+type.slice(1)+'Body');
+    if(panelBody) panelBody.innerHTML='<div style="padding:8px;text-align:center;color:#fb923c;font-weight:600;font-size:11px;background:rgba(251,146,60,0.15);border-radius:6px">Type or paste meeting conversation first.</div>';
+    const ta=document.getElementById('copilotManualInput');
+    if(ta){ta.style.borderColor='#e65100';ta.focus();setTimeout(()=>{ta.style.borderColor=''},3000);}
+    return;
+  }
+
+  document.querySelectorAll('.copilot-action-btn').forEach(b=>b.classList.remove('active'));
+  const activeBtn=document.querySelector('.copilot-action-btn.'+type);
+  if(activeBtn)activeBtn.classList.add('active');
+  copilotLastActionType=type;
+
+  const panelId='panel'+type.charAt(0).toUpperCase()+type.slice(1)+'Body';
+  const body=document.getElementById(panelId);
+  if(body) body.innerHTML='<div class="cp-body loading"><div class="spinner"></div><br>Thinking...</div>';
+
+  const prompts=_getCopilotPrompts();
+  const data=_getCopilotData();
 
   try{
     const response=await ask(prompts[type],data);
-    renderCopilotResponse(type,response);
+    renderPanelResponse(type,response);
   }catch(e){
     const errMsg=e.message||'Unknown error';
-    if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
-      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; AI requires ANTHROPIC_API_KEY on Render.<br><span style="font-size:11px;color:#64748b">Go to Render dashboard > Environment > add ANTHROPIC_API_KEY</span></div>';
-    }else{
-      body.innerHTML=`<div class="empty-state">AI response failed: ${esc(errMsg)}</div>`;
+    if(body){
+      if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
+        body.innerHTML='<div class="empty-state" style="color:#fb923c;font-size:10px">Set ANTHROPIC_API_KEY on Render</div>';
+      }else{
+        body.innerHTML='<div class="empty-state" style="font-size:10px">Failed: '+esc(errMsg)+'</div>';
+      }
     }
   }
+}
+
+async function copilotRunAll(){
+  const transcript=getRecentTranscript(10);
+  if(!transcript&&!copilotTranscriptLines.length){
+    const ta=document.getElementById('copilotManualInput');
+    if(ta){ta.style.borderColor='#e65100';ta.focus();setTimeout(()=>{ta.style.borderColor=''},3000);}
+    return;
+  }
+  const btn=document.getElementById('btnRunAll');
+  if(btn){btn.disabled=true;btn.textContent='Running...';}
+
+  document.querySelectorAll('.copilot-action-btn').forEach(b=>b.classList.add('active'));
+
+  ['Explain','Rebuttal','Advise'].forEach(t=>{
+    const b=document.getElementById('panel'+t+'Body');
+    if(b)b.innerHTML='<div class="cp-body loading"><div class="spinner"></div><br>Analyzing...</div>';
+  });
+
+  const prompts=_getCopilotPrompts();
+  const data=_getCopilotData();
+
+  const results=await Promise.allSettled([
+    ask(prompts.explain,data),
+    ask(prompts.rebuttal,data),
+    ask(prompts.advise,data)
+  ]);
+
+  const types=['explain','rebuttal','advise'];
+  results.forEach((r,i)=>{
+    if(r.status==='fulfilled'){
+      renderPanelResponse(types[i],r.value);
+    }else{
+      const b=document.getElementById('panel'+types[i].charAt(0).toUpperCase()+types[i].slice(1)+'Body');
+      if(b)b.innerHTML='<div class="empty-state" style="font-size:10px;color:#fb923c">Failed: '+(r.reason?.message||'Unknown')+'</div>';
+    }
+  });
+
+  if(btn){btn.disabled=false;btn.innerHTML='&#9889; Run All (Explain + Rebuttal + Advise)';}
+  document.querySelectorAll('.copilot-action-btn').forEach(b=>b.classList.remove('active'));
+}
+
+function renderPanelResponse(type,text){
+  const panelId='panel'+type.charAt(0).toUpperCase()+type.slice(1)+'Body';
+  const body=document.getElementById(panelId);
+  if(!body)return;
+  _ttsText=typeof text==='string'?text:JSON.stringify(text);
+  body.innerHTML='<div style="font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap">'+esc(text)+'</div>';
 }
 
 // ── TTS (Text-to-Speech) ──
@@ -5237,30 +5460,8 @@ function speakResponse(){
 }
 
 function renderCopilotResponse(type,text){
-  const headers={
-    explain:'&#128161; What They Said (Plain English)',
-    rebuttal:'&#9889; Rebuttal',
-    tone:'&#127912; Tone Analysis',
-    advise:'&#128172; Your Answer'
-  };
-  const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50'};
-  const headerEl=document.querySelector('.copilot-response .cr-header');
-  headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span><button id="btnSpeak2" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer" title="Read response aloud">&#128264; Read Aloud</button>`;
-  _ttsText=typeof text==='string'?text:JSON.stringify(text);
-  const body=document.getElementById('copilotResponseBody');
-
-  if(type==='tone'){
-    // Parse tone and show pills
-    const toneMatch=text.match(/(interested|skeptical|hostile|engaged|confused|excited|neutral|positive|negative|curious|cautious|warm|defensive)/gi);
-    const tones=(toneMatch||['neutral']).slice(0,3);
-    const toneClasses={interested:'positive',engaged:'positive',excited:'positive',warm:'positive',positive:'positive',
-      skeptical:'neutral',confused:'neutral',cautious:'neutral',neutral:'neutral',
-      hostile:'negative',defensive:'negative',negative:'negative',curious:'curious'};
-    body.innerHTML=`<div class="copilot-tone-bar">${tones.map(t=>`<span class="copilot-tone-pill tone-${toneClasses[t.toLowerCase()]||'neutral'}">${esc(t)}</span>`).join('')}</div>
-      <div style="font-size:12px;line-height:1.7;color:#e2e8f0">${esc(text)}</div>`;
-  } else {
-    body.innerHTML=`<div style="font-size:12px;line-height:1.7;color:#e2e8f0">${esc(text)}</div>`;
-  }
+  // Legacy single-panel rendering (kept for auto-coach compatibility)
+  renderPanelResponse(type,text);
 }
 
 // ── Meeting Context Loading ──
