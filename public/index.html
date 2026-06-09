@@ -5195,10 +5195,10 @@ async function copilotAction(type){
 
   const sessionTone=`IMPORTANT: Maintain a consistent, professional yet warm tone throughout this entire session. You are Manish's real-time meeting intelligence layer. Be direct, data-driven, and actionable. Never generic. Always reference specific things from the transcript, attendee data, and product knowledge. If previous responses were given in this session, maintain continuity.`;
   const prompts={
-    explain:`${sessionTone}\n\nExplain what the client/prospect just said. Break it down into: (1) what they literally said, (2) what they actually mean (read between the lines), (3) what concern or need this reveals. Be concise. Use the meeting context and ${kb.company} product knowledge. If web research would help, note what to look up.`,
-    rebuttal:`${sessionTone}\n\nThe prospect said something that needs a counter-argument for ${kb.company}. Generate a strong, data-driven rebuttal Manish can use right now. Include specific metrics, client results, and competitive advantages from the knowledge base. Make it conversational. Under 100 words. If the objection relates to a competitor, reference specific differentiators.`,
+    explain:`${sessionTone}\n\nReview the most recent part of the transcript and give Manish a clear, plain-English summary of what was just said. Specifically:\n(1) SUMMARY: In 2-3 sentences, what did the speaker just communicate? What is the key point?\n(2) JARGON DECODER: If ANY acronyms, technical terms, industry jargon, company-specific language, or abbreviations were used (like ERP, PIM, MDM, SKU, EDI, API, SaaS, ARR, NRR, churn, etc.), list each one with a plain-English definition. If the speaker mentioned a company, product, or platform name Manish might not know, look it up and explain what it is.\n(3) WHAT THIS MEANS FOR YOU: One sentence on why this matters in the context of this meeting and what Manish should take away from it.\nBe concise and practical. Do NOT repeat the transcript back. Translate complexity into clarity.`,
+    rebuttal:`${sessionTone}\n\nThe prospect has expressed hesitation, disinterest, or an objection. Manish needs a strong, natural comeback he can say RIGHT NOW in conversation. Generate:\n(1) ACKNOWLEDGE: One sentence that shows you heard them and validates their concern (never dismiss).\n(2) PIVOT: The counter-argument with specific data, metrics, or client results from ${kb.company}. Reference actual numbers from the knowledge base (cost savings, time reduction, retention lift, etc.).\n(3) SAY THIS: A word-for-word response Manish can deliver naturally in conversation. Under 60 words. Conversational, not salesy.\nIf the objection is about pricing, timing, existing solutions, competitors, or implementation complexity, tailor the rebuttal specifically to that objection type. Use the transcript to understand exactly what they said and counter it precisely.`,
     tone:`${sessionTone}\n\nAnalyze the emotional state of the conversation. Report: (1) Overall tone (interested/skeptical/hostile/engaged/confused/excited), (2) Specific signals from the transcript, (3) Deal trending positive or negative, (4) What emotional levers to pull next. Be specific about which words/phrases signal the tone.`,
-    advise:`${sessionTone}\n\nBased on the full conversation so far, tell Manish exactly what to say next for ${kb.company}. Consider: (1) conversation direction, (2) objections raised, (3) opportunities to advance, (4) the right product/feature to highlight. Give a specific, word-for-word suggestion. Under 100 words. Reference attendee data and past meeting history if available.`
+    advise:`${sessionTone}\n\nBased on what was JUST said in the last 1-2 minutes of transcript, tell Manish exactly how to respond. This is for when someone asked a question or made a statement that Manish needs to answer.\n(1) WHAT THEY ASKED/SAID: One sentence summary of their question or statement.\n(2) THE ANSWER: The factual answer using ${kb.company} product knowledge, metrics, case studies, or industry data. Be specific with numbers.\n(3) SAY THIS: A word-for-word response Manish can deliver right now. Under 80 words. Natural, confident, conversational. Not a pitch - an answer to their specific question.\n(4) FOLLOW UP WITH: One killer follow-up question Manish can ask to advance the conversation after answering.\nIf the question is about something outside the knowledge base, say so honestly and suggest what Manish can offer to follow up on.`
   };
 
   const data=[
@@ -5214,7 +5214,12 @@ async function copilotAction(type){
     const response=await ask(prompts[type],data);
     renderCopilotResponse(type,response);
   }catch(e){
-    body.innerHTML=`<div class="empty-state">AI response failed: ${esc(e.message||'Unknown error')}</div>`;
+    const errMsg=e.message||'Unknown error';
+    if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
+      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; AI requires ANTHROPIC_API_KEY on Render.<br><span style="font-size:11px;color:#64748b">Go to Render dashboard > Environment > add ANTHROPIC_API_KEY</span></div>';
+    }else{
+      body.innerHTML=`<div class="empty-state">AI response failed: ${esc(errMsg)}</div>`;
+    }
   }
 }
 
@@ -5233,10 +5238,10 @@ function speakResponse(){
 
 function renderCopilotResponse(type,text){
   const headers={
-    explain:'&#128161; Explanation',
+    explain:'&#128161; What They Said (Plain English)',
     rebuttal:'&#9889; Rebuttal',
     tone:'&#127912; Tone Analysis',
-    advise:'&#128172; What to Say Next'
+    advise:'&#128172; Your Answer'
   };
   const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50'};
   const headerEl=document.querySelector('.copilot-response .cr-header');
