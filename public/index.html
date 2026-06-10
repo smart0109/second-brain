@@ -870,6 +870,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div>
           <div class="copilot-audio-bar">
             <button id="btnListen" class="listen-btn idle" onclick="toggleListening()">Start Listening</button>
+            <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-muted);cursor:pointer;white-space:nowrap" title="Also capture system/tab audio so the other side of the call is transcribed. Pick the meeting tab or Entire Screen and enable Share audio."><input type="checkbox" id="dgSysAudio" checked style="accent-color:#4caf50"> System audio</label>
             <span id="listenStatus" class="listen-status">Idle - Click to start</span>
             <div id="listenDot" class="listen-dot off"></div>
           </div>
@@ -4958,71 +4959,155 @@ function getKnowledgeString(){
 VORRO HEALTHCARE: ${KNOWLEDGE_BASE.vorro.product}. Key metrics: ${KNOWLEDGE_BASE.vorro.metrics}. Standards: ${KNOWLEDGE_BASE.vorro.standards}. Pricing: ${KNOWLEDGE_BASE.vorro.pricing}. Tools: ${KNOWLEDGE_BASE.vorro.tools.join('; ')}.`;
 }
 
-// ── Speech Recognition ──
-function initCopilotSpeech(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){
-    document.getElementById('btnListen').textContent='Mic Unavailable';
-    document.getElementById('btnListen').disabled=true;
-    document.getElementById('listenStatus').textContent='Speech recognition not supported in this viewer. Type or paste transcript below instead.';
-    return;
-  }
-  copilotRecognition=new SR();
-  copilotRecognition.continuous=true;
-  copilotRecognition.interimResults=true;
-  copilotRecognition.lang='en-US';
-  copilotRecognition.maxAlternatives=1;
+// ── Live Transcription (Deepgram streaming, browser-speech fallback) ──
+let dgSocket=null, dgMediaRecorder=null, dgStreams=[], dgAudioCtx=null;
+let dgSpeakerNames={};
+let dgMode='deepgram';
 
-  copilotRecognition.onresult=(e)=>{
-    let interim='';
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      const t=e.results[i][0].transcript;
-      if(e.results[i].isFinal){
-        const speaker=document.getElementById('copilotSpeaker')?.value||'';
-        copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence,speaker});
-        renderCopilotTranscript();
-        checkObjections(t);
-        // Instant topic detection + auto-coach trigger
-        const brand=detectBrandFromContext();
-        const topics=[];
-        for(const tp of TOPIC_PATTERNS){if(tp.pattern.test(t))topics.push(tp);}
-        if(topics.length)surfaceAssets(topics,brand);
-        if(_autoCoachOn&&!_coachBusy)setTimeout(runAutoCoach,1000);
-      } else { interim=t; }
-    }
-    if(interim) renderCopilotInterim(interim);
-  };
-  copilotRecognition.onerror=(e)=>{
-    if(e.error==='not-allowed'){
-      document.getElementById('listenStatus').textContent='Microphone blocked by embedded viewer. Type or paste transcript below instead.';
-      document.getElementById('btnListen').textContent='Mic Blocked';
-      document.getElementById('btnListen').disabled=true;
-    } else if(e.error!=='no-speech'){
-      document.getElementById('listenStatus').textContent='Error: '+e.error+'. Restarting...';
-    }
-  };
-  copilotRecognition.onend=()=>{
-    if(copilotListening){try{copilotRecognition.start()}catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}}
-  };
+function initCopilotSpeech(){ /* lazy init - engines start on demand in toggleListening */ }
+
+function setListenUI(on,msg){
+  const btn=document.getElementById('btnListen');
+  if(btn){btn.textContent=on?'Stop Listening':'Start Listening';btn.className='listen-btn '+(on?'active':'idle');btn.disabled=false;}
+  const st=document.getElementById('listenStatus');if(st)st.textContent=msg||(on?'Listening...':'Stopped');
+  const dot=document.getElementById('listenDot');if(dot)dot.className='listen-dot '+(on?'on':'off');
 }
 
-function toggleListening(){
-  if(!copilotRecognition){initCopilotSpeech();if(!copilotRecognition)return;}
-  if(copilotListening){
-    copilotListening=false;
-    try{copilotRecognition.stop()}catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
-    document.getElementById('btnListen').textContent='Start Listening';
-    document.getElementById('btnListen').className='listen-btn idle';
-    document.getElementById('listenStatus').textContent='Stopped';
-    document.getElementById('listenDot').className='listen-dot off';
-  } else {
-    copilotListening=true;
-    try{copilotRecognition.start()}catch(e){copilotRecognition.stop();setTimeout(()=>copilotRecognition.start(),200)}
-    document.getElementById('btnListen').textContent='Stop Listening';
-    document.getElementById('btnListen').className='listen-btn active';
-    document.getElementById('listenStatus').textContent='Listening... speak into your microphone';
-    document.getElementById('listenDot').className='listen-dot on';
+async function toggleListening(){
+  if(copilotListening){stopListeningAll();return;}
+  const st=document.getElementById('listenStatus');if(st)st.textContent='Connecting...';
+  try{await startDeepgram();}
+  catch(e){
+    if(typeof _eBus!=='undefined')_eBus.capture(e,'dg-start-fallback');
+    startBrowserSpeech(e&&e.fallbackMsg?e.fallbackMsg:('Live STT unavailable ('+(e&&e.message||e)+'). Using browser speech.'));
   }
+}
+
+async function startDeepgram(){
+  const r=await fetch('/api/transcribe/token',{method:'POST'});
+  if(r.status===503){const e=new Error('no DEEPGRAM_API_KEY');e.fallbackMsg='Deepgram not configured on server. Using browser speech (lower quality).';throw e;}
+  if(!r.ok)throw new Error('token http '+r.status);
+  const tk=await r.json();
+  const mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+  dgStreams=[mic];
+  let mixed=mic;
+  const wantSys=document.getElementById('dgSysAudio')?.checked;
+  if(wantSys&&navigator.mediaDevices.getDisplayMedia){
+    try{
+      const sys=await navigator.mediaDevices.getDisplayMedia({video:true,audio:{echoCancellation:false,noiseSuppression:false}});
+      sys.getVideoTracks().forEach(t=>t.stop());
+      if(sys.getAudioTracks().length){
+        dgStreams.push(sys);
+        dgAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+        const dest=dgAudioCtx.createMediaStreamDestination();
+        dgAudioCtx.createMediaStreamSource(mic).connect(dest);
+        dgAudioCtx.createMediaStreamSource(sys).connect(dest);
+        mixed=dest.stream;
+      }
+    }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'sys-audio-declined');}
+  }
+  const proto=location.protocol==='https:'?'wss://':'ws://';
+  const ws=new WebSocket(proto+location.host+'/ws/transcribe?token='+encodeURIComponent(tk.token));
+  ws.onmessage=(ev)=>{try{handleDgMessage(JSON.parse(ev.data))}catch(e){}};
+  ws.onclose=()=>{if(copilotListening&&dgMode==='deepgram')setListenUI(false,'Connection closed. Click Start to resume.');};
+  await new Promise((res,rej)=>{ws.onopen=res;ws.onerror=()=>rej(new Error('WS connect failed'));setTimeout(()=>rej(new Error('WS connect timeout')),8000);});
+  dgSocket=ws;
+  const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
+  dgMediaRecorder=new MediaRecorder(mixed,{mimeType:mime,audioBitsPerSecond:128000});
+  dgMediaRecorder.ondataavailable=(e)=>{if(e.data&&e.data.size>0&&ws.readyState===1)e.data.arrayBuffer().then(b=>{try{ws.send(b)}catch(err){}});};
+  dgMediaRecorder.start(250);
+  dgMode='deepgram';
+  copilotListening=true;
+  setListenUI(true,dgStreams.length>1?'Listening (mic + system audio, diarized)...':'Listening (mic only, diarized)...');
+}
+
+function handleDgMessage(m){
+  if(m.dgError){setListenUI(false,'STT error: '+m.dgError);return;}
+  const alt=m.channel&&m.channel.alternatives&&m.channel.alternatives[0];
+  if(!alt)return;
+  if(!m.is_final){if(alt.transcript)renderCopilotInterim(alt.transcript);return;}
+  if(!alt.transcript||!alt.transcript.trim())return;
+  const words=alt.words||[];
+  const runs=[];
+  for(const w of words){
+    const sp=(w.speaker===undefined||w.speaker===null)?-1:w.speaker;
+    const txt=w.punctuated_word||w.word;
+    if(runs.length&&runs[runs.length-1].sp===sp)runs[runs.length-1].words.push(txt);
+    else runs.push({sp,words:[txt]});
+  }
+  if(!runs.length)runs.push({sp:-1,words:[alt.transcript.trim()]});
+  const interimEl=document.querySelector('#copilotTranscript .ct-interim');if(interimEl)interimEl.remove();
+  for(const run of runs){
+    const text=run.words.join(' ').trim();
+    if(!text)continue;
+    const speaker=run.sp<0?'':(dgSpeakerNames[run.sp]||('Speaker '+(run.sp+1)));
+    copilotTranscriptLines.push({text,time:new Date(),confidence:alt.confidence||1,speaker,dgSpeaker:run.sp});
+    checkObjections(text);
+    const brand=detectBrandFromContext();
+    const topics=[];
+    for(const tp of TOPIC_PATTERNS){if(tp.pattern.test(text))topics.push(tp);}
+    if(topics.length)surfaceAssets(topics,brand);
+  }
+  renderCopilotTranscript();
+  if(_autoCoachOn&&!_coachBusy)setTimeout(runAutoCoach,1000);
+}
+
+function renameDgSpeaker(sp){
+  const cur=dgSpeakerNames[sp]||('Speaker '+(sp+1));
+  const name=prompt('Rename "'+cur+'" to (e.g. attendee name):',cur);
+  if(!name||!name.trim())return;
+  dgSpeakerNames[sp]=name.trim();
+  copilotTranscriptLines.forEach(l=>{if(l.dgSpeaker===sp)l.speaker=name.trim();});
+  renderCopilotTranscript();
+}
+
+function stopListeningAll(){
+  copilotListening=false;
+  if(dgMode==='browser'&&copilotRecognition){try{copilotRecognition.stop()}catch(e){}}
+  if(dgMediaRecorder&&dgMediaRecorder.state!=='inactive'){try{dgMediaRecorder.stop()}catch(e){}}
+  dgMediaRecorder=null;
+  if(dgSocket){try{dgSocket.send(JSON.stringify({type:'CloseStream'}))}catch(e){}try{dgSocket.close()}catch(e){}dgSocket=null;}
+  dgStreams.forEach(s=>{try{s.getTracks().forEach(t=>t.stop())}catch(e){}});dgStreams=[];
+  if(dgAudioCtx){try{dgAudioCtx.close()}catch(e){}dgAudioCtx=null;}
+  setListenUI(false,'Stopped');
+}
+
+function startBrowserSpeech(statusMsg){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){setListenUI(false,'Mic unavailable in this viewer. Type or paste transcript below instead.');return;}
+  if(!copilotRecognition){
+    copilotRecognition=new SR();
+    copilotRecognition.continuous=true;
+    copilotRecognition.interimResults=true;
+    copilotRecognition.lang='en-US';
+    copilotRecognition.maxAlternatives=1;
+    copilotRecognition.onresult=(e)=>{
+      let interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        if(e.results[i].isFinal){
+          const speaker=document.getElementById('copilotSpeaker')?.value||'';
+          copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence,speaker});
+          renderCopilotTranscript();
+          checkObjections(t);
+          const brand=detectBrandFromContext();
+          const topics=[];
+          for(const tp of TOPIC_PATTERNS){if(tp.pattern.test(t))topics.push(tp);}
+          if(topics.length)surfaceAssets(topics,brand);
+          if(_autoCoachOn&&!_coachBusy)setTimeout(runAutoCoach,1000);
+        } else { interim=t; }
+      }
+      if(interim) renderCopilotInterim(interim);
+    };
+    copilotRecognition.onerror=(e)=>{
+      if(e.error==='not-allowed'){setListenUI(false,'Microphone blocked by embedded viewer. Type or paste transcript below instead.');copilotListening=false;}
+    };
+    copilotRecognition.onend=()=>{if(copilotListening&&dgMode==='browser'){try{copilotRecognition.start()}catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}}};
+  }
+  dgMode='browser';
+  copilotListening=true;
+  try{copilotRecognition.start()}catch(e){}
+  setListenUI(true,statusMsg||'Listening (browser speech)...');
 }
 
 function renderCopilotTranscript(){
@@ -5034,7 +5119,7 @@ function renderCopilotTranscript(){
   el.innerHTML=copilotTranscriptLines.map(l=>{
     const spk=l.speaker||'';
     const color=speakerColors[spk]||'var(--text-muted)';
-    const spkTag=spk?`<span style="color:${color};font-weight:700;font-size:11px;margin-right:6px">${esc(spk)}:</span>`:'';
+    const canRename=(l.dgSpeaker!==undefined&&l.dgSpeaker>=0);const spkTag=spk?`<span style="color:${color};font-weight:700;font-size:11px;margin-right:6px${canRename?';cursor:pointer;text-decoration:underline dotted':''}" ${canRename?`onclick="renameDgSpeaker(${l.dgSpeaker})" title="Click to rename this speaker"`:''}>${esc(spk)}:</span>`:'';
     return `<div class="ct-line"><span class="ct-time">${l.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}</span>${spkTag}${esc(l.text)}</div>`;
   }).join('');
   el.scrollTop=el.scrollHeight;
@@ -5470,6 +5555,7 @@ function refreshCopilotMeeting(){
 }
 
 function clearCopilotSession(){
+  if(copilotListening){try{stopListeningAll()}catch(e){}}
   copilotTranscriptLines=[];
   copilotMeetingContext='';
   copilotAttendeeData={};

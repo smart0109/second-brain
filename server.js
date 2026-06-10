@@ -2393,6 +2393,20 @@ app.get('/api/errors/circuit-breaks', requireAuth, (req, res) => {
   res.json({ count: breaks.length, threshold: CIRCUIT_BREAK_THRESHOLD, breaks });
 });
 
+// ---------------------------------------------------------------------------
+// Deepgram live transcription - short-lived WS tokens
+// ---------------------------------------------------------------------------
+const dgCrypto = require('crypto');
+const dgTokens = new Map();
+function dgSweepTokens() { const now = Date.now(); for (const [t, exp] of dgTokens) { if (exp < now) dgTokens.delete(t); } }
+app.post('/api/transcribe/token', requireAuth, (_req, res) => {
+  if (!process.env.DEEPGRAM_API_KEY) return res.status(503).json({ error: 'DEEPGRAM_API_KEY not configured' });
+  dgSweepTokens();
+  const token = dgCrypto.randomBytes(24).toString('hex');
+  dgTokens.set(token, Date.now() + 5 * 60 * 1000);
+  res.json({ token });
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -2408,7 +2422,7 @@ app.use((err, _req, res, _next) => {
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log(`Second Brain server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);
   if (!process.env.GOOGLE_REFRESH_TOKEN) {
@@ -2421,3 +2435,54 @@ app.listen(PORT, () => {
   if (process.env.GRANOLA_API_KEY) console.log('Granola: configured');
   if (process.env.ANTHROPIC_API_KEY) console.log('Claude: configured');
 });
+
+// ---------------------------------------------------------------------------
+// Deepgram live transcription - WS proxy (browser <-> Deepgram)
+// ---------------------------------------------------------------------------
+const DG_KEYTERMS = ['Cadient','SmartSuite','SmartSource','SmartMatch','SmartScreen','SmartTenure','SmartHire','Vorro','BridgeGate','EiPaaS','FHIR','HL7','iCIMS','Workday','Greenhouse','Paradox','Cerner','athenahealth','interoperability','Medicaid','ATS','cost per hire','time to fill','Basis Vectors'];
+
+let DGWss = null;
+try {
+  const { WebSocketServer } = require('ws');
+  DGWss = new WebSocketServer({ noServer: true });
+} catch (e) { console.warn('ws module not installed; live transcription disabled:', e.message); }
+
+if (DGWss) {
+  httpServer.on('upgrade', (req, socket, head) => {
+    let u;
+    try { u = new URL(req.url, 'http://localhost'); } catch (e) { socket.destroy(); return; }
+    if (u.pathname !== '/ws/transcribe') { socket.destroy(); return; }
+    const token = u.searchParams.get('token') || '';
+    const exp = dgTokens.get(token);
+    if (!exp || exp < Date.now()) { socket.destroy(); return; }
+    dgTokens.delete(token);
+    DGWss.handleUpgrade(req, socket, head, (client) => dgHandleClient(client));
+  });
+  console.log('Live transcription: WS proxy mounted at /ws/transcribe');
+}
+
+function dgHandleClient(client) {
+  const WS = require('ws');
+  const params = new URLSearchParams({ model: 'nova-3', smart_format: 'true', diarize: 'true', interim_results: 'true', punctuate: 'true' });
+  const qs = params.toString() + DG_KEYTERMS.map(k => '&keyterm=' + encodeURIComponent(k)).join('');
+  const dg = new WS('wss://api.deepgram.com/v1/listen?' + qs, { headers: { Authorization: 'Token ' + process.env.DEEPGRAM_API_KEY } });
+  const queue = [];
+  let dgOpen = false;
+  let keepAlive = null;
+  function cleanup() { if (keepAlive) { clearInterval(keepAlive); keepAlive = null; } }
+  dg.on('open', () => {
+    dgOpen = true;
+    for (const buf of queue.splice(0)) { try { dg.send(buf); } catch (e) {} }
+    keepAlive = setInterval(() => { try { dg.send(JSON.stringify({ type: 'KeepAlive' })); } catch (e) {} }, 6000);
+  });
+  dg.on('message', (data) => { try { client.send(data.toString()); } catch (e) {} });
+  dg.on('close', () => { cleanup(); try { client.close(); } catch (e) {} });
+  dg.on('error', (e) => { cleanup(); try { client.send(JSON.stringify({ dgError: String((e && e.message) || e) })); client.close(); } catch (e2) {} });
+  client.on('message', (msg, isBinary) => {
+    if (!isBinary) { if (dgOpen) { try { dg.send(msg.toString()); } catch (e) {} } return; }
+    if (dgOpen) { try { dg.send(msg); } catch (e) {} }
+    else if (queue.length < 400) queue.push(msg);
+  });
+  client.on('close', () => { cleanup(); try { dg.close(); } catch (e) {} });
+  client.on('error', () => { cleanup(); try { dg.close(); } catch (e) {} });
+}
