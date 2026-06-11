@@ -715,7 +715,7 @@ app.get('/health', (_req, res) => {
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
       vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
       granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
-      claude: !!process.env.ANTHROPIC_API_KEY,
+      claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
     },
   });
 });
@@ -730,7 +730,7 @@ app.get('/auth/status', (req, res) => {
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
       vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
       granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
-      claude: !!process.env.ANTHROPIC_API_KEY,
+      claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
     },
   });
 });
@@ -1486,18 +1486,65 @@ app.post('/api/crm/vorro/deals/:id/products', requireAuth, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Claude API proxy
+// AI API proxy — Gemini (primary, free) → Groq (fallback, free) → Anthropic (last resort)
 // ---------------------------------------------------------------------------
-app.post('/api/ask', requireAuth, async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
-  }
+async function askGemini(systemPrompt, userContent, maxTokens) {
+  // Rotate through available Gemini keys
+  const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2, process.env.GEMINI_API_KEY_3, process.env.GEMINI_API_KEY_4, process.env.GEMINI_API_KEY_5].filter(Boolean);
+  if (!keys.length) return null;
+  const key = keys[Math.floor(Math.random() * keys.length)];
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userContent }] }],
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.3 }
+    }),
+  });
+  if (!resp.ok) { const t = await resp.text(); throw new Error(`Gemini ${resp.status}: ${t.slice(0,200)}`); }
+  const r = await resp.json();
+  return r.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
 
+async function askGroq(systemPrompt, userContent, maxTokens) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return null;
+  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
+      max_tokens: maxTokens, temperature: 0.3
+    }),
+  });
+  if (!resp.ok) { const t = await resp.text(); throw new Error(`Groq ${resp.status}: ${t.slice(0,200)}`); }
+  const r = await resp.json();
+  return r.choices?.[0]?.message?.content || '';
+}
+
+async function askAnthropic(systemPrompt, userContent, maxTokens) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }],
+    }),
+  });
+  if (!resp.ok) { const t = await resp.text(); throw new Error(`Anthropic ${resp.status}: ${t.slice(0,200)}`); }
+  const r = await resp.json();
+  return r.content?.[0]?.text || '';
+}
+
+app.post('/api/ask', requireAuth, async (req, res) => {
   const { prompt, data, fast } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
 
-  // Build the user message: prompt + serialized data context
   let userContent = prompt;
   if (data && Array.isArray(data) && data.length > 0) {
     const contextParts = data.map((d) => {
@@ -1508,40 +1555,29 @@ app.post('/api/ask', requireAuth, async (req, res) => {
     userContent += '\n\n--- DATA CONTEXT ---\n' + contextParts.join('\n\n');
   }
 
-  // Always use Haiku for fastest response time
-  const model = 'claude-haiku-4-5-20251001';
   const maxTokens = 512;
-
   const systemPrompt = 'You are a real-time sales meeting intelligence assistant for a CRO named Manish. He manages two companies: Cadient (AI-powered talent/HR platform with SmartSuite) and Vorro (healthcare integration platform with BridgeGate EiPaaS). Be direct, data-driven, and actionable. Never generic. Always reference specifics from the conversation. Keep responses concise and immediately usable in a live meeting context.';
 
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
-      }),
-    });
+  // Try providers in order: Gemini (free) → Groq (free) → Anthropic (paid)
+  const providers = [
+    { name: 'Gemini', fn: () => askGemini(systemPrompt, userContent, maxTokens) },
+    { name: 'Groq', fn: () => askGroq(systemPrompt, userContent, maxTokens) },
+    { name: 'Anthropic', fn: () => askAnthropic(systemPrompt, userContent, maxTokens) },
+  ];
 
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Anthropic API error: ${resp.status} ${text}`);
+  for (const p of providers) {
+    try {
+      const result = await p.fn();
+      if (result !== null && result !== '') {
+        console.log(`AI ask served by ${p.name}`);
+        return res.json(result);
+      }
+    } catch (err) {
+      console.warn(`${p.name} failed: ${err.message}`);
     }
-
-    const result = await resp.json();
-    const text = result.content?.[0]?.text || '';
-    return res.json(text);
-  } catch (err) {
-    console.error('Claude API error:', err.message);
-    return res.status(502).json({ error: err.message });
   }
+
+  return res.status(503).json({ error: 'All AI providers failed. Check GEMINI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY in environment.' });
 });
 
 
