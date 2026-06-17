@@ -1,3 +1,9 @@
+databases:
+  - name: second-brain-db
+    plan: free
+    databaseName: second_brain
+    user: second_brain
+
 services:
   - type: web
     runtime: node
@@ -8,23 +14,48 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Postgres (multi-user store) — auto-wired from the database above
+      - key: DATABASE_URL
+        fromDatabase:
+          name: second-brain-db
+          property: connectionString
+      # 32-byte key (hex or base64) for encrypting per-user provider tokens
+      - key: TOKEN_ENC_KEY
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      # Access control
+      - key: ALLOWED_EMAIL          # bootstrap admin (seeded into allowlist on first boot)
+        sync: false
+      - key: ADMIN_EMAILS           # comma-separated extra admins (optional)
+        sync: false
+      # Google OAuth (login + Gmail/Calendar/Drive data)
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      - key: GOOGLE_REFRESH_TOKEN
+      - key: REDIRECT_URI           # https://<app>.onrender.com/auth/google/callback
         sync: false
-      - key: REDIRECT_URI
+      # Microsoft / Entra OAuth (login only)
+      - key: MS_CLIENT_ID
         sync: false
+      - key: MS_CLIENT_SECRET
+        sync: false
+      - key: MS_TENANT              # 'common', 'organizations', or a tenant GUID
+        sync: false
+      - key: MS_REDIRECT_URI        # https://<app>.onrender.com/auth/microsoft/callback
+        sync: false
+      # Zoho OAuth apps (shared client; each user grants their own refresh token)
       - key: ZOHO_CLIENT_ID
         sync: false
       - key: ZOHO_CLIENT_SECRET
         sync: false
-      - key: ZOHO_REFRESH_TOKEN
+      - key: ZOHO_REDIRECT_URI      # https://<app>.onrender.com/connect/zoho/callback
         sync: false
-      - key: ZOHO_API_DOMAIN
+      - key: VORRO_ZOHO_CLIENT_ID
         sync: false
-      - key: SESSION_SECRET
+      - key: VORRO_ZOHO_CLIENT_SECRET
         sync: false
-      - key: ALLOWED_EMAIL
+      # AI / other (unchanged)
+      - key: ANTHROPIC_API_KEY
         sync: false

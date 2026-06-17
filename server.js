@@ -7,6 +7,11 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const { google } = require('googleapis');
+const db = require('./lib/db');
+const tokens = require('./lib/tokens');
+const authLib = require('./lib/auth');
+const ctx = require('./lib/context');
+const memstore = require('./lib/memstore');
 
 const app = express();
 
@@ -66,8 +71,19 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
+// Session store: Postgres-backed (durable across restarts/deploys) when DATABASE_URL
+// is set, else in-memory (dev only).
+let _sessionStore;
+if (db.isConfigured()) {
+  const pgSession = require('connect-pg-simple')(session);
+  _sessionStore = new pgSession({ pool: db.getPool(), tableName: 'session', createTableIfMissing: true });
+} else {
+  console.warn('[startup] DATABASE_URL not set - using in-memory sessions (multi-user disabled).');
+}
+
 app.use(
   session({
+    store: _sessionStore,
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -78,6 +94,14 @@ app.use(
     },
   })
 );
+
+// Bind the logged-in user to request-scoped context so token helpers can resolve
+// "the current user" without threading userId through every handler.
+app.use((req, _res, next) => {
+  ctx.run({ userId: (req.session && req.session.userId) || null,
+            isAdmin: !!(req.session && req.session.isAdmin),
+            email: (req.session && req.session.email) || null }, () => next());
+});
 
 // ---------------------------------------------------------------------------
 // Google OAuth2 helpers
@@ -90,11 +114,15 @@ function createOAuth2Client() {
   );
 }
 
-function getAuthedClient() {
+// Per-user Google client: loads THIS user's refresh token from the encrypted
+// vault. No global GOOGLE_REFRESH_TOKEN is used anymore.
+async function getAuthedClient() {
+  const userId = ctx.currentUserId();
+  if (!userId) return null;
+  const t = await tokens.getToken(userId, 'google');
+  if (!t || !t.payload || !t.payload.refresh_token) return null;
   const oauth2 = createOAuth2Client();
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
-  if (!refreshToken) return null;
-  oauth2.setCredentials({ refresh_token: refreshToken });
+  oauth2.setCredentials({ refresh_token: t.payload.refresh_token });
   return oauth2;
 }
 
@@ -102,75 +130,55 @@ function getAuthedClient() {
 // Auth middleware
 // ---------------------------------------------------------------------------
 function requireAuth(req, res, next) {
-  if (req.session && req.session.authenticated) return next();
-  if (process.env.GOOGLE_REFRESH_TOKEN) return next(); // env-based persistent auth
+  if (req.session && req.session.userId) return next();
   return res.status(401).json({ error: 'Not authenticated. Visit /auth/google to sign in.' });
 }
 
 // ---------------------------------------------------------------------------
 // Zoho token cache — Cadient (US DC) + Vorro (India DC)
 // ---------------------------------------------------------------------------
-let zohoTokenCache = { accessToken: null, expiresAt: 0 };
-let vorroTokenCache = { accessToken: null, expiresAt: 0 };
-
 const VORRO_ZOHO_API_DOMAIN = process.env.VORRO_ZOHO_API_DOMAIN || 'https://www.zohoapis.in';
 const VORRO_ZOHO_TOKEN_URL = process.env.VORRO_ZOHO_TOKEN_URL || 'https://accounts.zoho.in/oauth/v2/token';
 
-async function getZohoAccessToken() {
-  if (zohoTokenCache.accessToken && Date.now() < zohoTokenCache.expiresAt - 60_000) {
-    return zohoTokenCache.accessToken;
+// Per-user Zoho access-token cache, keyed `${userId}:${provider}`.
+const zohoUserCache = new Map();
+
+// Refresh a Zoho access token for the CURRENT user using their vault-stored
+// refresh token. The OAuth app (client id/secret) is shared; the grant is per user.
+async function _zohoAccessToken(provider) {
+  const userId = ctx.currentUserId();
+  if (!userId) throw new Error('Not authenticated.');
+  const ck = `${userId}:${provider}`;
+  const cached = zohoUserCache.get(ck);
+  if (cached && Date.now() < cached.expiresAt - 60_000) return cached.accessToken;
+
+  const t = await tokens.getToken(userId, provider);
+  if (!t || !t.payload || !t.payload.refresh_token) {
+    throw new Error(`${provider === 'zoho_vorro' ? 'Vorro Zoho' : 'Zoho'} not connected. Connect it from the dashboard.`);
   }
+  const isVorro = provider === 'zoho_vorro';
+  const tokenUrl = isVorro ? VORRO_ZOHO_TOKEN_URL : (process.env.ZOHO_TOKEN_URL || 'https://accounts.zoho.com/oauth/v2/token');
   const params = new URLSearchParams({
     grant_type: 'refresh_token',
-    client_id: process.env.ZOHO_CLIENT_ID,
-    client_secret: process.env.ZOHO_CLIENT_SECRET,
-    refresh_token: process.env.ZOHO_REFRESH_TOKEN,
+    client_id: isVorro ? process.env.VORRO_ZOHO_CLIENT_ID : process.env.ZOHO_CLIENT_ID,
+    client_secret: isVorro ? process.env.VORRO_ZOHO_CLIENT_SECRET : process.env.ZOHO_CLIENT_SECRET,
+    refresh_token: t.payload.refresh_token,
   });
-  const resp = await fetch('https://accounts.zoho.com/oauth/v2/token', {
-    method: 'POST',
-    body: params,
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`Zoho token refresh failed: ${resp.status} ${text}`);
-  }
+  const resp = await fetch(tokenUrl, { method: 'POST', body: params });
+  if (!resp.ok) throw new Error(`Zoho token refresh failed: ${resp.status} ${await resp.text()}`);
   const data = await resp.json();
   if (data.error) throw new Error(`Zoho token error: ${data.error}`);
-  zohoTokenCache = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
-  };
-  return zohoTokenCache.accessToken;
+  const entry = { accessToken: data.access_token, expiresAt: Date.now() + (data.expires_in || 3600) * 1000 };
+  zohoUserCache.set(ck, entry);
+  return entry.accessToken;
+}
+
+async function getZohoAccessToken() {
+  return _zohoAccessToken('zoho');
 }
 
 async function getVorroZohoAccessToken() {
-  if (vorroTokenCache.accessToken && Date.now() < vorroTokenCache.expiresAt - 60_000) {
-    return vorroTokenCache.accessToken;
-  }
-  if (!process.env.VORRO_ZOHO_REFRESH_TOKEN) {
-    throw new Error('Vorro Zoho not configured. Set VORRO_ZOHO_CLIENT_ID, VORRO_ZOHO_CLIENT_SECRET, and VORRO_ZOHO_REFRESH_TOKEN.');
-  }
-  const params = new URLSearchParams({
-    grant_type: 'refresh_token',
-    client_id: process.env.VORRO_ZOHO_CLIENT_ID,
-    client_secret: process.env.VORRO_ZOHO_CLIENT_SECRET,
-    refresh_token: process.env.VORRO_ZOHO_REFRESH_TOKEN,
-  });
-  const resp = await fetch(VORRO_ZOHO_TOKEN_URL, {
-    method: 'POST',
-    body: params,
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`Vorro Zoho token refresh failed: ${resp.status} ${text}`);
-  }
-  const data = await resp.json();
-  if (data.error) throw new Error(`Vorro Zoho token error: ${data.error}`);
-  vorroTokenCache = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
-  };
-  return vorroTokenCache.accessToken;
+  return _zohoAccessToken('zoho_vorro');
 }
 
 // ---------------------------------------------------------------------------
@@ -262,8 +270,8 @@ async function batchGetThreads(gmail, threadIds) {
 
 // ---- Gmail ----
 async function handleGmail(toolName, args) {
-  const auth = getAuthedClient();
-  if (!auth) throw new Error('Google not authenticated. Set GOOGLE_REFRESH_TOKEN or visit /auth/google');
+  const auth = await getAuthedClient();
+  if (!auth) throw new Error('Google not connected for this user. Connect Google from the dashboard.');
   const gmail = google.gmail({ version: 'v1', auth });
 
   if (toolName === 'search_threads') {
@@ -368,7 +376,7 @@ async function handleGmail(toolName, args) {
 
 // ---- Calendar ----
 async function handleCalendar(toolName, args) {
-  const auth = getAuthedClient();
+  const auth = await getAuthedClient();
   if (!auth) throw new Error('Google not authenticated');
   const calendar = google.calendar({ version: 'v3', auth });
 
@@ -416,9 +424,8 @@ async function handleCalendar(toolName, args) {
 
 // ---- Zoho CRM ----
 async function handleZoho(toolName, args) {
-  if (!process.env.ZOHO_REFRESH_TOKEN) {
-    throw new Error('Zoho not configured. Set ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, and ZOHO_REFRESH_TOKEN.');
-  }
+  // Per-user: getZohoAccessToken() throws a clear 'not connected' error if this
+  // user has not linked Zoho. No global ZOHO_REFRESH_TOKEN is used.
   const token = await getZohoAccessToken();
   const headers = {
     Authorization: `Zoho-oauthtoken ${token}`,
@@ -519,8 +526,17 @@ function loadMeetingsCache() {
 }
 loadMeetingsCache();
 
+async function getGranolaKey() {
+  const userId = ctx.currentUserId();
+  if (userId) {
+    const t = await tokens.getToken(userId, 'granola');
+    if (t && t.payload && t.payload.api_key) return t.payload.api_key;
+  }
+  return process.env.GRANOLA_API_KEY || null;
+}
+
 async function handleGranola(toolName, args) {
-  const apiKey = process.env.GRANOLA_API_KEY;
+  const apiKey = await getGranolaKey();
 
   // If we have an API key, use live Granola API
   if (apiKey) {
@@ -604,7 +620,7 @@ async function handleGranola(toolName, args) {
 
 // ---- Drive ----
 async function handleDrive(toolName, args) {
-  const auth = getAuthedClient();
+  const auth = await getAuthedClient();
   if (!auth) throw new Error('Google not authenticated');
   const drive = google.drive({ version: 'v3', auth });
 
@@ -710,100 +726,226 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    multiUser: db.isConfigured(),
     services: {
-      google: !!process.env.GOOGLE_REFRESH_TOKEN,
-      zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
+      googleOAuth: !!process.env.GOOGLE_CLIENT_ID,
+      microsoftOAuth: !!process.env.MS_CLIENT_ID,
+      zohoOAuth: !!process.env.ZOHO_CLIENT_ID,
+      vorroZohoOAuth: !!process.env.VORRO_ZOHO_CLIENT_ID,
       granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
       claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
     },
   });
 });
 
-// Auth status
-app.get('/auth/status', (req, res) => {
-  res.json({
-    authenticated: !!(req.session?.authenticated || process.env.GOOGLE_REFRESH_TOKEN),
-    email: req.session?.email || process.env.ALLOWED_EMAIL || null,
-    services: {
-      google: !!process.env.GOOGLE_REFRESH_TOKEN,
-      zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
-      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
-      claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
-    },
-  });
-});
+// ---------------------------------------------------------------------------
+// Auth helpers (multi-provider: Google + Microsoft) + per-user data connections
+// ---------------------------------------------------------------------------
+const crypto = require('crypto');
 
-// Google OAuth: start
-app.get('/auth/google', (_req, res) => {
-  const oauth2 = createOAuth2Client();
-  const url = oauth2.generateAuthUrl({
-    access_type: 'offline',
-    prompt: 'consent',
-    scope: GOOGLE_SCOPES,
-  });
-  res.redirect(url);
-});
-
-// Google OAuth: callback
-app.get('/auth/google/callback', async (req, res) => {
-  const { code } = req.query;
-  if (!code) return res.status(400).send('Missing authorization code');
-
-  try {
-    const oauth2 = createOAuth2Client();
-    const { tokens } = await oauth2.getToken(code);
-    oauth2.setCredentials(tokens);
-
-    // Verify email
-    const oauth2Api = google.oauth2({ version: 'v2', auth: oauth2 });
-    const userInfo = await oauth2Api.userinfo.get();
-    const email = (userInfo.data.email || '').toLowerCase();
-
-    if (!ALLOWED_EMAILS.includes(email)) {
-      return res.status(403).send(`Access denied. Email ${email} is not authorized.`);
-    }
-
-    req.session.authenticated = true;
-    req.session.email = email;
-
-    // If we got a refresh token, show it for the user to save
-    if (tokens.refresh_token) {
-      res.send(`
-        <html>
-        <head><title>Auth Success</title>
-        <style>
-          body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; background: #0f172a; color: #e2e8f0; }
-          .token-box { background: #1e293b; padding: 16px; border-radius: 8px; word-break: break-all; font-family: monospace; font-size: 13px; margin: 16px 0; border: 1px solid #334155; }
-          h1 { color: #38bdf8; }
-          p { line-height: 1.6; }
-          a { color: #38bdf8; }
-          code { background: #1e293b; padding: 2px 6px; border-radius: 4px; }
-        </style>
-        </head>
-        <body>
-          <h1>Authenticated as ${email}</h1>
-          <p>Save this refresh token as <code>GOOGLE_REFRESH_TOKEN</code> in your environment variables for persistent auth:</p>
-          <div class="token-box">${tokens.refresh_token}</div>
-          <p>Once saved, the server will auto-authenticate on startup without needing to sign in again.</p>
-          <p><a href="/">Go to Dashboard</a></p>
-        </body>
-        </html>
-      `);
-    } else {
-      res.redirect('/');
-    }
-  } catch (err) {
-    console.error('OAuth callback error:', err);
-    res.status(500).send(`Authentication failed: ${err.message}`);
+function baseUrl(req) {
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0];
+  return `${proto}://${req.get('host')}`;
+}
+function googleRedirectUri(req) {
+  return process.env.REDIRECT_URI || `${baseUrl(req)}/auth/google/callback`;
+}
+function msRedirectUri(req) {
+  return process.env.MS_REDIRECT_URI || `${baseUrl(req)}/auth/microsoft/callback`;
+}
+function zohoRedirectUri(req) {
+  return process.env.ZOHO_REDIRECT_URI || `${baseUrl(req)}/connect/zoho/callback`;
+}
+function newState(req, extra) {
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.oauth = { state, extra: extra || {}, ts: Date.now() };
+  return state;
+}
+function checkState(req, given) {
+  const o = req.session.oauth;
+  if (!o || !given || o.state !== given) return null;
+  if (Date.now() - o.ts > 10 * 60 * 1000) return null; // 10-min window
+  delete req.session.oauth;
+  return o.extra || {};
+}
+function denied(res, email) {
+  return res
+    .status(403)
+    .send(`<html><body style="font-family:system-ui;max-width:640px;margin:60px auto;text-align:center"><h2>Access denied</h2><p><b>${email || 'This account'}</b> is not on the allowlist. Ask an admin to add you.</p><p><a href="/">Back</a></p></body></html>`);
+}
+function requireDb(res) {
+  if (!db.isConfigured()) {
+    res.status(503).json({ error: 'Multi-user store not configured (DATABASE_URL missing).' });
+    return false;
   }
+  return true;
+}
+async function finishLogin(req, res, { email, name, provider, providerId }) {
+  if (!(await authLib.isAllowed(email))) return denied(res, email);
+  const user = await authLib.upsertUserOnLogin({ email, name, provider, providerId });
+  req.session.userId = user.id;
+  req.session.email = user.email;
+  req.session.isAdmin = !!user.is_admin;
+  delete req.session.authenticated; // legacy flag no longer used
+  return user;
+}
+function requireAdmin(req, res, next) {
+  if (req.session && req.session.userId && req.session.isAdmin) return next();
+  return res.status(403).json({ error: 'Admin only.' });
+}
+
+// Auth status (per-user)
+app.get('/auth/status', async (req, res) => {
+  const userId = req.session?.userId || null;
+  let connections = [];
+  if (userId && db.isConfigured()) {
+    try { connections = await tokens.listConnections(userId); } catch (e) { /* ignore */ }
+  }
+  const has = (p) => connections.some((c) => c.provider === p);
+  res.json({
+    authenticated: !!userId,
+    email: req.session?.email || null,
+    isAdmin: !!req.session?.isAdmin,
+    providers: { google: true, microsoft: !!process.env.MS_CLIENT_ID },
+    services: {
+      google: has('google'),
+      zoho: has('zoho'),
+      vorroZoho: has('zoho_vorro'),
+      granola: has('granola') || !!(process.env.GRANOLA_API_KEY || meetingsCache),
+      claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
+    },
+    connections,
+  });
+});
+
+// --- Google: login + connect data (Gmail/Calendar/Drive) in one consent ---
+app.get('/auth/google', (req, res) => {
+  const state = newState(req, { flow: 'google' });
+  res.redirect(authLib.googleAuthUrl({ redirectUri: googleRedirectUri(req), scopes: authLib.GOOGLE_DATA_SCOPES, state }));
+});
+// Connect alias (for an already-logged-in user re-linking Google)
+app.get('/connect/google', requireAuth, (req, res) => {
+  const state = newState(req, { flow: 'google' });
+  res.redirect(authLib.googleAuthUrl({ redirectUri: googleRedirectUri(req), scopes: authLib.GOOGLE_DATA_SCOPES, state }));
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code) return res.status(400).send('Missing authorization code');
+  if (!requireDb(res)) return;
+  if (!checkState(req, state)) return res.status(400).send('Invalid or expired state. Please retry sign-in.');
+  try {
+    const { tokens: gtok, profile } = await authLib.exchangeGoogle({ code, redirectUri: googleRedirectUri(req) });
+    if (!profile.email) return res.status(400).send('Could not read Google email.');
+
+    // Establish/refresh the session user (login if not already).
+    let userId = req.session.userId;
+    if (!userId) {
+      const user = await finishLogin(req, res, { email: profile.email, name: profile.name, provider: 'google', providerId: profile.sub });
+      if (!user) return; // denied() already sent
+      userId = user.id;
+    }
+
+    // Store this user's Google data tokens in the vault.
+    if (gtok.refresh_token) {
+      await tokens.setToken(userId, 'google',
+        { refresh_token: gtok.refresh_token, access_token: gtok.access_token, scope: gtok.scope },
+        { accountLabel: profile.email, scopes: gtok.scope, expiry: gtok.expiry_date ? new Date(gtok.expiry_date) : null });
+    }
+    return res.redirect('/');
+  } catch (err) {
+    console.error('Google OAuth callback error:', err);
+    return res.status(500).send(`Authentication failed: ${err.message}`);
+  }
+});
+
+// --- Microsoft / Entra: login (identity only) ---
+app.get('/auth/microsoft', (req, res) => {
+  if (!process.env.MS_CLIENT_ID) return res.status(503).send('Microsoft login is not configured.');
+  const state = newState(req, { flow: 'microsoft' });
+  res.redirect(authLib.msAuthUrl({ redirectUri: msRedirectUri(req), state }));
+});
+app.get('/auth/microsoft/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code) return res.status(400).send('Missing authorization code');
+  if (!requireDb(res)) return;
+  if (!checkState(req, state)) return res.status(400).send('Invalid or expired state. Please retry sign-in.');
+  try {
+    const { profile } = await authLib.exchangeMicrosoft({ code, redirectUri: msRedirectUri(req) });
+    if (!profile.email) return res.status(400).send('Could not read Microsoft account email.');
+    const user = await finishLogin(req, res, { email: profile.email, name: profile.name, provider: 'microsoft', providerId: profile.oid });
+    if (!user) return;
+    return res.redirect('/');
+  } catch (err) {
+    console.error('Microsoft OAuth callback error:', err);
+    return res.status(500).send(`Authentication failed: ${err.message}`);
+  }
+});
+
+// --- Zoho: connect a data source (which = zoho | zoho_vorro) ---
+app.get('/connect/zoho', requireAuth, (req, res) => {
+  const which = req.query.which === 'zoho_vorro' ? 'zoho_vorro' : 'zoho';
+  const state = newState(req, { flow: 'zoho', which });
+  res.redirect(authLib.zohoAuthUrl({ which, redirectUri: zohoRedirectUri(req), state }));
+});
+app.get('/connect/zoho/callback', requireAuth, async (req, res) => {
+  const { code, state } = req.query;
+  const extra = checkState(req, state);
+  if (!code || !extra) return res.status(400).send('Invalid or expired Zoho authorization.');
+  const which = extra.which === 'zoho_vorro' ? 'zoho_vorro' : 'zoho';
+  try {
+    const { tokens: ztok } = await authLib.exchangeZoho({ which, code, redirectUri: zohoRedirectUri(req) });
+    if (!ztok.refresh_token) return res.status(400).send('Zoho did not return a refresh token (re-consent required).');
+    await tokens.setToken(req.session.userId, which,
+      { refresh_token: ztok.refresh_token, access_token: ztok.access_token },
+      { accountLabel: which === 'zoho_vorro' ? 'Vorro CRM' : 'Cadient CRM' });
+    return res.redirect('/');
+  } catch (err) {
+    console.error('Zoho connect error:', err);
+    return res.status(500).send(`Zoho connection failed: ${err.message}`);
+  }
+});
+
+// --- Granola: connect via API key (no OAuth) ---
+app.post('/connect/granola', requireAuth, async (req, res) => {
+  const apiKey = (req.body && req.body.apiKey || '').trim();
+  if (!apiKey) return res.status(400).json({ error: 'apiKey required' });
+  await tokens.setToken(req.session.userId, 'granola', { api_key: apiKey }, { accountLabel: 'Granola' });
+  res.json({ success: true });
+});
+
+// --- Connections list + disconnect ---
+app.get('/api/connections', requireAuth, async (req, res) => {
+  res.json({ connections: await tokens.listConnections(req.session.userId) });
+});
+app.delete('/api/connections/:provider', requireAuth, async (req, res) => {
+  const allowed = ['google', 'zoho', 'zoho_vorro', 'granola'];
+  if (!allowed.includes(req.params.provider)) return res.status(400).json({ error: 'unknown provider' });
+  await tokens.deleteToken(req.session.userId, req.params.provider);
+  res.json({ success: true });
+});
+
+// --- Admin: allowlist + users ---
+app.get('/api/admin/allowlist', requireAuth, requireAdmin, async (_req, res) => {
+  res.json({ allowlist: await authLib.listAllowlist() });
+});
+app.post('/api/admin/allowlist', requireAuth, requireAdmin, async (req, res) => {
+  const email = (req.body && req.body.email || '').trim();
+  if (!email) return res.status(400).json({ error: 'email required' });
+  await authLib.addToAllowlist(email, req.session.email);
+  res.json({ success: true });
+});
+app.delete('/api/admin/allowlist/:email', requireAuth, requireAdmin, async (req, res) => {
+  await authLib.removeFromAllowlist(req.params.email);
+  res.json({ success: true });
+});
+app.get('/api/admin/users', requireAuth, requireAdmin, async (_req, res) => {
+  res.json({ users: await authLib.listUsers() });
 });
 
 // Logout
 app.post('/auth/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ success: true });
+  req.session.destroy(() => res.json({ success: true }));
 });
 
 // ---------------------------------------------------------------------------
@@ -1587,7 +1729,7 @@ app.post('/api/ask', requireAuth, async (req, res) => {
 // ===========================================================================
 
 // ── In-Process Memory Store (lightweight Mem0 alternative) ──────────────────
-const _memoryStore = new Map(); // userId → [{memory, metadata, created_at}]
+const _memoryStore = memstore; // Postgres-backed write-through cache (Map-like API)
 
 // ─── Two-Tier Memory System ────────────────────────────────────────────────
 // namespace=company  → admin-protected shared knowledge (read freely, write needs approval)
@@ -1600,11 +1742,14 @@ const COMPANY_MEMORY_KEY = '__company__';
 const ADMINS = ['manish', 'manish696@gmail.com'];
 
 function _getUserId(req) {
-  return (req.session?.email || process.env.ALLOWED_EMAIL || 'manish').toLowerCase().split('@')[0];
+  // Stable per-user namespace key (DB user id), so memory is isolated per account.
+  return 'u:' + ((req.session && req.session.userId) || 'anon');
 }
 
-function _isAdmin(userId) {
-  return ADMINS.some(a => userId.includes(a.split('@')[0]));
+function _isAdmin(_userId) {
+  // Admin status comes from the authenticated session (users.is_admin), via request context.
+  const c = ctx.get();
+  return !!(c && c.isAdmin);
 }
 
 // GET /api/memory?q=query&namespace=personal|company&user=firstname
@@ -2394,7 +2539,7 @@ app.post('/api/errors', (req, res) => {
     console.warn('[ErrorBus] CIRCUIT BREAK: ' + circuitBreaks.length + ' errors hit threshold');
     (async () => {
       try {
-        const auth = getAuthedClient();
+        const auth = await getAuthedClient();
         if (!auth) return;
         const gmail = google.gmail({ version: 'v1', auth });
         const subject = '[Second Brain] Circuit Breaker: ' + circuitBreaks.length + ' error(s) fired';
@@ -2458,6 +2603,19 @@ app.use((err, _req, res, _next) => {
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
+// Initialize the multi-user store (migrate schema, load memory cache) before serving.
+(async () => {
+  if (db.isConfigured()) {
+    try {
+      await db.migrate();
+      console.log('[startup] Postgres schema ready.');
+    } catch (e) {
+      console.error('[startup] DB migration FAILED:', e.message);
+    }
+  }
+  try { await memstore.load(); } catch (e) { console.error('[startup] memory load failed:', e.message); }
+})();
+
 const httpServer = app.listen(PORT, () => {
   console.log(`Second Brain server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);

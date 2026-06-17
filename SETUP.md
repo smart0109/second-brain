@@ -187,3 +187,98 @@ Dependencies (3 total): `express`, `express-session`, `googleapis`.
 | Calendar/Gmail not loading | Verify Gmail API + Calendar API are enabled in Google Cloud Console. |
 | Railway deploy fails | Ensure `package.json` is in the root directory (or set Root Directory in Railway settings). Check that Node.js 18+ is available. Run `railway logs` to see the error. |
 | OAuth callback error | Confirm the `REDIRECT_URI` env var matches exactly what is configured in Google Cloud Console's authorized redirect URIs. |
+
+---
+
+# Multi-User / Multi-Tenant Upgrade (Google + Microsoft login)
+
+The app now supports multiple users. Each user signs in with Google **or**
+Microsoft, is checked against an email allowlist, and connects **their own**
+data sources (Gmail/Calendar/Drive, Zoho CRM, Granola). No provider token is
+shared between users — every credential is encrypted (AES-256-GCM) and stored
+per-user in Postgres.
+
+## Architecture
+
+- `lib/db.js` — Postgres pool + idempotent migration runner; seeds the bootstrap admin.
+- `migrations/001_multiuser.sql` — `users`, `allowlist`, `user_tokens` (encrypted vault), `memory_blobs`, `session`.
+- `lib/tokens.js` — per-user encrypted token vault (`TOKEN_ENC_KEY`).
+- `lib/auth.js` — user store, allowlist, and OAuth helpers for Google / Microsoft / Zoho.
+- `lib/context.js` — `AsyncLocalStorage` binding the logged-in user to each request, so
+  `getAuthedClient()` / `getZohoAccessToken()` resolve the current user's tokens.
+- `lib/memstore.js` — durable per-user memory (write-through cache to Postgres).
+
+## 1. Create the Postgres database (Render)
+
+`render.yaml` already declares a free `second-brain-db` and wires `DATABASE_URL`
+into the web service. On deploy, the schema is migrated automatically at startup.
+(Local dev: create a Postgres DB and set `DATABASE_URL`, `PGSSL=disable`.)
+
+## 2. Generate the token-encryption key
+
+    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+Set the output as `TOKEN_ENC_KEY` in Render env. **Keep it stable** — rotating it
+makes existing stored tokens undecryptable (users would just reconnect).
+
+## 3. Register the Microsoft (Entra) app
+
+1. Azure Portal → **Microsoft Entra ID** → **App registrations** → **New registration**.
+2. Supported account types: pick to match `MS_TENANT`:
+   - single org tenant → use your tenant GUID for `MS_TENANT`
+   - any work/school + personal → `common`
+3. **Redirect URI** (Web): `https://<app>.onrender.com/auth/microsoft/callback`.
+4. **Certificates & secrets** → new client secret → set `MS_CLIENT_SECRET`.
+5. Copy Application (client) ID → `MS_CLIENT_ID`. API permissions: delegated
+   `openid`, `profile`, `email`, `User.Read` (default) are enough — login only.
+
+## 4. Google OAuth
+
+Reuse the existing Google OAuth client. Add the redirect URI
+`https://<app>.onrender.com/auth/google/callback`. Google sign-in doubles as the
+Gmail/Calendar/Drive data connection (consent requests those scopes).
+
+## 5. Zoho (optional per user)
+
+Register a Zoho OAuth client (one per data center) and set
+`ZOHO_CLIENT_ID/SECRET` (US) and `VORRO_ZOHO_CLIENT_ID/SECRET` (India). Redirect
+URI: `https://<app>.onrender.com/connect/zoho/callback`. Each user links Zoho
+from the dashboard's **Connections** panel; their refresh token is stored in
+their own vault row.
+
+## 6. Allowlist management
+
+- Bootstrap admin(s) come from `ALLOWED_EMAIL` + `ADMIN_EMAILS` (seeded on boot).
+- Admins manage the allowlist via:
+  - `GET /api/admin/allowlist`
+  - `POST /api/admin/allowlist` `{ "email": "person@org.com" }`
+  - `DELETE /api/admin/allowlist/:email`
+  - `GET /api/admin/users`
+
+## 7. Migrating the existing single-user setup
+
+The bootstrap admin (you) is auto-created. After first deploy, sign in with
+Google once to populate your encrypted Google tokens, then use **Connections**
+to link Zoho/Granola. The old `GOOGLE_REFRESH_TOKEN` / `ZOHO_REFRESH_TOKEN`
+env vars are **no longer read** and can be removed.
+
+## Endpoints added
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/auth/google` `/auth/google/callback` | Login + connect Google data |
+| GET | `/auth/microsoft` `/auth/microsoft/callback` | Login (identity only) |
+| GET | `/connect/google` | Re-link Google for a logged-in user |
+| GET | `/connect/zoho?which=zoho\|zoho_vorro` + `/connect/zoho/callback` | Link Zoho |
+| POST | `/connect/granola` `{apiKey}` | Link Granola |
+| GET | `/api/connections` | List the current user's linked sources |
+| DELETE | `/api/connections/:provider` | Disconnect a source |
+| GET/POST/DELETE | `/api/admin/allowlist` | Admin allowlist management |
+| GET | `/api/admin/users` | Admin user list |
+
+## Security notes
+
+- `requireAuth` now requires a real session user; the old
+  `GOOGLE_REFRESH_TOKEN`-based auto-auth bypass has been removed.
+- OAuth flows use a per-session `state` parameter (CSRF protection, 10-min TTL).
+- Tokens are encrypted at rest with AES-256-GCM; `/api/connections` never returns secrets.
