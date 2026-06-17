@@ -48,6 +48,12 @@ const ALLOWED_EMAILS = [
 ];
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 
+// Fail closed in production: refuse to boot with insecure/missing secrets.
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.SESSION_SECRET) { console.error('FATAL: SESSION_SECRET is required in production.'); process.exit(1); }
+  if (db.isConfigured() && !process.env.TOKEN_ENC_KEY) { console.error('FATAL: TOKEN_ENC_KEY is required when DATABASE_URL is set.'); process.exit(1); }
+}
+
 const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
 // Google OAuth scopes
@@ -532,7 +538,10 @@ async function getGranolaKey() {
     const t = await tokens.getToken(userId, 'granola');
     if (t && t.payload && t.payload.api_key) return t.payload.api_key;
   }
-  return process.env.GRANOLA_API_KEY || null;
+  // Legacy shared key is only honored for an admin's own session (no cross-user leak).
+  const c = ctx.get();
+  if (c && c.isAdmin && process.env.GRANOLA_API_KEY) return process.env.GRANOLA_API_KEY;
+  return null;
 }
 
 async function handleGranola(toolName, args) {
@@ -768,10 +777,11 @@ function checkState(req, given) {
   delete req.session.oauth;
   return o.extra || {};
 }
+function _escHtml(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function denied(res, email) {
   return res
     .status(403)
-    .send(`<html><body style="font-family:system-ui;max-width:640px;margin:60px auto;text-align:center"><h2>Access denied</h2><p><b>${email || 'This account'}</b> is not on the allowlist. Ask an admin to add you.</p><p><a href="/">Back</a></p></body></html>`);
+    .send(`<html><body style="font-family:system-ui;max-width:640px;margin:60px auto;text-align:center"><h2>Access denied</h2><p><b>${_escHtml(email) || 'This account'}</b> is not on the allowlist. Ask an admin to add you.</p><p><a href="/">Back</a></p></body></html>`);
 }
 function requireDb(res) {
   if (!db.isConfigured()) {
@@ -783,10 +793,11 @@ function requireDb(res) {
 async function finishLogin(req, res, { email, name, provider, providerId }) {
   if (!(await authLib.isAllowed(email))) return denied(res, email);
   const user = await authLib.upsertUserOnLogin({ email, name, provider, providerId });
+  // Prevent session fixation: issue a fresh session id on every successful login.
+  await new Promise((resolve, reject) => req.session.regenerate((err) => (err ? reject(err) : resolve())));
   req.session.userId = user.id;
   req.session.email = user.email;
   req.session.isAdmin = !!user.is_admin;
-  delete req.session.authenticated; // legacy flag no longer used
   return user;
 }
 function requireAdmin(req, res, next) {
@@ -1756,7 +1767,7 @@ function _isAdmin(_userId) {
 app.get('/api/memory', requireAuth, async (req, res) => {
   const currentUser = _getUserId(req);
   const ns = req.query.namespace || 'personal';
-  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.query.user || currentUser);
+  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : currentUser; // per-user isolation: no cross-user override
   const query = (req.query.q || '').toLowerCase();
   const mem0Key = process.env.MEM0_API_KEY;
 
@@ -1792,7 +1803,7 @@ app.get('/api/memory', requireAuth, async (req, res) => {
 app.post('/api/memory', requireAuth, async (req, res) => {
   const currentUser = _getUserId(req);
   const ns = req.body.namespace || 'personal';
-  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.body.user || currentUser);
+  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : currentUser; // per-user isolation: no cross-user override
   const { messages, metadata } = req.body;
   if (!messages) return res.status(400).json({ error: 'messages required' });
 
@@ -1847,7 +1858,7 @@ app.post('/api/memory', requireAuth, async (req, res) => {
 app.delete('/api/memory', requireAuth, (req, res) => {
   const currentUser = _getUserId(req);
   const ns = req.query.namespace || 'personal';
-  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.query.user || currentUser);
+  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : currentUser; // per-user isolation: no cross-user override
 
   if (ns === 'company' && !_isAdmin(currentUser)) {
     return res.status(403).json({ error: 'Only admins can clear company memory' });
@@ -1963,7 +1974,7 @@ Under 200 words total. Manish reads this in under 60 seconds.`
     const brief = result.content?.[0]?.text || '';
 
     // Auto-store brief in memory
-    const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+    const userId = req.session.email;
     const existing = _memoryStore.get(userId) || [];
     _memoryStore.set(userId, [...existing, {
       memory: `Brief for "${title}" (${new Date().toLocaleDateString()}): ${brief.slice(0, 200)}`,
@@ -2013,7 +2024,7 @@ app.post('/api/ask/deep', requireAuth, async (req, res) => {
       }
 
       // Recent memory
-      const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+      const userId = req.session.email;
       const memories = (_memoryStore.get(userId) || []).slice(-5);
       if (memories.length) {
         contextBlocks.push('RECENT CONTEXT:\n' + memories.map(m => `  - ${m.memory}`).join('\n'));
@@ -2054,7 +2065,7 @@ Be direct, specific, and data-driven. Reference exact numbers when relevant. Giv
     const text = result.content?.[0]?.text || '';
 
     // Auto-store to memory
-    const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
+    const userId = req.session.email;
     const existing = _memoryStore.get(userId) || [];
     _memoryStore.set(userId, [...existing, {
       memory: `Q: ${prompt.slice(0, 100)} → ${text.slice(0, 150)}`,
@@ -2256,7 +2267,7 @@ if (!_orgs['basis-vectors']) {
   };
 }
 
-function _uid(req)  { return (req.session?.email || process.env.ALLOWED_EMAIL || 'manish').toLowerCase().split('@')[0]; }
+function _uid(req)  { return (req.session?.email || '').toLowerCase(); }
 function _org(req)  { return ((req.query?.org || req.body?.org || 'basis-vectors') + '').toLowerCase().replace(/[^a-z0-9-]/g, '-'); }
 function _isOrgAdmin(uid, orgId) {
   const o = _orgs[orgId];
@@ -2271,7 +2282,7 @@ function _audit(req, orgId, action, extra) {
     org: orgId,
     action,
     requested_by: _uid(req),
-    requested_by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown',
+    requested_by_email: req.session?.email || 'unknown',
     requested_at: new Date().toISOString(),
     ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
     user_agent: req.headers['user-agent'] || 'unknown',
@@ -2341,7 +2352,7 @@ app.post('/api/memory', requireAuth, async (req, res) => {
     const q = _pendQueue.get(orgId) || [];
     const entry = {
       id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-      proposed_by: uid, proposed_by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown',
+      proposed_by: uid, proposed_by_email: req.session?.email || 'unknown',
       proposed_at: new Date().toISOString(),
       ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
       user_agent: req.headers['user-agent'] || 'unknown',
@@ -2421,7 +2432,7 @@ app.post('/api/memory/pending/:entryId/approve', requireAuth, async (req, res) =
   _memStore.set(key, [...existing, ...newMems].slice(-500));
 
   entry.status = 'APPROVED';
-  entry.decision = { action: 'approved', by: uid, by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown', at: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown', note: req.body.note || null };
+  entry.decision = { action: 'approved', by: uid, by_email: req.session?.email || 'unknown', at: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown', note: req.body.note || null };
   queue[idx] = entry;
   _pendQueue.set(orgId, queue);
   _audit(req, orgId, 'approved', { entry_id: entry.id, proposed_by: entry.proposed_by, proposed_at: entry.proposed_at, backup_size: bk?.size || 0, committed: newMems.length, messages: entry.messages, note: req.body.note || null });
@@ -2437,7 +2448,7 @@ app.post('/api/memory/pending/:entryId/reject', requireAuth, (req, res) => {
   if (idx === -1) return res.status(404).json({ error: 'Entry not found' });
   const entry = queue[idx];
   entry.status = 'REJECTED';
-  entry.decision = { action: 'rejected', by: uid, by_email: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown', at: new Date().toISOString(), reason: req.body.reason || null };
+  entry.decision = { action: 'rejected', by: uid, by_email: req.session?.email || 'unknown', at: new Date().toISOString(), reason: req.body.reason || null };
   queue[idx] = entry;
   _pendQueue.set(orgId, queue);
   _audit(req, orgId, 'rejected', { entry_id: entry.id, proposed_by: entry.proposed_by, reason: req.body.reason || null, messages: entry.messages });
