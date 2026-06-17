@@ -12,6 +12,10 @@ const tokens = require('./lib/tokens');
 const authLib = require('./lib/auth');
 const ctx = require('./lib/context');
 const memstore = require('./lib/memstore');
+const msgraph = require('./lib/msgraph');
+const hubspotLib = require('./lib/crm_hubspot');
+const crm = require('./lib/crm');
+const recall = require('./lib/recall');
 
 const app = express();
 
@@ -953,6 +957,223 @@ app.delete('/api/admin/allowlist/:email', requireAuth, requireAdmin, async (req,
 app.get('/api/admin/users', requireAuth, requireAdmin, async (_req, res) => {
   res.json({ users: await authLib.listUsers() });
 });
+
+
+// ===========================================================================
+// Microsoft Graph (calendar + Teams transcripts), Recall.ai transcription,
+// HubSpot CRM, and the CRM-agnostic board/chat -- all per-user, vault-backed.
+// ===========================================================================
+const _msTokCache = new Map();  // userId -> {accessToken, expiresAt}
+const _hsTokCache = new Map();
+
+async function getMsAccessToken() {
+  const userId = ctx.currentUserId();
+  if (!userId) throw new Error('Not authenticated.');
+  const c = _msTokCache.get(userId);
+  if (c && Date.now() < c.expiresAt - 60000) return c.accessToken;
+  const t = await tokens.getToken(userId, 'microsoft');
+  if (!t || !t.payload || !t.payload.refresh_token) throw new Error('Microsoft not connected. Connect it from the dashboard.');
+  const tok = await msgraph.refreshAccessToken({ clientId: process.env.MS_CLIENT_ID, clientSecret: process.env.MS_CLIENT_SECRET, tenant: process.env.MS_TENANT, refreshToken: t.payload.refresh_token });
+  if (tok.refresh_token && tok.refresh_token !== t.payload.refresh_token) {
+    await tokens.setToken(userId, 'microsoft', { refresh_token: tok.refresh_token }, { accountLabel: t.accountLabel });
+  }
+  _msTokCache.set(userId, { accessToken: tok.access_token, expiresAt: Date.now() + (tok.expires_in || 3600) * 1000 });
+  return tok.access_token;
+}
+
+async function getHubspotAccessToken() {
+  const userId = ctx.currentUserId();
+  if (!userId) throw new Error('Not authenticated.');
+  const c = _hsTokCache.get(userId);
+  if (c && Date.now() < c.expiresAt - 60000) return c.accessToken;
+  const t = await tokens.getToken(userId, 'hubspot');
+  if (!t || !t.payload || !t.payload.refresh_token) throw new Error('HubSpot not connected. Connect it from the dashboard.');
+  const tok = await hubspotLib.refreshAccessToken({ clientId: process.env.HUBSPOT_CLIENT_ID, clientSecret: process.env.HUBSPOT_CLIENT_SECRET, refreshToken: t.payload.refresh_token });
+  if (tok.refresh_token && tok.refresh_token !== t.payload.refresh_token) {
+    await tokens.setToken(userId, 'hubspot', { refresh_token: tok.refresh_token }, { accountLabel: t.accountLabel });
+  }
+  _hsTokCache.set(userId, { accessToken: tok.access_token, expiresAt: Date.now() + (tok.expires_in || 1800) * 1000 });
+  return tok.access_token;
+}
+
+async function getRecallConfig() {
+  const userId = ctx.currentUserId();
+  if (userId) {
+    const t = await tokens.getToken(userId, 'recall');
+    if (t && t.payload && t.payload.api_key) return { apiKey: t.payload.api_key, region: t.payload.region || process.env.RECALL_REGION || 'us-east-1' };
+  }
+  const c = ctx.get();
+  if (c && c.isAdmin && process.env.RECALL_API_KEY) return { apiKey: process.env.RECALL_API_KEY, region: process.env.RECALL_REGION || 'us-east-1' };
+  return null;
+}
+
+// CRM connection: HubSpot first, then Zoho (Cadient), then Vorro -- or a preferred provider.
+async function resolveCrmConnection(preferred) {
+  const userId = ctx.currentUserId();
+  if (!userId) throw new Error('Not authenticated.');
+  const conns = await tokens.listConnections(userId);
+  const have = new Set(conns.map((c) => c.provider));
+  const order = preferred ? [preferred] : ['hubspot', 'zoho', 'zoho_vorro'];
+  for (const prov of order) {
+    if (!have.has(prov)) continue;
+    if (prov === 'hubspot') return { provider: 'hubspot', accessToken: await getHubspotAccessToken() };
+    if (prov === 'zoho') return { provider: 'zoho', accessToken: await getZohoAccessToken(), apiDomain: ZOHO_API_DOMAIN };
+    if (prov === 'zoho_vorro') return { provider: 'zoho_vorro', accessToken: await getVorroZohoAccessToken(), apiDomain: VORRO_ZOHO_API_DOMAIN };
+  }
+  throw new Error('No CRM connected. Connect HubSpot or Zoho from the dashboard.');
+}
+
+// ---- Microsoft connect (calendar/transcripts data scopes) ----
+app.get('/connect/microsoft', requireAuth, (req, res) => {
+  if (!process.env.MS_CLIENT_ID) return res.status(503).send('Microsoft is not configured.');
+  const state = newState(req, { flow: 'ms_data' });
+  const redirectUri = process.env.MS_DATA_REDIRECT_URI || `${baseUrl(req)}/connect/microsoft/callback`;
+  res.redirect(msgraph.authUrl({ clientId: process.env.MS_CLIENT_ID, tenant: process.env.MS_TENANT, redirectUri, state }));
+});
+app.get('/connect/microsoft/callback', requireAuth, async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !checkState(req, state)) return res.status(400).send('Invalid or expired Microsoft authorization.');
+  const redirectUri = process.env.MS_DATA_REDIRECT_URI || `${baseUrl(req)}/connect/microsoft/callback`;
+  try {
+    const tok = await msgraph.exchangeCode({ clientId: process.env.MS_CLIENT_ID, clientSecret: process.env.MS_CLIENT_SECRET, tenant: process.env.MS_TENANT, code, redirectUri });
+    if (!tok.refresh_token) return res.status(400).send('Microsoft did not return a refresh token (need offline_access + re-consent).');
+    await tokens.setToken(req.session.userId, 'microsoft', { refresh_token: tok.refresh_token }, { accountLabel: 'Microsoft 365', scopes: msgraph.MS_DATA_SCOPES.join(' ') });
+    res.redirect('/');
+  } catch (e) { console.error('MS connect error:', e); res.status(500).send(`Microsoft connection failed: ${e.message}`); }
+});
+
+// ---- HubSpot connect ----
+app.get('/connect/hubspot', requireAuth, (req, res) => {
+  if (!process.env.HUBSPOT_CLIENT_ID) return res.status(503).send('HubSpot is not configured.');
+  const state = newState(req, { flow: 'hubspot' });
+  const redirectUri = process.env.HUBSPOT_REDIRECT_URI || `${baseUrl(req)}/connect/hubspot/callback`;
+  res.redirect(hubspotLib.authUrl({ clientId: process.env.HUBSPOT_CLIENT_ID, redirectUri, state }));
+});
+app.get('/connect/hubspot/callback', requireAuth, async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !checkState(req, state)) return res.status(400).send('Invalid or expired HubSpot authorization.');
+  const redirectUri = process.env.HUBSPOT_REDIRECT_URI || `${baseUrl(req)}/connect/hubspot/callback`;
+  try {
+    const tok = await hubspotLib.exchangeCode({ clientId: process.env.HUBSPOT_CLIENT_ID, clientSecret: process.env.HUBSPOT_CLIENT_SECRET, code, redirectUri });
+    if (!tok.refresh_token) return res.status(400).send('HubSpot did not return a refresh token.');
+    await tokens.setToken(req.session.userId, 'hubspot', { refresh_token: tok.refresh_token }, { accountLabel: 'HubSpot CRM' });
+    res.redirect('/');
+  } catch (e) { console.error('HubSpot connect error:', e); res.status(500).send(`HubSpot connection failed: ${e.message}`); }
+});
+
+// ---- Recall.ai connect (single API key) ----
+app.post('/connect/recall', requireAuth, async (req, res) => {
+  const apiKey = ((req.body && req.body.apiKey) || '').trim();
+  if (!apiKey) return res.status(400).json({ error: 'apiKey required' });
+  const region = ((req.body && req.body.region) || 'us-east-1').trim();
+  await tokens.setToken(req.session.userId, 'recall', { api_key: apiKey, region }, { accountLabel: `Recall.ai (${region})` });
+  res.json({ success: true });
+});
+
+// ---- Microsoft calendar ----
+app.get('/api/ms/calendar', requireAuth, async (req, res) => {
+  try {
+    const at = await getMsAccessToken();
+    const events = await msgraph.listCalendarEvents(at, { start: req.query.start, end: req.query.end, top: req.query.top ? Number(req.query.top) : undefined });
+    res.json({ events });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// ---- Teams transcripts via Graph (stored; org tenant + admin consent) ----
+app.get('/api/ms/transcripts', requireAuth, async (req, res) => {
+  try {
+    const at = await getMsAccessToken();
+    const joinUrl = req.query.joinUrl;
+    if (!joinUrl) return res.status(400).json({ error: 'joinUrl required' });
+    const meeting = await msgraph.getOnlineMeetingByJoinUrl(at, joinUrl);
+    if (!meeting) return res.json({ meeting: null, transcripts: [] });
+    const transcripts = await msgraph.listMeetingTranscripts(at, meeting.id);
+    res.json({ meeting: { id: meeting.id }, transcripts });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/ms/transcripts/:meetingId/:transcriptId', requireAuth, async (req, res) => {
+  try {
+    const at = await getMsAccessToken();
+    const text = await msgraph.getTranscriptContent(at, req.params.meetingId, req.params.transcriptId, 'text/vtt');
+    res.type('text/plain').send(text);
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// ---- Recall.ai transcription (Teams/Zoom/Meet via meeting bot) ----
+app.get('/api/transcription/status', requireAuth, async (_req, res) => {
+  const cfg = await getRecallConfig();
+  res.json({ recall: !!cfg, deepgram: !!process.env.DEEPGRAM_API_KEY, graph: true });
+});
+app.post('/api/transcription/bot', requireAuth, async (req, res) => {
+  const cfg = await getRecallConfig();
+  if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected. Add your API key in Connections.' });
+  const { meetingUrl, botName } = req.body || {};
+  if (!meetingUrl) return res.status(400).json({ error: 'meetingUrl required' });
+  try { res.json(await recall.createBot(cfg, { meetingUrl, botName })); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/transcription/bot/:id', requireAuth, async (req, res) => {
+  const cfg = await getRecallConfig(); if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected.' });
+  try { res.json(await recall.getBot(cfg, req.params.id)); } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/transcription/bot/:id/transcript', requireAuth, async (req, res) => {
+  const cfg = await getRecallConfig(); if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected.' });
+  try { res.json(await recall.getTranscript(cfg, req.params.id)); } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// ---- CRM-agnostic board + write-back ----
+app.get('/api/crm/pipelines', requireAuth, async (req, res) => {
+  try { const conn = await resolveCrmConnection(req.query.provider); res.json({ provider: conn.provider, pipelines: await crm.getPipelines(conn) }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/crm/board', requireAuth, async (req, res) => {
+  try { const conn = await resolveCrmConnection(req.query.provider); res.json(await crm.getBoard(conn, { pipelineId: req.query.pipelineId })); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.post('/api/crm/deals/:id/move', requireAuth, async (req, res) => {
+  const stageId = req.body && req.body.stageId;
+  if (!stageId) return res.status(400).json({ error: 'stageId required' });
+  try { const conn = await resolveCrmConnection(req.body.provider); res.json(await crm.moveDeal(conn, req.params.id, stageId)); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// ---- CRM chat-to-change: preview (no write) then confirm/apply ----
+app.post('/api/crm/chat', requireAuth, async (req, res) => {
+  const { message } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const conn = await resolveCrmConnection(req.body.provider);
+    const board = await crm.getBoard(conn, {});
+    const deals = board.columns.flatMap((c) => c.deals.map((d) => ({ id: d.id, name: d.name, stage: d.stageName, amount: d.amount })));
+    const stages = board.columns.map((c) => c.stageName);
+    const sys = 'You convert a sales rep request into a STRICT JSON array of CRM changes. Output ONLY JSON, no prose. ' +
+      'Each item: {"dealId":"<id>","dealName":"<name>","action":"move"|"update"|"note","stageId":"<exact stage name>","fields":{<field:value>},"note":"<text>"}. ' +
+      'Include only keys relevant to the action. Use dealId values and stage names exactly as provided.';
+    const user = `Deals: ${JSON.stringify(deals)}\nStages: ${JSON.stringify(stages)}\nRequest: ${message}`;
+    const raw = (await askAnthropic(sys, user, 1200)) || '';
+    let changes = [];
+    try { const m = raw.match(/\[[\s\S]*\]/); changes = JSON.parse(m ? m[0] : raw); } catch (_) { changes = []; }
+    res.json({ provider: conn.provider, changes, rawModelText: raw });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.post('/api/crm/apply', requireAuth, async (req, res) => {
+  const { changes } = req.body || {};
+  if (!Array.isArray(changes) || !changes.length) return res.status(400).json({ error: 'changes[] required' });
+  try {
+    const conn = await resolveCrmConnection(req.body.provider);
+    const results = [];
+    for (const ch of changes) {
+      try {
+        if (ch.action === 'move') { await crm.moveDeal(conn, ch.dealId, ch.stageId); results.push({ dealId: ch.dealId, ok: true, action: 'move' }); }
+        else if (ch.action === 'update') { await crm.updateDeal(conn, ch.dealId, ch.fields || {}); results.push({ dealId: ch.dealId, ok: true, action: 'update' }); }
+        else if (ch.action === 'note') { await crm.addNote(conn, ch.dealId, ch.note || ''); results.push({ dealId: ch.dealId, ok: true, action: 'note' }); }
+        else results.push({ dealId: ch.dealId, ok: false, error: 'unknown action' });
+      } catch (e) { results.push({ dealId: ch.dealId, ok: false, error: e.message }); }
+    }
+    res.json({ results });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 
 // Logout
 app.post('/auth/logout', (req, res) => {
@@ -2305,108 +2526,9 @@ function _takeBackup(orgId, triggeredBy) {
   return snap;
 }
 
-// GET /api/memory
-app.get('/api/memory', requireAuth, async (req, res) => {
-  const uid = _uid(req), orgId = _org(req), ns = req.query.namespace || 'personal';
-  const targetUser = ns === 'company' ? null : (req.query.user || uid);
-  const q = (req.query.q || '').toLowerCase();
-  if (!_orgs[orgId]) return res.status(404).json({ error: `Org '${orgId}' not found` });
-  if (ns === 'personal' && targetUser !== uid && !_isOrgAdmin(uid, orgId)) {
-    _audit(req, orgId, 'read_blocked', { ns, target: targetUser, reason: 'privacy' });
-    return res.status(403).json({ error: "Cannot read another user's personal notes" });
-  }
-  _audit(req, orgId, 'read', { ns, target: targetUser || 'company', query: q || null });
-
-  const mem0Key = process.env.MEM0_API_KEY;
-  const m0uid = ns === 'company' ? `${orgId}__company` : `${orgId}__${targetUser}`;
-  if (mem0Key) {
-    try {
-      const r = await fetch('https://api.mem0.ai/v1/memories/search/', {
-        method: 'POST', headers: { Authorization: `Token ${mem0Key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q || 'recent context', user_id: m0uid, limit: 20 })
-      });
-      if (r.ok) return res.json({ ...(await r.json()), namespace: ns, org: orgId });
-    } catch(e) {}
-  }
-  const mems = _memStore.get(_mkey(orgId, ns, targetUser)) || [];
-  const filtered = q ? mems.filter(m => (m.memory || '').toLowerCase().includes(q)) : mems;
-  res.json({ results: filtered.slice(-50), namespace: ns, org: orgId, user: targetUser, total: filtered.length });
-});
-
-// POST /api/memory
-app.post('/api/memory', requireAuth, async (req, res) => {
-  const uid = _uid(req), orgId = _org(req), ns = req.body.namespace || 'personal';
-  const targetUser = ns === 'company' ? null : (req.body.user || uid);
-  const { messages, metadata } = req.body;
-  if (!messages) return res.status(400).json({ error: 'messages required' });
-  if (!_orgs[orgId]) return res.status(404).json({ error: `Org '${orgId}' not found` });
-  const isAdmin = _isOrgAdmin(uid, orgId);
-
-  if (ns === 'personal' && targetUser !== uid && !isAdmin) {
-    _audit(req, orgId, 'write_blocked', { ns, target: targetUser, reason: 'not_self_or_admin', messages });
-    return res.status(403).json({ error: "Cannot write to another user's personal notes" });
-  }
-
-  // Company write by non-admin → queue
-  if (ns === 'company' && !isAdmin) {
-    const q = _pendQueue.get(orgId) || [];
-    const entry = {
-      id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-      proposed_by: uid, proposed_by_email: req.session?.email || 'unknown',
-      proposed_at: new Date().toISOString(),
-      ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
-      user_agent: req.headers['user-agent'] || 'unknown',
-      session_id: req.sessionID || 'none',
-      org: orgId, messages, metadata: metadata || {}, status: 'PENDING', decision: null
-    };
-    q.push(entry);
-    _pendQueue.set(orgId, q);
-    _audit(req, orgId, 'company_write_queued', { entry_id: entry.id, messages, metadata, pending_count: q.length });
-    return res.json({ status: 'pending_approval', message: 'Queued for org admin approval.', entry_id: entry.id, entry, org_admins: _orgs[orgId].admins });
-  }
-
-  // Admin direct write → backup first
-  if (ns === 'company') {
-    const bk = _takeBackup(orgId, uid);
-    _audit(req, orgId, 'backup_rotated', { size: bk?.size || 0, trigger: 'pre_admin_write' });
-  }
-
-  const mem0Key = process.env.MEM0_API_KEY;
-  const m0uid = ns === 'company' ? `${orgId}__company` : `${orgId}__${targetUser}`;
-  if (mem0Key) {
-    try {
-      const r = await fetch('https://api.mem0.ai/v1/memories/', {
-        method: 'POST', headers: { Authorization: `Token ${mem0Key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, user_id: m0uid, metadata })
-      });
-      if (r.ok) {
-        _audit(req, orgId, 'write_committed', { ns, user: targetUser, via: 'mem0', messages });
-        return res.json({ ...(await r.json()), namespace: ns, org: orgId });
-      }
-    } catch(e) {}
-  }
-
-  const key = _mkey(orgId, ns, targetUser);
-  const existing = _memStore.get(key) || [];
-  const newMems = messages.map(m => ({ memory: m.content, namespace: ns, org: orgId, metadata: { ...metadata, written_by: uid }, created_at: new Date().toISOString() }));
-  _memStore.set(key, [...existing, ...newMems].slice(-300));
-  _audit(req, orgId, 'write_committed', { ns, user: targetUser, via: 'in-process', count: newMems.length, messages });
-  res.json({ results: newMems, namespace: ns, org: orgId, source: 'in-process' });
-});
-
-// DELETE /api/memory
-app.delete('/api/memory', requireAuth, (req, res) => {
-  const uid = _uid(req), orgId = _org(req), ns = req.query.namespace || 'personal';
-  const targetUser = ns === 'company' ? null : (req.query.user || uid);
-  if (!_orgs[orgId]) return res.status(404).json({ error: `Org '${orgId}' not found` });
-  const isAdmin = _isOrgAdmin(uid, orgId);
-  if (ns === 'company' && !isAdmin) { _audit(req, orgId, 'delete_blocked', { ns, reason: 'not_admin' }); return res.status(403).json({ error: 'Admin only' }); }
-  if (ns === 'personal' && targetUser !== uid && !isAdmin) { _audit(req, orgId, 'delete_blocked', { ns, target: targetUser, reason: 'not_self_or_admin' }); return res.status(403).json({ error: "Cannot clear another user's notes" }); }
-  if (ns === 'company') _takeBackup(orgId, uid + '_delete');
-  _memStore.delete(_mkey(orgId, ns, targetUser));
-  _audit(req, orgId, 'deleted', { ns, user: targetUser || 'company' });
-  res.json({ success: true, namespace: ns, org: orgId, user: targetUser });
-});
+// NOTE: the duplicate /api/memory GET/POST/DELETE routes (org-based subsystem) were
+// removed here -- they were shadowed (dead) by the canonical /api/memory block above.
+// The org-admin routes below (pending/backups/orgs) remain the live org feature.
 
 // GET /api/memory/pending — admin: view queue
 app.get('/api/memory/pending', requireAuth, (req, res) => {

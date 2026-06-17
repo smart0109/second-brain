@@ -56,6 +56,21 @@ services:
         sync: false
       - key: VORRO_ZOHO_CLIENT_SECRET
         sync: false
+      # HubSpot CRM OAuth
+      - key: HUBSPOT_CLIENT_ID
+        sync: false
+      - key: HUBSPOT_CLIENT_SECRET
+        sync: false
+      - key: HUBSPOT_REDIRECT_URI
+        sync: false
+      # Microsoft 365 data connection (calendar + Teams transcripts)
+      - key: MS_DATA_REDIRECT_URI
+        sync: false
+      # Recall.ai meeting-bot transcription (single API key; admin fallback)
+      - key: RECALL_API_KEY
+        sync: false
+      - key: RECALL_REGION
+        sync: false
       # AI / other (unchanged)
       - key: ANTHROPIC_API_KEY
         sync: false

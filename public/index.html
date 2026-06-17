@@ -554,6 +554,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
   <div class="topbar">
     <h1>Manish's HQ</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v5.0 | init...</span>
     <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="margin-left:auto;padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer">Debug</button>
+    <button onclick="openCrmBoard()" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">CRM Board</button>
     <button onclick="openConnections()" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">Connections</button>
     <button onclick="fetch('/auth/logout',{method:'POST'}).then(()=>location.reload())" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">Logout</button>
     <select id="viewSwitcher" onchange="switchOrgView(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--accent-text);font-size:11px;font-weight:600;cursor:pointer;margin-left:6px">
@@ -7661,9 +7662,12 @@ dbg('Chart.js: '+(typeof Chart!=='undefined'?'loaded v'+Chart.version:'NOT LOADE
 // ── Data-source connections UI (per-user, multi-tenant) ──────────────────────
 const _PROVIDERS=[
   {key:'google',label:'Google (Gmail / Calendar / Drive)',connect:'/connect/google',type:'oauth'},
+  {key:'microsoft',label:'Microsoft 365 (Calendar / Teams)',connect:'/connect/microsoft',type:'oauth'},
+  {key:'hubspot',label:'HubSpot CRM',connect:'/connect/hubspot',type:'oauth'},
   {key:'zoho',label:'Zoho CRM (Cadient)',connect:'/connect/zoho?which=zoho',type:'oauth'},
   {key:'zoho_vorro',label:'Zoho CRM (Vorro)',connect:'/connect/zoho?which=zoho_vorro',type:'oauth'},
-  {key:'granola',label:'Granola (API key)',type:'key'}
+  {key:'granola',label:'Granola (API key)',type:'key',endpoint:'/connect/granola'},
+  {key:'recall',label:'Recall.ai - Teams/Zoom/Meet transcription (API key)',type:'key',endpoint:'/connect/recall',region:true}
 ];
 function _connClose(){const o=document.getElementById('connOverlay');if(o)o.remove();}
 async function openConnections(){
@@ -7693,9 +7697,13 @@ async function openConnections(){
     openConnections();
   });
   ov.querySelectorAll('[data-key]').forEach(b=>b.onclick=async()=>{
-    const k=prompt('Paste your Granola API key:');
+    const pk=b.getAttribute('data-key');
+    const prov=_PROVIDERS.find(x=>x.key===pk)||{};
+    const k=prompt('Paste your '+(prov.label||pk)+' API key:');
     if(!k)return;
-    await fetch('/connect/granola',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({apiKey:k.trim()})});
+    const body={apiKey:k.trim()};
+    if(prov.region){ const r=prompt('Recall.ai region (e.g. us-east-1, us-west-2, eu-central-1):','us-east-1'); body.region=(r||'us-east-1').trim(); }
+    await fetch(prov.endpoint||('/connect/'+pk),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
     openConnections();
   });
 }
@@ -7708,6 +7716,89 @@ async function ensureConnections(status){
   }catch(e){}
 }
 window.openConnections=openConnections;
+
+// ── CRM Kanban board + chat-to-change (per-user, write-back) ─────────────────
+function _crmClose(){const o=document.getElementById('crmOverlay');if(o)o.remove();}
+function _money(n){return (n==null)?'':'$'+Number(n).toLocaleString();}
+function _esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+let _crmBoard=null;
+async function openCrmBoard(){
+  _crmClose();
+  const ov=document.createElement('div');
+  ov.id='crmOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;flex-direction:column;font-family:system-ui;color:#e2e8f0';
+  ov.innerHTML='<div style="padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1e293b;background:#0f172a"><b style="font-size:16px">CRM Board</b><span id="crmProv" style="font-size:12px;color:#94a3b8"></span><button id="crmReload" style="margin-left:auto;padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Reload</button><button id="crmClose" style="padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Close</button></div><div id="crmCols" style="flex:1;display:flex;gap:12px;overflow-x:auto;padding:16px;background:#0b1220">Loading…</div><div style="padding:12px 16px;border-top:1px solid #1e293b;background:#0f172a"><div style="display:flex;gap:8px"><input id="crmChatIn" placeholder="Tell the CRM what to change, e.g. \'move Acme to Negotiation and add a note: sent pricing\'" style="flex:1;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#e2e8f0"/><button id="crmChatSend" style="padding:10px 16px;border-radius:8px;background:#4285f4;color:#fff;border:none;cursor:pointer">Preview</button></div><div id="crmPreview" style="margin-top:10px"></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('crmClose').onclick=_crmClose;
+  document.getElementById('crmReload').onclick=loadCrmBoard;
+  document.getElementById('crmChatSend').onclick=crmChatPreview;
+  document.getElementById('crmChatIn').addEventListener('keydown',e=>{if(e.key==='Enter')crmChatPreview();});
+  loadCrmBoard();
+}
+async function loadCrmBoard(){
+  const cols=document.getElementById('crmCols'); if(!cols)return;
+  cols.innerHTML='Loading…';
+  try{
+    const r=await fetch('/api/crm/board',{credentials:'same-origin'});
+    const data=await r.json();
+    if(!r.ok){ cols.innerHTML='<div style="padding:30px;color:#fca5a5">'+_esc(data.error||'Failed to load board')+'<br><br>Connect a CRM in <a href="#" style="color:#38bdf8" onclick="openConnections();return false">Connections</a>.</div>'; return; }
+    _crmBoard=data;
+    const pv=document.getElementById('crmProv'); if(pv)pv.textContent=(data.provider||'')+' · '+(data.pipeline&&data.pipeline.name||'');
+    cols.innerHTML='';
+    (data.columns||[]).forEach(col=>{
+      const c=document.createElement('div');
+      c.style.cssText='min-width:260px;max-width:260px;background:#0f172a;border:1px solid #1e293b;border-radius:10px;display:flex;flex-direction:column;max-height:100%';
+      c.dataset.stage=col.stageId;
+      c.innerHTML='<div style="padding:10px 12px;border-bottom:1px solid #1e293b;font-weight:600;font-size:13px">'+_esc(col.stageName)+' <span style="color:#64748b;font-weight:400">('+col.count+(col.total?' · '+_money(col.total):'')+')</span></div><div class="crmDrop" style="flex:1;overflow-y:auto;padding:8px;min-height:60px"></div>';
+      const drop=c.querySelector('.crmDrop');
+      (col.deals||[]).forEach(d=>{
+        const card=document.createElement('div');
+        card.draggable=true; card.dataset.deal=d.id;
+        card.style.cssText='background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 10px;margin-bottom:8px;cursor:grab;font-size:12px';
+        card.innerHTML='<div style="font-weight:600">'+_esc(d.name||'(no name)')+'</div><div style="color:#94a3b8">'+_esc(d.accountName||'')+(d.amount?' · '+_money(d.amount):'')+'</div>';
+        card.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',d.id);card.style.opacity='.5';});
+        card.addEventListener('dragend',()=>{card.style.opacity='1';});
+        drop.appendChild(card);
+      });
+      drop.addEventListener('dragover',e=>{e.preventDefault();c.style.outline='2px solid #4285f4';});
+      drop.addEventListener('dragleave',()=>{c.style.outline='none';});
+      drop.addEventListener('drop',async e=>{
+        e.preventDefault();c.style.outline='none';
+        const dealId=e.dataTransfer.getData('text/plain'); const stageId=col.stageId;
+        try{ const rr=await fetch('/api/crm/deals/'+encodeURIComponent(dealId)+'/move',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({stageId})});
+          if(!rr.ok){const j=await rr.json();alert('Move failed: '+(j.error||rr.status));}
+          loadCrmBoard();
+        }catch(err){alert('Move failed: '+err.message);}
+      });
+      cols.appendChild(c);
+    });
+  }catch(e){ cols.innerHTML='<div style="padding:30px;color:#fca5a5">'+_esc(e.message)+'</div>'; }
+}
+async function crmChatPreview(){
+  const inp=document.getElementById('crmChatIn'); const box=document.getElementById('crmPreview');
+  const message=(inp.value||'').trim(); if(!message){return;}
+  box.innerHTML='Thinking…';
+  try{
+    const r=await fetch('/api/crm/chat',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({message})});
+    const data=await r.json();
+    if(!r.ok){box.innerHTML='<span style="color:#fca5a5">'+_esc(data.error||'error')+'</span>';return;}
+    const changes=data.changes||[];
+    if(!changes.length){box.innerHTML='<span style="color:#94a3b8">No actionable changes detected. Try naming a deal and a stage.</span>';return;}
+    const rows=changes.map(c=>'<li>'+_esc(c.action)+' — <b>'+_esc(c.dealName||c.dealId)+'</b>'+(c.stageId?' → '+_esc(c.stageId):'')+(c.note?' (note: '+_esc(c.note)+')':'')+(c.fields?' '+_esc(JSON.stringify(c.fields)):'')+'</li>').join('');
+    box.innerHTML='<div style="background:#0b1220;border:1px solid #334155;border-radius:8px;padding:10px"><div style="font-weight:600;margin-bottom:6px">Proposed changes (nothing applied yet):</div><ul style="margin:0 0 10px 18px">'+rows+'</ul><button id="crmApply" style="padding:8px 16px;border-radius:6px;background:#22c55e;color:#06210f;border:none;font-weight:600;cursor:pointer">Apply '+changes.length+' change'+(changes.length>1?'s':'')+'</button> <button id="crmCancel" style="padding:8px 16px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Cancel</button></div>';
+    document.getElementById('crmCancel').onclick=()=>{box.innerHTML='';};
+    document.getElementById('crmApply').onclick=async()=>{
+      box.innerHTML='Applying…';
+      const ar=await fetch('/api/crm/apply',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({changes})});
+      const ad=await ar.json();
+      const ok=(ad.results||[]).filter(x=>x.ok).length, fail=(ad.results||[]).filter(x=>!x.ok);
+      box.innerHTML='<span style="color:#22c55e">Applied '+ok+' change(s).</span>'+(fail.length?' <span style="color:#fca5a5">'+fail.length+' failed: '+_esc(fail.map(f=>f.error).join('; '))+'</span>':'');
+      inp.value=''; loadCrmBoard();
+    };
+  }catch(e){box.innerHTML='<span style="color:#fca5a5">'+_esc(e.message)+'</span>';}
+}
+window.openCrmBoard=openCrmBoard;
+
 
 // Check auth status then load
 (async function(){

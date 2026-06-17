@@ -282,3 +282,65 @@ env vars are **no longer read** and can be removed.
   `GOOGLE_REFRESH_TOKEN`-based auto-auth bypass has been removed.
 - OAuth flows use a per-session `state` parameter (CSRF protection, 10-min TTL).
 - Tokens are encrypted at rest with AES-256-GCM; `/api/connections` never returns secrets.
+
+---
+
+# Microsoft Calendar + Teams transcription, and CRM (HubSpot/Zoho) Kanban + chat
+
+## Microsoft 365 (calendar + Teams transcripts)
+
+Microsoft **login** stays identity-only. To read calendar/Teams data, a logged-in
+user clicks **Connections → Microsoft 365**, which runs a second consent against the
+same Entra app requesting `Calendars.Read`, `OnlineMeetings.Read`,
+`OnlineMeetingTranscript.Read.All`, `offline_access`. The refresh token is stored
+per-user in the encrypted vault. Add `MS_DATA_REDIRECT_URI`
+(`https://<app>/connect/microsoft/callback`) to the Entra app's redirect URIs.
+
+Endpoints: `GET /api/ms/calendar` (next-7-days by default; `?start&end&top`),
+`GET /api/ms/transcripts?joinUrl=...` (resolves the online meeting, lists transcripts),
+`GET /api/ms/transcripts/:meetingId/:transcriptId` (VTT text).
+
+**Limitation (important):** Teams transcripts via Graph require **admin consent** and
+an **organizational tenant** — personal Microsoft accounts cannot read Teams
+transcripts. Calendar works for any account. For a no-admin, cross-platform option,
+use Recall.ai below.
+
+## Teams/Zoom/Meet transcription via Recall.ai (single API key)
+
+Recall.ai sends a meeting bot that joins by URL and returns a transcript — works for
+Teams, Zoom, and Google Meet with just one API key (no per-user OAuth, no tenant
+admin consent). Get a key at recall.ai, then **Connections → Recall.ai**, paste the
+key + region (`us-east-1` default). An admin may instead set `RECALL_API_KEY` /
+`RECALL_REGION` in env as a shared fallback.
+
+Endpoints: `POST /api/transcription/bot {meetingUrl,botName}` (launch),
+`GET /api/transcription/bot/:id` (status), `GET /api/transcription/bot/:id/transcript`
+(normalized `{text, segments[]}`), `GET /api/transcription/status`.
+
+The existing Deepgram live-transcription path is unchanged; the three lanes
+(Recall.ai bot, Graph stored transcripts, Deepgram live) coexist.
+
+## CRM: HubSpot or Zoho — Kanban board + chat-to-change
+
+The dashboard's **CRM Board** button opens a Kanban view of the user's deal pipeline.
+The CRM is chosen per user from what they connected: **HubSpot** first, else
+**Zoho (Cadient)**, else **Zoho (Vorro)**. `lib/crm.js` normalizes both to one shape.
+
+- Connect HubSpot: register a HubSpot app, set `HUBSPOT_CLIENT_ID/SECRET` and
+  `HUBSPOT_REDIRECT_URI` (`https://<app>/connect/hubspot/callback`), then
+  **Connections → HubSpot CRM**. Each user grants their own refresh token.
+- Drag a card between columns → `POST /api/crm/deals/:id/move` updates the CRM.
+- The chat box turns natural language ("move Acme to Negotiation, add a note: sent
+  pricing") into a **preview** of structured changes via `POST /api/crm/chat`
+  (nothing is written). Clicking **Apply** runs `POST /api/crm/apply`, which executes
+  move/update/note operations through the CRM-agnostic layer. **All CRM writes are
+  preview-then-confirm; nothing is written without an explicit Apply.**
+
+Endpoints: `GET /api/crm/pipelines`, `GET /api/crm/board[?provider=&pipelineId=]`,
+`POST /api/crm/deals/:id/move {stageId}`, `POST /api/crm/chat {message}`,
+`POST /api/crm/apply {changes}`.
+
+## New env vars summary
+
+`HUBSPOT_CLIENT_ID`, `HUBSPOT_CLIENT_SECRET`, `HUBSPOT_REDIRECT_URI`,
+`MS_DATA_REDIRECT_URI`, `RECALL_API_KEY`, `RECALL_REGION`.
