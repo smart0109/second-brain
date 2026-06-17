@@ -176,8 +176,13 @@ async function run() {
   check(om && om.id === 'OM-1', 'getOnlineMeeting returns first match');
 
   nextResponse = { json: { value: [] } };
-  const omNone = await mg.getOnlineMeetingByJoinUrl('T2', 'https://none');
+  const omNone = await mg.getOnlineMeetingByJoinUrl('T2', 'https://teams.microsoft.com/l/meetup-join/NONE');
   check(omNone === null, 'getOnlineMeeting returns null on no match');
+
+  // security: reject non-Teams join URLs (OData filter-injection guard)
+  let rejected = false;
+  try { await mg.getOnlineMeetingByJoinUrl('T2', "https://evil/' or 1 eq 1"); } catch (e) { rejected = true; }
+  check(rejected, 'getOnlineMeeting rejects non-Teams join URL');
 
   // ---- 5. listMeetingTranscripts -------------------------------------------
   nextResponse = {
