@@ -2492,14 +2492,24 @@ if (DGWss) {
     const exp = dgTokens.get(token);
     if (!exp || exp < Date.now()) { socket.destroy(); return; }
     dgTokens.delete(token);
-    DGWss.handleUpgrade(req, socket, head, (client) => dgHandleClient(client));
+    DGWss.handleUpgrade(req, socket, head, (client) => dgHandleClient(client, u));
   });
   console.log('Live transcription: WS proxy mounted at /ws/transcribe');
 }
 
-function dgHandleClient(client) {
+function dgHandleClient(client, u) {
   const WS = require('ws');
-  const params = new URLSearchParams({ model: 'nova-3', smart_format: 'true', diarize: 'true', interim_results: 'true', punctuate: 'true' });
+  const pcm = u && u.searchParams.get('pcm') === '1';
+  const channels = Math.max(1, Math.min(2, parseInt((u && u.searchParams.get('channels')) || '1', 10) || 1));
+  const sr = parseInt((u && u.searchParams.get('sr')) || '16000', 10) || 16000;
+  const base = { model: 'nova-3', smart_format: 'true', diarize: 'true', interim_results: 'true', punctuate: 'true' };
+  if (pcm) {
+    base.encoding = 'linear16';
+    base.sample_rate = String(sr);
+    base.channels = String(channels);
+    if (channels > 1) base.multichannel = 'true';
+  }
+  const params = new URLSearchParams(base);
   const qs = params.toString() + DG_KEYTERMS.map(k => '&keyterm=' + encodeURIComponent(k)).join('');
   const dg = new WS('wss://api.deepgram.com/v1/listen?' + qs, { headers: { Authorization: 'Token ' + process.env.DEEPGRAM_API_KEY } });
   const queue = [];

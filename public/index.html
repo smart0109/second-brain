@@ -5023,41 +5023,57 @@ async function startDeepgram(){
   const tk=await r.json();
   const mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
   dgStreams=[mic];
-  let mixed=mic;
+  let sysStream=null;
   const wantSys=document.getElementById('dgSysAudio')?.checked;
   if(wantSys&&navigator.mediaDevices.getDisplayMedia){
     try{
       const sys=await navigator.mediaDevices.getDisplayMedia({video:true,audio:{echoCancellation:false,noiseSuppression:false}});
       sys.getVideoTracks().forEach(t=>t.stop());
-      if(sys.getAudioTracks().length){
-        dgStreams.push(sys);
-        dgAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
-        const dest=dgAudioCtx.createMediaStreamDestination();
-        dgAudioCtx.createMediaStreamSource(mic).connect(dest);
-        dgAudioCtx.createMediaStreamSource(sys).connect(dest);
-        mixed=dest.stream;
-      }
+      if(sys.getAudioTracks().length){dgStreams.push(sys);sysStream=sys;}
     }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'sys-audio-declined');}
   }
+  // Granola-style 2-channel capture: mic = channel 0 ("Me"), system audio = channel 1 ("Them").
+  dgAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  const sr=dgAudioCtx.sampleRate;
+  const stereo=!!sysStream;
+  const merger=dgAudioCtx.createChannelMerger(2);
+  dgAudioCtx.createMediaStreamSource(mic).connect(merger,0,0);
+  if(sysStream)dgAudioCtx.createMediaStreamSource(sysStream).connect(merger,0,1);
+  const proc=dgAudioCtx.createScriptProcessor(4096,2,1);
+  merger.connect(proc);
+  const sink=dgAudioCtx.createGain();sink.gain.value=0;proc.connect(sink);sink.connect(dgAudioCtx.destination);
   const proto=location.protocol==='https:'?'wss://':'ws://';
-  const ws=new WebSocket(proto+location.host+'/ws/transcribe?token='+encodeURIComponent(tk.token));
+  const ws=new WebSocket(proto+location.host+'/ws/transcribe?token='+encodeURIComponent(tk.token)+'&pcm=1&sr='+sr+'&channels='+(stereo?2:1));
   ws.onmessage=(ev)=>{try{handleDgMessage(JSON.parse(ev.data))}catch(e){}};
   ws.onclose=()=>{if(copilotListening&&dgMode==='deepgram')setListenUI(false,'Connection closed. Click Start to resume.');};
   await new Promise((res,rej)=>{ws.onopen=res;ws.onerror=()=>rej(new Error('WS connect failed'));setTimeout(()=>rej(new Error('WS connect timeout')),8000);});
   dgSocket=ws;
-  const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
-  dgMediaRecorder=new MediaRecorder(mixed,{mimeType:mime,audioBitsPerSecond:128000});
-  dgMediaRecorder.ondataavailable=(e)=>{if(e.data&&e.data.size>0&&ws.readyState===1)e.data.arrayBuffer().then(b=>{try{ws.send(b)}catch(err){}});};
-  dgMediaRecorder.start(250);
+  proc.onaudioprocess=(e)=>{
+    if(!dgSocket||dgSocket.readyState!==1)return;
+    const ib=e.inputBuffer;
+    const ch0=ib.getChannelData(0);
+    const ch1=(stereo&&ib.numberOfChannels>1)?ib.getChannelData(1):null;
+    const n=ch0.length;
+    if(stereo){
+      const out=new Int16Array(n*2);
+      for(let i=0;i<n;i++){let a=Math.max(-1,Math.min(1,ch0[i]));let b=ch1?Math.max(-1,Math.min(1,ch1[i])):0;out[i*2]=a<0?a*32768:a*32767;out[i*2+1]=b<0?b*32768:b*32767;}
+      try{dgSocket.send(out.buffer)}catch(_){}
+    }else{
+      const out=new Int16Array(n);
+      for(let i=0;i<n;i++){let a=Math.max(-1,Math.min(1,ch0[i]));out[i]=a<0?a*32768:a*32767;}
+      try{dgSocket.send(out.buffer)}catch(_){}
+    }
+  };
   dgMode='deepgram';
   copilotListening=true;
-  setListenUI(true,dgStreams.length>1?'Listening (mic + system audio, diarized)...':'Listening (mic only, diarized)...');
+  setListenUI(true,stereo?'Listening — you (mic) vs others (system audio), separated...':'Listening (mic only — share the meeting tab audio to separate speakers)...');
 }
 
 function handleDgMessage(m){
   if(m.dgError){setListenUI(false,'STT error: '+m.dgError);return;}
   const alt=m.channel&&m.channel.alternatives&&m.channel.alternatives[0];
   if(!alt)return;
+  const _chan=Array.isArray(m.channel_index)?(m.channel_index[0]||0):0;
   if(!m.is_final){if(alt.transcript)renderCopilotInterim(alt.transcript);return;}
   if(!alt.transcript||!alt.transcript.trim())return;
   const words=alt.words||[];
@@ -5073,8 +5089,8 @@ function handleDgMessage(m){
   for(const run of runs){
     const text=run.words.join(' ').trim();
     if(!text)continue;
-    const speaker=run.sp<0?'':(dgSpeakerNames[run.sp]||('Speaker '+(run.sp+1)));
-    copilotTranscriptLines.push({text,time:new Date(),confidence:alt.confidence||1,speaker,dgSpeaker:run.sp});
+    const speaker=_chan===0?'Me':(dgSpeakerNames[run.sp]||('Speaker '+(run.sp+1)));
+    copilotTranscriptLines.push({text,time:new Date(),confidence:alt.confidence||1,speaker,dgSpeaker:_chan===0?-1:run.sp});
     checkObjections(text);
     const brand=detectBrandFromContext();
     const topics=[];
