@@ -860,6 +860,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div class="cmb-icon">&#127897;</div>
         <div class="cmb-info"><div class="cmb-title" id="copilotMeetingTitle">No Active Meeting</div><div class="cmb-meta" id="copilotMeetingMeta">Search for a prospect or select a past meeting above</div></div>
         <div class="cmb-actions">
+          <button class="cmb-btn" onclick="loadMeetTranscriptFromDrive()">Pull Transcript (Drive)</button>
           <button class="cmb-btn" onclick="refreshCopilotMeeting()">Refresh</button>
           <button class="cmb-btn" onclick="clearCopilotSession()">Clear Session</button>
         </div>
@@ -5159,6 +5160,67 @@ function startBrowserSpeech(statusMsg){
   setListenUI(true,statusMsg||'Listening (browser speech)...');
 }
 
+async function loadMeetTranscriptFromDrive(silentFallback){
+  const m=copilotCurrentMeeting||{};
+  const title=m.summary||'';
+  const tEl=document.getElementById('copilotTranscript');
+  if(tEl)tEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching Drive for this meeting\'s transcript...</div>';
+  try{
+    const kw=(title||'').replace(/[^a-zA-Z0-9 ]/g,' ').trim().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+    const nameClause=kw.length?'('+kw.map(w=>`name contains '${w.replace(/'/g,"")}'`).join(' or ')+')':"(name contains 'Transcript' or name contains 'Gemini' or name contains 'Notes')";
+    const q=`mimeType='application/vnd.google-apps.document' and ${nameClause} and trashed=false`;
+    let files=((await call(`${DRIVE}__search_files`,{query:q,pageSize:25}))||{}).files||[];
+    if(!files.length){
+      files=((await call(`${DRIVE}__search_files`,{query:"mimeType='application/vnd.google-apps.document' and (name contains 'Transcript' or name contains 'Gemini' or name contains 'Notes') and trashed=false",pageSize:25}))||{}).files||[];
+    }
+    if(!files.length){ return _meetTranscriptFallback(m, silentFallback, 'No Meet/Gemini transcript found in Drive for this meeting.'); }
+    const md=(m.start&&(m.start.dateTime||m.start.date))?new Date(m.start.dateTime||m.start.date).getTime():0;
+    const score=(f)=>{let sc=0;const nm=(f.title||'').toLowerCase();
+      if(/transcript/.test(nm))sc+=3; if(/gemini|notes/.test(nm))sc+=1;
+      kw.forEach(w=>{if(nm.includes(w.toLowerCase()))sc+=2;});
+      if(md&&f.modifiedTime){const dd=Math.abs(new Date(f.modifiedTime).getTime()-md);if(dd<2*86400000)sc+=2;else if(dd<7*86400000)sc+=1;}
+      return sc;};
+    files.sort((a,b)=>score(b)-score(a));
+    const best=files[0];
+    const cr=await call(`${DRIVE}__read_file_content`,{fileId:best.id});
+    const text=(cr&&cr.content)||'';
+    if(!text.trim()){ return _meetTranscriptFallback(m, silentFallback, 'Found "'+best.title+'" but it was empty.'); }
+    const lines=parseMeetTranscript(text);
+    if(lines.length>=2){
+      copilotTranscriptLines=lines;
+      renderCopilotTranscript();
+      const note=document.createElement('div');
+      note.style.cssText='font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600';
+      note.textContent='Loaded from Drive: '+best.title+' ('+lines.length+' lines, real speaker names)';
+      if(tEl)tEl.prepend(note);
+    } else {
+      if(tEl)tEl.innerHTML='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">From Drive: '+esc(best.title)+'</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(text.slice(0,6000))+'</div>';
+    }
+  }catch(e){ return _meetTranscriptFallback(m, silentFallback, 'Drive transcript load failed: '+(e.message||e)); }
+}
+
+async function _meetTranscriptFallback(m, silent, msg){
+  try{
+    const gR=await call(`${GRAN}__query_granola_meetings`,{query:'Meeting: '+((m&&m.summary)||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
+    const gText=typeof gR==='string'?gR:(gR&&(gR.answer||gR.text||gR.content))||'';
+    const tEl=document.getElementById('copilotTranscript');
+    if(gText&&gText.length>20){ if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "${esc((m&&m.summary)||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`; return; }
+    if(tEl)tEl.innerHTML='<div class="empty-state">'+esc(msg||'No transcript available')+'<br><span style="font-size:10px;color:var(--text-muted)">Turn on Meet transcription or Gemini notes so a named transcript saves to Drive.</span></div>';
+  }catch(e){ const tEl=document.getElementById('copilotTranscript'); if(tEl)tEl.innerHTML='<div class="empty-state">'+esc(msg||'No transcript available')+'</div>'; }
+}
+
+function parseMeetTranscript(text){
+  const out=[];const raw=text.replace(/\r/g,'').split('\n');let last='';
+  for(let ln of raw){
+    ln=ln.trim();if(!ln)continue;
+    if(/^\d{1,2}:\d{2}(:\d{2})?\s*$/.test(ln))continue;
+    const mm=ln.match(/^([A-Z][\w .'’-]{1,40}?):\s+(.+)$/);
+    if(mm && mm[1].split(' ').length<=4){last=mm[1].trim();out.push({text:mm[2].trim(),time:new Date(),confidence:1,speaker:last,dgSpeaker:-1});continue;}
+    if(last && ln.length>1){out.push({text:ln,time:new Date(),confidence:1,speaker:last,dgSpeaker:-1});}
+  }
+  return out;
+}
+
 function renderCopilotTranscript(){
   const el=document.getElementById('copilotTranscript');
   if(!copilotTranscriptLines.length){el.innerHTML='<div class="empty-state">Transcript will appear here. Select a speaker, type what they said, press Enter.</div>';return}
@@ -5572,15 +5634,9 @@ async function loadCopilotStripMeeting(idx){
   // Populate speakers + load context
   populateSpeakersFromAttendees(attendees);
   if(attendees.length)await loadAttendeeContext(attendees);
-  // Try to load Granola notes for this meeting
-  try{
-    const gR=await call(`${GRAN}__query_granola_meetings`,{query:'Meeting: '+(m.summary||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
-    const gText=typeof gR==='string'?gR:(gR?.answer||gR?.text||gR?.content||'');
-    if(gText&&gText.length>20){
-      const tEl=document.getElementById('copilotTranscript');
-      if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "${esc(m.summary||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`;
-    }
-  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
+  // Pull THIS meeting's real transcript (with speaker names) from Google Drive (Meet/Gemini),
+  // falling back to Granola notes if no Drive transcript exists.
+  loadMeetTranscriptFromDrive(true);
 }
 
 async function loadAttendeeContext(attendees){
