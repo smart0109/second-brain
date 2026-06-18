@@ -85,8 +85,8 @@ free test path, so you can do the entire dry run without risking a live account.
    (`recall_bots` table): each bot is recorded against the user who launched it, and
    transcript/status reads verify ownership (unknown bots are denied). A shared admin
    `RECALL_API_KEY` is now safe — admins cannot read each other's transcripts.
-2. **Allowlist removal doesn't kill live sessions** — a removed user keeps access until their
-   session cookie expires (≤7 days). If you need instant revocation, add an allowlist re-check
-   in `requireAuth`.
+2. **Allowlist removal — RESOLVED (instant revocation).** `requireAuth` now re-checks the
+   allowlist on each request (15s cache), and the admin remove route invalidates that cache
+   and purges the user's stored sessions, so removal takes effect immediately.
 3. **Two memory subsystems** still coexist (canonical + legacy org-memory). Safe, but worth a
    future consolidation.

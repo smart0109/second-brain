@@ -12,6 +12,7 @@ const tokens = require('./lib/tokens');
 const authLib = require('./lib/auth');
 const ctx = require('./lib/context');
 const memstore = require('./lib/memstore');
+const access = require('./lib/access');
 const msgraph = require('./lib/msgraph');
 const hubspotLib = require('./lib/crm_hubspot');
 const crm = require('./lib/crm');
@@ -140,9 +141,17 @@ async function getAuthedClient() {
 // ---------------------------------------------------------------------------
 // Auth middleware
 // ---------------------------------------------------------------------------
-function requireAuth(req, res, next) {
-  if (req.session && req.session.userId) return next();
-  return res.status(401).json({ error: 'Not authenticated. Visit /auth/google to sign in.' });
+async function requireAuth(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ error: 'Not authenticated. Visit /auth/google to sign in.' });
+  }
+  // Instant revocation: re-check the allowlist (short-cached). If removed, kill the session.
+  try {
+    if (db.isConfigured() && req.session.email && !(await access.isStillAllowed(req.session.email))) {
+      return req.session.destroy(() => res.status(403).json({ error: 'Access revoked. Contact an admin.' }));
+    }
+  } catch (e) { console.error('allowlist recheck failed (fail-open):', e.message); }
+  return next();
 }
 
 // ---------------------------------------------------------------------------
@@ -953,7 +962,9 @@ app.post('/api/admin/allowlist', requireAuth, requireAdmin, async (req, res) => 
 });
 app.delete('/api/admin/allowlist/:email', requireAuth, requireAdmin, async (req, res) => {
   await authLib.removeFromAllowlist(req.params.email);
-  res.json({ success: true });
+  access.invalidate(req.params.email);
+  try { await authLib.purgeUserSessions(req.params.email); } catch (e) { console.error('session purge failed:', e.message); }
+  res.json({ success: true, revoked: req.params.email });
 });
 app.get('/api/admin/users', requireAuth, requireAdmin, async (_req, res) => {
   res.json({ users: await authLib.listUsers() });
