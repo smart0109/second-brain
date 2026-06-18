@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+ body{font-family:system-ui,sans-serif;width:300px;padding:14px;color:#0f172a}
+ h1{font-size:14px;margin:0 0 8px} label{font-size:11px;color:#475569;display:block;margin:8px 0 2px}
+ input{width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;box-sizing:border-box}
+ button{margin-top:10px;width:100%;padding:8px;border:none;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer}
+ .hint{font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.4}
+ #status{font-size:11px;margin-top:8px;font-weight:600}
+</style></head><body>
+ <h1>Second Brain — Meet Captions</h1>
+ <label>App URL</label>
+ <input id="appUrl" placeholder="https://second-brain-iida.onrender.com">
+ <label>Pairing code (from the AI Transcription tab)</label>
+ <input id="code" placeholder="e.g. 3F9A1C7B" style="text-transform:uppercase">
+ <button id="save">Save &amp; connect</button>
+ <div id="status"></div>
+ <div class="hint">In the app: AI Transcription &rarr; "Live captions" &rarr; copy the pairing code here. Turn on Meet captions (CC) and the transcript streams in with names.</div>
+ <script src="popup.js"></script>
+</body></html>
