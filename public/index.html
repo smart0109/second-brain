@@ -5280,21 +5280,20 @@ async function copilotAction(type){
   const brand=detectBrandFromContext();
   const kb=KNOWLEDGE_BASE[brand];
 
-  const sessionTone=`IMPORTANT: Maintain a consistent, professional yet warm tone throughout this entire session. You are Manish's real-time meeting intelligence layer. Be direct, data-driven, and actionable. Never generic. Always reference specific things from the transcript, attendee data, and product knowledge. If previous responses were given in this session, maintain continuity.`;
+  const fmt=`FORMAT (STRICT): Reply as 3 to 5 short, clean bullet points only. Start every line with "- ". One idea per bullet, max ~18 words each. NO headings, NO bold/markdown, NO preamble, NO sign-off. Do NOT restate the transcript and do NOT repeat or summarize past meeting notes — answer only from the LIVE conversation and the product facts provided. If there isn't enough in the live conversation yet, say so in a single bullet.`;
+  const sessionTone=`You are Manish's real-time meeting copilot. Be direct, specific, data-driven. Cite concrete numbers/metrics from the product knowledge when relevant.`;
   const prompts={
-    explain:`${sessionTone}\n\nReview the most recent part of the transcript and give Manish a clear, plain-English summary of what was just said. Specifically:\n(1) SUMMARY: In 2-3 sentences, what did the speaker just communicate? What is the key point?\n(2) JARGON DECODER: If ANY acronyms, technical terms, industry jargon, company-specific language, or abbreviations were used (like ERP, PIM, MDM, SKU, EDI, API, SaaS, ARR, NRR, churn, etc.), list each one with a plain-English definition. If the speaker mentioned a company, product, or platform name Manish might not know, look it up and explain what it is.\n(3) WHAT THIS MEANS FOR YOU: One sentence on why this matters in the context of this meeting and what Manish should take away from it.\nBe concise and practical. Do NOT repeat the transcript back. Translate complexity into clarity.`,
-    rebuttal:`${sessionTone}\n\nThe prospect has expressed hesitation, disinterest, or an objection. Manish needs a strong, natural comeback he can say RIGHT NOW in conversation. Generate:\n(1) ACKNOWLEDGE: One sentence that shows you heard them and validates their concern (never dismiss).\n(2) PIVOT: The counter-argument with specific data, metrics, or client results from ${kb.company}. Reference actual numbers from the knowledge base (cost savings, time reduction, retention lift, etc.).\n(3) SAY THIS: A word-for-word response Manish can deliver naturally in conversation. Under 60 words. Conversational, not salesy.\nIf the objection is about pricing, timing, existing solutions, competitors, or implementation complexity, tailor the rebuttal specifically to that objection type. Use the transcript to understand exactly what they said and counter it precisely.`,
-    tone:`${sessionTone}\n\nAnalyze the emotional state of the conversation. Report: (1) Overall tone (interested/skeptical/hostile/engaged/confused/excited), (2) Specific signals from the transcript, (3) Deal trending positive or negative, (4) What emotional levers to pull next. Be specific about which words/phrases signal the tone.`,
-    advise:`${sessionTone}\n\nBased on what was JUST said in the last 1-2 minutes of transcript, tell Manish exactly how to respond. This is for when someone asked a question or made a statement that Manish needs to answer.\n(1) WHAT THEY ASKED/SAID: One sentence summary of their question or statement.\n(2) THE ANSWER: The factual answer using ${kb.company} product knowledge, metrics, case studies, or industry data. Be specific with numbers.\n(3) SAY THIS: A word-for-word response Manish can deliver right now. Under 80 words. Natural, confident, conversational. Not a pitch - an answer to their specific question.\n(4) FOLLOW UP WITH: One killer follow-up question Manish can ask to advance the conversation after answering.\nIf the question is about something outside the knowledge base, say so honestly and suggest what Manish can offer to follow up on.`
+    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said. Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now.`,
+    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection. Bullets: one that acknowledges the concern; two to three that counter it with specific ${kb.company} data/results; one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say now.`,
+    tone:`${sessionTone}\n${fmt}\n\nTask: read the room. Bullets: overall tone in 1-2 words; two to three citing the exact words/phrases that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
+    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a statement. Bullets: one summarizing what they asked; two to three with the factual answer using ${kb.company} metrics/case studies; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question.`
   };
 
   const data=[
-    {label:'Recent transcript (last 10 min)',value:transcript||getFullTranscript()},
-    {label:'Full conversation',value:getFullTranscript()},
-    {label:'Meeting context',value:copilotMeetingContext},
-    {label:'Attendee data',value:JSON.stringify(copilotAttendeeData)},
-    {label:'Product knowledge',value:getKnowledgeString()},
-    {label:'Brand detected',value:brand}
+    {label:'Live conversation (most recent, answer ONLY from this)',value:transcript||getFullTranscript()},
+    {label:'Attendees',value:JSON.stringify(copilotAttendeeData)},
+    {label:'Product facts to cite',value:getKnowledgeString()},
+    {label:'Brand',value:brand}
   ];
 
   try{
@@ -5323,6 +5322,27 @@ function speakResponse(){
   window.speechSynthesis.speak(u);
 }
 
+function _cleanBullets(text){
+  const raw=(typeof text==='string'?text:JSON.stringify(text)).replace(/\r/g,'');
+  const out=[];
+  for(let l of raw.split('\n')){
+    l=l.trim();
+    if(!l)continue;
+    l=l.replace(/^#{1,6}\s*/,'');                 // markdown headings
+    l=l.replace(/^[-*\u2022\u2013\u2014]\s+/,''); // bullet markers
+    l=l.replace(/^\d+[.)]\s+/,'');                // numbered markers
+    l=l.replace(/\*\*(.+?)\*\*/g,'$1').replace(/__(.+?)__/g,'$1'); // bold
+    l=l.replace(/(^|[^*])\*(?!\*)([^*]+?)\*(?!\*)/g,'$1$2');       // italics
+    l=l.replace(/`(.+?)`/g,'$1');                 // code ticks
+    l=l.trim();
+    if(l) out.push(l);
+  }
+  if(!out.length) out.push(raw.trim());
+  return '<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px">'+
+    out.map(i=>`<li style="line-height:1.5;color:var(--text-primary)">${esc(i)}</li>`).join('')+
+    '</ul>';
+}
+
 function renderCopilotResponse(type,text){
   const headers={
     explain:'&#128161; What They Said (Plain English)',
@@ -5330,23 +5350,21 @@ function renderCopilotResponse(type,text){
     tone:'&#127912; Tone Analysis',
     advise:'&#128172; Your Answer'
   };
-  const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50'};
+  const colors={explain:'var(--blue)',rebuttal:'var(--orange)',tone:'var(--purple)',advise:'var(--green)'};
   const headerEl=document.querySelector('.copilot-response .cr-header');
-  headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span><button id="btnSpeak2" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer" title="Read response aloud">&#128264; Read Aloud</button>`;
+  headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span><button id="btnSpeak2" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer" title="Read response aloud">&#128264; Read Aloud</button>`;
   _ttsText=typeof text==='string'?text:JSON.stringify(text);
   const body=document.getElementById('copilotResponseBody');
 
   if(type==='tone'){
-    // Parse tone and show pills
     const toneMatch=text.match(/(interested|skeptical|hostile|engaged|confused|excited|neutral|positive|negative|curious|cautious|warm|defensive)/gi);
     const tones=(toneMatch||['neutral']).slice(0,3);
     const toneClasses={interested:'positive',engaged:'positive',excited:'positive',warm:'positive',positive:'positive',
       skeptical:'neutral',confused:'neutral',cautious:'neutral',neutral:'neutral',
       hostile:'negative',defensive:'negative',negative:'negative',curious:'curious'};
-    body.innerHTML=`<div class="copilot-tone-bar">${tones.map(t=>`<span class="copilot-tone-pill tone-${toneClasses[t.toLowerCase()]||'neutral'}">${esc(t)}</span>`).join('')}</div>
-      <div style="font-size:12px;line-height:1.7;color:#e2e8f0">${esc(text)}</div>`;
+    body.innerHTML=`<div class="copilot-tone-bar">${tones.map(t=>`<span class="copilot-tone-pill tone-${toneClasses[t.toLowerCase()]||'neutral'}">${esc(t)}</span>`).join('')}</div>`+_cleanBullets(text);
   } else {
-    body.innerHTML=`<div style="font-size:12px;line-height:1.7;color:#e2e8f0">${esc(text)}</div>`;
+    body.innerHTML=_cleanBullets(text);
   }
 }
 
