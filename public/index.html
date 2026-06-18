@@ -632,6 +632,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- TODAY -->
     <div id="view-dashboard" class="view active">
+      <div id="homeIntelAnswer"></div>
       <!-- Hero: Weather + Time Zones + Sales Quote -->
       <div class="hero-bar">
         <div class="hero-weather" id="heroWeather" title="Click to change location" onclick="window._changeWeatherZip()">
@@ -916,6 +917,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
               <div class="cab-hint">What to say next</div>
             </div>
           </div>
+
+          <button onclick="generateTasksFromTranscript()" style="width:100%;padding:11px;margin-bottom:10px;border-radius:8px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent-text);font-size:12px;font-weight:700;cursor:pointer">&#9745; Generate Tasks from Meeting &rarr; Productivity</button>
 
           <div id="copilotResponse" class="copilot-response">
             <div class="cr-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -1362,6 +1365,17 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       </div>
       <div class="section-header" style="color:#06b6d4">Industry Trends &amp; Market Moves</div>
       <div class="card"><div class="card-body scroll-panel" id="newsIndustry" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+      <div class="section-header" style="color:#06b6d4">Competitor Watch &middot; latest brief each</div>
+      <div class="grid-2">
+        <div>
+          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Cadient competitors</div>
+          <div class="card"><div class="card-body scroll-panel" id="newsCompCadient" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+        </div>
+        <div>
+          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Vorro competitors</div>
+          <div class="card"><div class="card-body scroll-panel" id="newsCompVorro" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══════ MARKETING VIEWS ══════ -->
@@ -2959,7 +2973,8 @@ async function loadRecentContacts(){
     threads.forEach(t=>{
       (t.messages||[]).forEach(m=>{
         const from=m.sender||'';const to=[].concat(m.to||'');
-        [from,to].forEach(addr=>{
+        [from].concat(to).forEach(a=>{
+          const addr=typeof a==='string'?a:String((a&&(a.email||a.address||a.name))||'');
           if(!addr)return;
           const email=(addr.match(/<([^>]+)>/)||[null,addr])[1]||addr;
           const emailClean=email.toLowerCase().trim();
@@ -3653,7 +3668,7 @@ function renderPipelineView(brand){
   allDeals.forEach(d=>{d.Stage=safeStr(d.Stage)||'Unknown';});
   let deals=allDeals;
 
-  const totalVal=deals.reduce((s,d)=>s+(d.Amount||0),0);
+  const totalVal=deals.reduce((s,d)=>s+(parseFloat(d.Amount)||0),0);
   const sumEl=document.getElementById('pipelineSummary');
   if(sumEl) sumEl.innerHTML=`${deals.length} deals | ${fmtMoney(totalVal)} total`;
 
@@ -3662,10 +3677,10 @@ function renderPipelineView(brand){
   deals.forEach(d=>{
     const s=d.Stage;
     if(!stages[s])stages[s]={count:0,value:0};
-    stages[s].count++;stages[s].value+=(d.Amount||0);
+    stages[s].count++;stages[s].value+=(parseFloat(d.Amount)||0);
     const o=typeof d.Owner==='object'?(d.Owner?.name||'Unassigned'):safeStr(d.Owner)||'Unassigned';
     if(!owners[o])owners[o]={count:0,value:0};
-    owners[o].count++;owners[o].value+=(d.Amount||0);
+    owners[o].count++;owners[o].value+=(parseFloat(d.Amount)||0);
   });
 
   // Stage pills
@@ -4084,8 +4099,11 @@ async function loadTeam(){
     const active=lastDate&&(Date.now()-new Date(lastDate).getTime())<86400000;
     // Count tasks and deals owned by this person
     const firstName=t.name.split(' ')[0].toLowerCase();
-    const myTasks=tasks.filter(tk=>{const o=typeof tk.Owner==='object'?(tk.Owner?.name||''):safeStr(tk.Owner);return o.toLowerCase().includes(firstName);});
-    const myDeals=openDeals.filter(dk=>{const o=typeof dk.Owner==='object'?(dk.Owner?.name||''):safeStr(dk.Owner);return o.toLowerCase().includes(firstName);});
+    const tEmail=(t.email||'').toLowerCase(); const tLocal=tEmail.split('@')[0];
+    const _ownerStr=(owner)=>{const o=(owner&&typeof owner==='object')?(owner.name||owner.email||owner.id||''):safeStr(owner);return String(o).toLowerCase();};
+    const _mine=(owner)=>{const ol=_ownerStr(owner);return ol&&(ol.includes(firstName)||(tLocal&&ol.includes(tLocal))||(tEmail&&ol.includes(tEmail)));};
+    const myTasks=tasks.filter(tk=>_mine(tk.Owner));
+    const myDeals=openDeals.filter(dk=>_mine(dk.Owner));
     return `<div class="team-card" onclick="loadTeamMember('${esc(t.name)}','${esc(t.email)}')">
       <div class="team-avatar" style="${active?'background:rgba(52,211,153,0.2);color:#34d399':'background:rgba(248,113,113,0.2);color:#f87171'}">${initials(t.name)}</div>
       <div class="team-name">${esc(t.name.split(' ')[0])}</div>
@@ -4729,11 +4747,26 @@ async function runIntelSearch(){
       `You are a CRO's intelligence assistant. Answer this question using ONLY the data provided: "${q}". Be specific, cite names, dates, amounts. Use short paragraphs. If the data doesn't contain a clear answer, say what you found and what's missing.`,
       ctx
     );
-    el.innerHTML=`<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">${renderMarkdown(typeof answer==='string'?answer:JSON.stringify(answer))}</div>`;
-    // Show source links
+    const answerHtml=renderMarkdown(typeof answer==='string'?answer:JSON.stringify(answer));
+    el.innerHTML=`<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">${answerHtml}</div>`;
+    let srcLinks='';
     if(emails.length){
-      el.innerHTML+=`<div style="border-top:1px solid rgba(255,255,255,0.06);padding:8px 14px"><div style="font-size:10px;font-weight:600;color:#334155;margin-bottom:4px">Related Emails</div>${emails.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return `<a href="${gmailUrl(t.id)}" target="_blank" style="display:block;font-size:11px;color:#60a5fa;text-decoration:none;padding:2px 0">${esc(truncate(m.subject||'',60))} <span style="color:#334155">${fmtDate(m.date)}</span></a>`}).join('')}</div>`;
+      srcLinks=`<div style="border-top:1px solid var(--border);padding:8px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">Related Emails</div>${emails.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return `<a href="${gmailUrl(t.id)}" target="_blank" style="display:block;font-size:11px;color:var(--blue);text-decoration:none;padding:2px 0">${esc(truncate(m.subject||'',60))} <span style="color:var(--text-muted)">${fmtDate(m.date)}</span></a>`}).join('')}</div>`;
+      el.innerHTML+=srcLinks;
     }
+    const homeEl=document.getElementById('homeIntelAnswer');
+    if(homeEl){
+      homeEl.innerHTML=`<div class="card" style="border-left:3px solid var(--accent);margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--accent-text)">&#129504; ${esc(truncate(q,80))}</div>
+          <button onclick="document.getElementById('homeIntelAnswer').innerHTML=''" title="Dismiss" style="background:transparent;border:none;color:var(--text-muted);font-size:18px;line-height:1;cursor:pointer">&times;</button>
+        </div>
+        <div style="padding:14px;font-size:12px;line-height:1.7;color:var(--text-primary)">${answerHtml}</div>
+        ${srcLinks}
+      </div>`;
+    }
+    document.getElementById('intelSearchInput').value='';
+    switchView('dashboard');
   }catch(e){
     el.innerHTML=`<div class="empty-state" style="color:#f87171">Search failed: ${esc(e.message)}. Try a simpler query.</div>`;
   }
@@ -5256,6 +5289,48 @@ function detectBrandFromContext(){
 }
 
 // ── Action Buttons ──
+async function generateTasksFromTranscript(){
+  const transcript=(typeof getFullTranscript==='function')?getFullTranscript():'';
+  const body=document.getElementById('copilotResponseBody');
+  if(!transcript||transcript.trim().length<20){
+    if(body)body.innerHTML='<div style="padding:12px;color:var(--orange);font-weight:600">Capture or paste meeting conversation first, then generate tasks.</div>';
+    return;
+  }
+  if(body)body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Extracting action items...</div>';
+  const sys='Extract concrete follow-up TASKS from this meeting transcript. Output ONLY a JSON array, no prose, no markdown. Each item: {"title":"<short imperative task, under 12 words>","owner":"<first name if a clear owner is implied, else empty>","due":"<YYYY-MM-DD only if a deadline was explicitly stated, else empty>","context":"<one short sentence of context>"}. Max 12 items. Only real, actionable follow-ups.';
+  try{
+    const raw=await ask(sys,[
+      {label:'Transcript',value:transcript.slice(0,8000)},
+      {label:'Attendees',value:JSON.stringify(copilotAttendeeData||[])},
+      {label:'Team (possible owners)',value:TEAM.map(m=>m.name).join(', ')}
+    ]);
+    let items=[];
+    try{const txt=(typeof raw==='string'?raw:JSON.stringify(raw));const m=txt.match(/\[[\s\S]*\]/);items=JSON.parse(m?m[0]:txt);}catch(e){items=[];}
+    items=Array.isArray(items)?items.filter(i=>i&&i.title):[];
+    if(!items.length){if(body)body.innerHTML='<div style="padding:12px;color:var(--orange)">No clear action items found. Try again with more transcript.</div>';return;}
+    items.forEach(it=>addTaskIfNew('active',{
+      title:String(it.title).slice(0,140),
+      context:it.context||'From meeting',
+      person:(it.owner||'').toString().split(' ')[0]||'',
+      due:(it.due&&/^\d{4}-\d{2}-\d{2}$/.test(it.due))?it.due:'',
+      source:'meeting'
+    }));
+    if(body)body.innerHTML=`<div style="padding:12px;color:var(--text-primary)"><b>${items.length}</b> task(s) added to the Productivity board. Opening it now &mdash; use the Assign dropdown on each card to hand off to a teammate.</div>`;
+    switchView('productivity');
+    setTimeout(()=>{try{renderKanban()}catch(e){}},400);
+  }catch(e){
+    if(body)body.innerHTML='<div style="padding:12px;color:var(--red)">Task generation failed: '+esc(e.message)+'</div>';
+  }
+}
+
+function assignTask(id,person){
+  for(const col of ['active','waiting','someday','done']){
+    const t=prodTasks[col].find(x=>x.id===id);
+    if(t){t.person=person;break;}
+  }
+  renderKanban();
+}
+
 async function copilotAction(type){
   const transcript=getRecentTranscript(10);
   if(!transcript&&!copilotTranscriptLines.length){
@@ -6068,7 +6143,7 @@ function renderKanban(){
     count.textContent=tasks.length;
     container.innerHTML=tasks.map(t=>{
       const isOverdue=t.due&&new Date(t.due)<new Date()&&col!=='done';
-      const sourceIcon={calendar:'&#128197;',email:'&#9993;',granola:'&#127793;',crm:'&#128178;',manual:'&#128221;'}[t.source]||'&#128221;';
+      const sourceIcon={calendar:'&#128197;',email:'&#9993;',granola:'&#127793;',crm:'&#128178;',manual:'&#128221;',meeting:'&#127908;'}[t.source]||'&#128221;';
       return `<div class="kanban-card" data-id="${t.id}">
         <div class="kc-actions">
           ${col!=='done'?`<button onclick="moveTask('${t.id}','done')" title="Complete">&#10003;</button>`:''}
@@ -6080,7 +6155,10 @@ function renderKanban(){
         ${t.context?`<div class="kc-context">${esc(t.context)}</div>`:''}
         <div class="kc-meta">
           <span class="kc-tag" style="background:#1a2235;color:#334155">${sourceIcon}</span>
-          ${t.person?`<span class="kc-tag person">${esc(t.person)}</span>`:''}
+          <select onchange="assignTask('${t.id}',this.value)" onclick="event.stopPropagation()" title="Assign to teammate" style="font-size:9px;padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-secondary);max-width:96px;cursor:pointer">
+            <option value="">${t.person?esc(t.person):'Assign\u2026'}</option>
+            ${TEAM.map(m=>{const fn=m.name.split(' ')[0];return `<option value="${esc(fn)}" ${t.person===fn?'selected':''}>${esc(fn)}</option>`;}).join('')}
+          </select>
           ${t.due?`<span class="kc-tag due ${isOverdue?'overdue':''}">${isOverdue?'OVERDUE ':''} ${t.due}</span>`:''}
           ${t.created&&!t.due?`<span class="kc-tag since">since ${t.created}</span>`:''}
         </div>
@@ -6566,7 +6644,7 @@ function filterGlossary(val){renderGlossary(val.toLowerCase().trim())}
 
 async function prodSyncTasks(){
   // Refresh tasks from external sources (preserve manual tasks)
-  const manual=col=>prodTasks[col].filter(t=>t.source==='manual');
+  const manual=col=>prodTasks[col].filter(t=>t.source==='manual'||t.source==='meeting');
   prodTasks={active:manual('active'),waiting:manual('waiting'),someday:manual('someday'),done:prodTasks.done||[]};
   renderKanban();
   const [a,b,c,d]=await Promise.allSettled([loadCalendarTasks(),loadEmailTasks(),loadGranolaTasks(),loadDealTasks()]);
@@ -7137,11 +7215,41 @@ async function loadNewsFeed(forceRefresh){
     return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
   }
 
-  // Fetch all 3 panels in parallel
+  const fetchCompetitorBriefs=async(panelId,competitors,qualifier)=>{
+    const el=document.getElementById(panelId);
+    if(!el)return;
+    const results=await Promise.all(competitors.map(async name=>{
+      try{
+        const r=await fetch('/api/news?topic='+encodeURIComponent('"'+name+'" '+qualifier)+'&limit=3',{credentials:'same-origin'});
+        if(!r.ok)return {name,item:null};
+        const data=await r.json();
+        const items=(data.items||[]).filter(it=>it.title);
+        items.sort((a,b)=>(b.pubDate?new Date(b.pubDate):new Date(0))-(a.pubDate?new Date(a.pubDate):new Date(0)));
+        const top=items[0];
+        if(top&&top.pubDate&&(Date.now()-new Date(top.pubDate).getTime())>75*86400000)return {name,item:null};
+        return {name,item:top||null};
+      }catch(e){return {name,item:null};}
+    }));
+    const withNews=results.filter(r=>r.item);
+    if(!withNews.length){el.innerHTML='<div class="empty-state">No recent competitor news</div>';return;}
+    el.innerHTML=withNews.map(r=>{
+      const age=r.item.pubDate?timeAgo(new Date(r.item.pubDate)):'';
+      const src=r.item.source||'';
+      return `<a class="item" href="${esc(r.item.link)}" target="_blank" rel="noopener" style="padding:8px 14px;text-decoration:none;display:block">
+        <div class="item-content" style="min-width:0">
+          <div style="font-size:11px;font-weight:700;color:var(--accent-text)">${esc(r.name)}</div>
+          <div class="item-title" style="white-space:normal;line-height:1.35;font-size:12px">${esc(r.item.title||'')}</div>
+          <div class="item-sub">${src?esc(src)+' &middot; ':''}${age}</div>
+        </div></a>`;
+    }).join('');
+  };
+
   await Promise.all([
     fetchNews('newsCadient',NEWS_TOPICS.cadient,'Cadient / HR Tech'),
     fetchNews('newsVorro',NEWS_TOPICS.vorro,'Vorro / Healthcare IT'),
-    fetchNews('newsIndustry',NEWS_TOPICS.industry,'Industry Trends')
+    fetchNews('newsIndustry',NEWS_TOPICS.industry,'Industry Trends'),
+    fetchCompetitorBriefs('newsCompCadient',CADIENT_COMPETITORS,'hiring OR recruiting OR ATS OR HR'),
+    fetchCompetitorBriefs('newsCompVorro',VORRO_COMPETITORS,'healthcare OR integration OR interoperability OR EHR')
   ]);
   dbg('News feed loaded','ok');
 }
