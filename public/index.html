@@ -920,6 +920,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
             </div>
           </div>
 
+          <button onclick="generateTasksFromTranscript()" style="width:100%;padding:11px;margin-bottom:10px;border-radius:8px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent-text);font-size:12px;font-weight:700;cursor:pointer">&#9745; Generate Tasks from Meeting &rarr; Productivity</button>
+
           <div id="copilotResponse" class="copilot-response">
             <div class="cr-header" style="display:flex;align-items:center;justify-content:space-between">
               <span>&#129302; AI Response</span>
@@ -5291,6 +5293,48 @@ function detectBrandFromContext(){
 }
 
 // ── Action Buttons ──
+async function generateTasksFromTranscript(){
+  const transcript=(typeof getFullTranscript==='function')?getFullTranscript():'';
+  const body=document.getElementById('copilotResponseBody');
+  if(!transcript||transcript.trim().length<20){
+    if(body)body.innerHTML='<div style="padding:12px;color:var(--orange);font-weight:600">Capture or paste meeting conversation first, then generate tasks.</div>';
+    return;
+  }
+  if(body)body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Extracting action items...</div>';
+  const sys='Extract concrete follow-up TASKS from this meeting transcript. Output ONLY a JSON array, no prose, no markdown. Each item: {"title":"<short imperative task, under 12 words>","owner":"<first name if a clear owner is implied, else empty>","due":"<YYYY-MM-DD only if a deadline was explicitly stated, else empty>","context":"<one short sentence of context>"}. Max 12 items. Only real, actionable follow-ups.';
+  try{
+    const raw=await ask(sys,[
+      {label:'Transcript',value:transcript.slice(0,8000)},
+      {label:'Attendees',value:JSON.stringify(copilotAttendeeData||[])},
+      {label:'Team (possible owners)',value:TEAM.map(m=>m.name).join(', ')}
+    ]);
+    let items=[];
+    try{const txt=(typeof raw==='string'?raw:JSON.stringify(raw));const m=txt.match(/\[[\s\S]*\]/);items=JSON.parse(m?m[0]:txt);}catch(e){items=[];}
+    items=Array.isArray(items)?items.filter(i=>i&&i.title):[];
+    if(!items.length){if(body)body.innerHTML='<div style="padding:12px;color:var(--orange)">No clear action items found. Try again with more transcript.</div>';return;}
+    items.forEach(it=>addTaskIfNew('active',{
+      title:String(it.title).slice(0,140),
+      context:it.context||'From meeting',
+      person:(it.owner||'').toString().split(' ')[0]||'',
+      due:(it.due&&/^\d{4}-\d{2}-\d{2}$/.test(it.due))?it.due:'',
+      source:'meeting'
+    }));
+    if(body)body.innerHTML=`<div style="padding:12px;color:var(--text-primary)"><b>${items.length}</b> task(s) added to the Productivity board. Opening it now &mdash; use the Assign dropdown on each card to hand off to a teammate.</div>`;
+    switchView('productivity');
+    setTimeout(()=>{try{renderKanban()}catch(e){}},400);
+  }catch(e){
+    if(body)body.innerHTML='<div style="padding:12px;color:var(--red)">Task generation failed: '+esc(e.message)+'</div>';
+  }
+}
+
+function assignTask(id,person){
+  for(const col of ['active','waiting','someday','done']){
+    const t=prodTasks[col].find(x=>x.id===id);
+    if(t){t.person=person;break;}
+  }
+  renderKanban();
+}
+
 async function copilotAction(type){
   const transcript=getRecentTranscript(10);
   if(!transcript&&!copilotTranscriptLines.length){
@@ -6109,7 +6153,7 @@ function renderKanban(){
     count.textContent=tasks.length;
     container.innerHTML=tasks.map(t=>{
       const isOverdue=t.due&&new Date(t.due)<new Date()&&col!=='done';
-      const sourceIcon={calendar:'&#128197;',email:'&#9993;',granola:'&#127793;',crm:'&#128178;',manual:'&#128221;'}[t.source]||'&#128221;';
+      const sourceIcon={calendar:'&#128197;',email:'&#9993;',granola:'&#127793;',crm:'&#128178;',manual:'&#128221;',meeting:'&#127908;'}[t.source]||'&#128221;';
       return `<div class="kanban-card" data-id="${t.id}">
         <div class="kc-actions">
           ${col!=='done'?`<button onclick="moveTask('${t.id}','done')" title="Complete">&#10003;</button>`:''}
@@ -6121,7 +6165,10 @@ function renderKanban(){
         ${t.context?`<div class="kc-context">${esc(t.context)}</div>`:''}
         <div class="kc-meta">
           <span class="kc-tag" style="background:#1a2235;color:#334155">${sourceIcon}</span>
-          ${t.person?`<span class="kc-tag person">${esc(t.person)}</span>`:''}
+          <select onchange="assignTask('${t.id}',this.value)" onclick="event.stopPropagation()" title="Assign to teammate" style="font-size:9px;padding:1px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-secondary);max-width:96px;cursor:pointer">
+            <option value="">${t.person?esc(t.person):'Assign\u2026'}</option>
+            ${TEAM.map(m=>{const fn=m.name.split(' ')[0];return `<option value="${esc(fn)}" ${t.person===fn?'selected':''}>${esc(fn)}</option>`;}).join('')}
+          </select>
           ${t.due?`<span class="kc-tag due ${isOverdue?'overdue':''}">${isOverdue?'OVERDUE ':''} ${t.due}</span>`:''}
           ${t.created&&!t.due?`<span class="kc-tag since">since ${t.created}</span>`:''}
         </div>
@@ -6607,7 +6654,7 @@ function filterGlossary(val){renderGlossary(val.toLowerCase().trim())}
 
 async function prodSyncTasks(){
   // Refresh tasks from external sources (preserve manual tasks)
-  const manual=col=>prodTasks[col].filter(t=>t.source==='manual');
+  const manual=col=>prodTasks[col].filter(t=>t.source==='manual'||t.source==='meeting');
   prodTasks={active:manual('active'),waiting:manual('waiting'),someday:manual('someday'),done:prodTasks.done||[]};
   renderKanban();
   const [a,b,c,d]=await Promise.allSettled([loadCalendarTasks(),loadEmailTasks(),loadGranolaTasks(),loadDealTasks()]);
