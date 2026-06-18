@@ -46,23 +46,28 @@ global.fetch = async (url,opts={})=>{
   });
 
   console.log('board bucketing:');
-  await ta('getBoard groups deals by stage with totals + orphan column', async()=>{
+  await ta('getBoard buckets by stage; unknown stage gets its own column; no false unassigned', async()=>{
     enqueue(
       {payload:{fields:[{api_name:'Stage',pick_list_values:[{display_value:'Qualification',sequence_number:1},{display_value:'Negotiation',sequence_number:2}]}]}}, // listPipelines
       {payload:{data:[
         {id:1,Deal_Name:'A',Amount:100,Stage:'Qualification'},
-        {id:2,Deal_Name:'B',Amount:200,Stage:'Negotiation'},
+        {id:2,Deal_Name:'B',Amount:200,Stage:'negotiation'},   // different casing -> still matches Negotiation
         {id:3,Deal_Name:'C',Amount:50,Stage:'Negotiation'},
-        {id:4,Deal_Name:'D',Amount:10,Stage:'GhostStage'}]}} // listDeals (COQL)
+        {id:4,Deal_Name:'D',Amount:10,Stage:'GhostStage'},     // real but unconfigured -> own column
+        {id:5,Deal_Name:'E',Amount:5,Stage:''}]}}              // truly no stage -> "No stage"
     );
     const board=await crm.getBoard(zconn,{});
     assert.strictEqual(board.provider,'zoho');
     const qual=board.columns.find(c=>c.stageId==='Qualification');
     const neg=board.columns.find(c=>c.stageId==='Negotiation');
-    const other=board.columns.find(c=>c.stageId==='__unassigned__');
+    const ghost=board.columns.find(c=>c.stageName==='GhostStage');
+    const none=board.columns.find(c=>c.stageId==='__no_stage__');
+    const unassigned=board.columns.find(c=>c.stageId==='__unassigned__');
     assert.strictEqual(qual.count,1); assert.strictEqual(qual.total,100);
-    assert.strictEqual(neg.count,2); assert.strictEqual(neg.total,250);
-    assert.strictEqual(other.count,1); // GhostStage deal lands in Other
+    assert.strictEqual(neg.count,2); assert.strictEqual(neg.total,250); // casing-insensitive match
+    assert.ok(ghost && ghost.count===1);     // unknown stage -> its own column, NOT unassigned
+    assert.ok(!unassigned);                  // no false "unassigned" column
+    assert.ok(none && none.count===1);       // empty-stage deal -> "No stage"
   });
 
   console.log('writes:');

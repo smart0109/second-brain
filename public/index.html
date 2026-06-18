@@ -2961,7 +2961,8 @@ async function loadRecentContacts(){
     threads.forEach(t=>{
       (t.messages||[]).forEach(m=>{
         const from=m.sender||'';const to=[].concat(m.to||'');
-        [from,to].forEach(addr=>{
+        [from].concat(to).forEach(a=>{
+          const addr=typeof a==='string'?a:String((a&&(a.email||a.address||a.name))||'');
           if(!addr)return;
           const email=(addr.match(/<([^>]+)>/)||[null,addr])[1]||addr;
           const emailClean=email.toLowerCase().trim();
@@ -3655,7 +3656,7 @@ function renderPipelineView(brand){
   allDeals.forEach(d=>{d.Stage=safeStr(d.Stage)||'Unknown';});
   let deals=allDeals;
 
-  const totalVal=deals.reduce((s,d)=>s+(d.Amount||0),0);
+  const totalVal=deals.reduce((s,d)=>s+(parseFloat(d.Amount)||0),0);
   const sumEl=document.getElementById('pipelineSummary');
   if(sumEl) sumEl.innerHTML=`${deals.length} deals | ${fmtMoney(totalVal)} total`;
 
@@ -3664,10 +3665,10 @@ function renderPipelineView(brand){
   deals.forEach(d=>{
     const s=d.Stage;
     if(!stages[s])stages[s]={count:0,value:0};
-    stages[s].count++;stages[s].value+=(d.Amount||0);
+    stages[s].count++;stages[s].value+=(parseFloat(d.Amount)||0);
     const o=typeof d.Owner==='object'?(d.Owner?.name||'Unassigned'):safeStr(d.Owner)||'Unassigned';
     if(!owners[o])owners[o]={count:0,value:0};
-    owners[o].count++;owners[o].value+=(d.Amount||0);
+    owners[o].count++;owners[o].value+=(parseFloat(d.Amount)||0);
   });
 
   // Stage pills
@@ -4086,8 +4087,11 @@ async function loadTeam(){
     const active=lastDate&&(Date.now()-new Date(lastDate).getTime())<86400000;
     // Count tasks and deals owned by this person
     const firstName=t.name.split(' ')[0].toLowerCase();
-    const myTasks=tasks.filter(tk=>{const o=typeof tk.Owner==='object'?(tk.Owner?.name||''):safeStr(tk.Owner);return o.toLowerCase().includes(firstName);});
-    const myDeals=openDeals.filter(dk=>{const o=typeof dk.Owner==='object'?(dk.Owner?.name||''):safeStr(dk.Owner);return o.toLowerCase().includes(firstName);});
+    const tEmail=(t.email||'').toLowerCase(); const tLocal=tEmail.split('@')[0];
+    const _ownerStr=(owner)=>{const o=(owner&&typeof owner==='object')?(owner.name||owner.email||owner.id||''):safeStr(owner);return String(o).toLowerCase();};
+    const _mine=(owner)=>{const ol=_ownerStr(owner);return ol&&(ol.includes(firstName)||(tLocal&&ol.includes(tLocal))||(tEmail&&ol.includes(tEmail)));};
+    const myTasks=tasks.filter(tk=>_mine(tk.Owner));
+    const myDeals=openDeals.filter(dk=>_mine(dk.Owner));
     return `<div class="team-card" onclick="loadTeamMember('${esc(t.name)}','${esc(t.email)}')">
       <div class="team-avatar" style="${active?'background:rgba(52,211,153,0.2);color:#34d399':'background:rgba(248,113,113,0.2);color:#f87171'}">${initials(t.name)}</div>
       <div class="team-name">${esc(t.name.split(' ')[0])}</div>
