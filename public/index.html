@@ -1364,6 +1364,17 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       </div>
       <div class="section-header" style="color:#06b6d4">Industry Trends &amp; Market Moves</div>
       <div class="card"><div class="card-body scroll-panel" id="newsIndustry" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+      <div class="section-header" style="color:#06b6d4">Competitor Watch &middot; latest brief each</div>
+      <div class="grid-2">
+        <div>
+          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Cadient competitors</div>
+          <div class="card"><div class="card-body scroll-panel" id="newsCompCadient" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+        </div>
+        <div>
+          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Vorro competitors</div>
+          <div class="card"><div class="card-body scroll-panel" id="newsCompVorro" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══════ MARKETING VIEWS ══════ -->
@@ -7149,11 +7160,44 @@ async function loadNewsFeed(forceRefresh){
     return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
   }
 
-  // Fetch all 3 panels in parallel
+  // Per-competitor short briefs: latest single headline for each competitor.
+  const fetchCompetitorBriefs=async(panelId,competitors,qualifier)=>{
+    const el=document.getElementById(panelId);
+    if(!el)return;
+    const results=await Promise.all(competitors.map(async name=>{
+      try{
+        const r=await fetch('/api/news?topic='+encodeURIComponent('"'+name+'" '+qualifier)+'&limit=3',{credentials:'same-origin'});
+        if(!r.ok)return {name,item:null};
+        const data=await r.json();
+        const items=(data.items||[]).filter(it=>it.title);
+        items.sort((a,b)=>(b.pubDate?new Date(b.pubDate):new Date(0))-(a.pubDate?new Date(a.pubDate):new Date(0)));
+        // only keep reasonably fresh news (<= ~75 days)
+        const top=items[0];
+        if(top&&top.pubDate&&(Date.now()-new Date(top.pubDate).getTime())>75*86400000)return {name,item:null};
+        return {name,item:top||null};
+      }catch(e){return {name,item:null};}
+    }));
+    const withNews=results.filter(r=>r.item);
+    if(!withNews.length){el.innerHTML='<div class="empty-state">No recent competitor news</div>';return;}
+    el.innerHTML=withNews.map(r=>{
+      const age=r.item.pubDate?timeAgo(new Date(r.item.pubDate)):'';
+      const src=r.item.source||'';
+      return `<a class="item" href="${esc(r.item.link)}" target="_blank" rel="noopener" style="padding:8px 14px;text-decoration:none;display:block">
+        <div class="item-content" style="min-width:0">
+          <div style="font-size:11px;font-weight:700;color:var(--accent-text)">${esc(r.name)}</div>
+          <div class="item-title" style="white-space:normal;line-height:1.35;font-size:12px">${esc(r.item.title||'')}</div>
+          <div class="item-sub">${src?esc(src)+' &middot; ':''}${age}</div>
+        </div></a>`;
+    }).join('');
+  };
+
+  // Fetch all panels in parallel
   await Promise.all([
     fetchNews('newsCadient',NEWS_TOPICS.cadient,'Cadient / HR Tech'),
     fetchNews('newsVorro',NEWS_TOPICS.vorro,'Vorro / Healthcare IT'),
-    fetchNews('newsIndustry',NEWS_TOPICS.industry,'Industry Trends')
+    fetchNews('newsIndustry',NEWS_TOPICS.industry,'Industry Trends'),
+    fetchCompetitorBriefs('newsCompCadient',CADIENT_COMPETITORS,'hiring OR recruiting OR ATS OR HR'),
+    fetchCompetitorBriefs('newsCompVorro',VORRO_COMPETITORS,'healthcare OR integration OR interoperability OR EHR')
   ]);
   dbg('News feed loaded','ok');
 }
