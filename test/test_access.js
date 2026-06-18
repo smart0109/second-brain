@@ -30,6 +30,18 @@ async function t(n,fn){try{await fn();passed++;console.log('  ok  -',n);}catch(e
     const { rows }=await db.query(`SELECT * FROM "session" WHERE sid='s1'`);
     assert.strictEqual(rows.length, 0);
   });
+  process.env.ALLOWED_DOMAINS = 'cadienttalent.com, vorro.net , basisvps.com';
+  access.invalidate();
+  await t('domain allow lets any address in those domains sign up', async()=>{
+    assert.strictEqual(await access.isStillAllowed('anyone@vorro.net'), true);
+    assert.strictEqual(await access.isStillAllowed('newhire@cadienttalent.com'), true);
+    assert.strictEqual(await access.isStillAllowed('boss@basisvps.com'), true);
+  });
+  await t('non-listed domain still denied', async()=>{
+    access.invalidate();
+    assert.strictEqual(await access.isStillAllowed('stranger@gmail.com'), false);
+  });
+
   console.log(`\n${passed} checks passed${process.exitCode?' (WITH FAILURES)':''}`);
   await db.close().catch(()=>{});
 })();

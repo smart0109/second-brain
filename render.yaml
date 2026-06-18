@@ -29,6 +29,8 @@ services:
         sync: false
       - key: ADMIN_EMAILS           # comma-separated extra admins (optional)
         sync: false
+      - key: ALLOWED_DOMAINS         # whole-domain sign-up (comma-separated)
+        sync: false
       # Google OAuth (login + Gmail/Calendar/Drive data)
       - key: GOOGLE_CLIENT_ID
         sync: false
