@@ -1140,6 +1140,84 @@ app.get('/api/transcription/status', requireAuth, async (_req, res) => {
   const cfg = await getRecallConfig();
   res.json({ recall: !!cfg, deepgram: !!process.env.DEEPGRAM_API_KEY, graph: true });
 });
+
+// ===========================================================================
+// Live Meet captions bridge (no bot): a Chrome extension scrapes Google Meet's
+// own live captions (which include the speaker name) and POSTs them here keyed
+// by a short pairing code; the dashboard polls them into the live transcript.
+// ===========================================================================
+const _capBuffers = new Map();  // code -> { lines:[{speaker,text,ts}], updated, owner }
+const _capCodes = new Map();    // code -> { userId, exp }
+
+function _capCleanup() {
+  const now = Date.now();
+  for (const [code, meta] of _capCodes) if (meta.exp < now) { _capCodes.delete(code); _capBuffers.delete(code); }
+}
+setInterval(_capCleanup, 10 * 60 * 1000).unref?.();
+
+// Issue a pairing code (logged-in user)
+app.post('/api/live-captions/code', requireAuth, (req, res) => {
+  const code = require('crypto').randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars
+  _capCodes.set(code, { userId: req.session.userId, exp: Date.now() + 12 * 60 * 60 * 1000 });
+  _capBuffers.set(code, { lines: [], updated: Date.now(), owner: req.session.userId });
+  res.json({ code });
+});
+
+// CORS preflight for the extension (runs on meet.google.com origin)
+app.options('/api/live-captions', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.sendStatus(204);
+});
+
+// Extension pushes caption lines (no session; gated by the pairing code)
+app.post('/api/live-captions', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const code = String((req.query.code || (req.body && req.body.code) || '')).trim().toUpperCase();
+  if (!code || !_capCodes.has(code)) return res.status(401).json({ error: 'invalid or expired pairing code' });
+  const buf = _capBuffers.get(code) || { lines: [], updated: 0 };
+  const incoming = (req.body && req.body.lines) || [];
+  for (const l of incoming) {
+    if (l && l.text) buf.lines.push({ speaker: String(l.speaker || '').slice(0, 80), text: String(l.text).slice(0, 2000), ts: Number(l.ts) || Date.now() });
+  }
+  if (buf.lines.length > 4000) buf.lines = buf.lines.slice(-4000);
+  buf.updated = Date.now();
+  _capBuffers.set(code, buf);
+  // refresh code TTL while active
+  const meta = _capCodes.get(code); if (meta) meta.exp = Date.now() + 12 * 60 * 60 * 1000;
+  res.json({ ok: true, count: buf.lines.length });
+});
+
+// Dashboard polls new caption lines since a timestamp
+app.get('/api/live-captions', requireAuth, (req, res) => {
+  const code = String(req.query.code || '').trim().toUpperCase();
+  const since = Number(req.query.since) || 0;
+  const buf = _capBuffers.get(code);
+  if (!buf) return res.json({ lines: [], now: Date.now() });
+  res.json({ lines: buf.lines.filter((l) => l.ts > since), now: Date.now() });
+});
+
+// Caption-parsing config the extension fetches at startup (server-side self-heal:
+// update selectors here and every user picks them up — no re-install).
+const MEET_CAPTION_CONFIG = {
+  version: 1,
+  updated: '2026-06-18',
+  // Resilient strategy: find the captions region, then each caption row = speaker + text.
+  regionSelectors: ['div[role="region"][aria-label*="aption" i]', 'div[aria-live="polite"]', '.a4cQT'],
+  rowSelectors: ['.nMcdL', '.TBMuR', 'div[class*="caption"]'],
+  speakerSelectors: ['.NWpY1d', '.zs7s8d', 'span[class*="name" i]'],
+  textSelectors: ['.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
+  captionsButtonSelectors: ['button[aria-label*="aption" i]', 'button[jsname][data-tooltip*="aption" i]'],
+  toggleKey: 'c',
+};
+app.get('/api/meet-caption-config', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json(MEET_CAPTION_CONFIG);
+});
+app.options('/api/meet-caption-config', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*'); res.set('Access-Control-Allow-Methods', 'GET, OPTIONS'); res.set('Access-Control-Allow-Headers', 'Content-Type'); res.sendStatus(204);
+});
 app.post('/api/transcription/bot', requireAuth, async (req, res) => {
   const cfg = await getRecallConfig();
   if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected. Add your API key in Connections.' });
