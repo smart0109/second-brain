@@ -634,6 +634,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- TODAY -->
     <div id="view-dashboard" class="view active">
+      <div id="homeIntelAnswer"></div>
       <!-- Hero: Weather + Time Zones + Sales Quote -->
       <div class="hero-bar">
         <div class="hero-weather" id="heroWeather" title="Click to change location" onclick="window._changeWeatherZip()">
@@ -4746,11 +4747,28 @@ async function runIntelSearch(){
       `You are a CRO's intelligence assistant. Answer this question using ONLY the data provided: "${q}". Be specific, cite names, dates, amounts. Use short paragraphs. If the data doesn't contain a clear answer, say what you found and what's missing.`,
       ctx
     );
-    el.innerHTML=`<div style="padding:14px;font-size:12px;color:#e2e8f0;line-height:1.7">${renderMarkdown(typeof answer==='string'?answer:JSON.stringify(answer))}</div>`;
+    const answerHtml=renderMarkdown(typeof answer==='string'?answer:JSON.stringify(answer));
+    el.innerHTML=`<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">${answerHtml}</div>`;
     // Show source links
+    let srcLinks='';
     if(emails.length){
-      el.innerHTML+=`<div style="border-top:1px solid rgba(255,255,255,0.06);padding:8px 14px"><div style="font-size:10px;font-weight:600;color:#94a3b8;margin-bottom:4px">Related Emails</div>${emails.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return `<a href="${gmailUrl(t.id)}" target="_blank" style="display:block;font-size:11px;color:#60a5fa;text-decoration:none;padding:2px 0">${esc(truncate(m.subject||'',60))} <span style="color:#64748b">${fmtDate(m.date)}</span></a>`}).join('')}</div>`;
+      srcLinks=`<div style="border-top:1px solid var(--border);padding:8px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">Related Emails</div>${emails.slice(0,5).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return `<a href="${gmailUrl(t.id)}" target="_blank" style="display:block;font-size:11px;color:var(--blue);text-decoration:none;padding:2px 0">${esc(truncate(m.subject||'',60))} <span style="color:var(--text-muted)">${fmtDate(m.date)}</span></a>`}).join('')}</div>`;
+      el.innerHTML+=srcLinks;
     }
+    // Surface the answer on Home, then return Home with a clean search box
+    const homeEl=document.getElementById('homeIntelAnswer');
+    if(homeEl){
+      homeEl.innerHTML=`<div class="card" style="border-left:3px solid var(--accent);margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--accent-text)">&#129504; ${esc(truncate(q,80))}</div>
+          <button onclick="document.getElementById('homeIntelAnswer').innerHTML=''" title="Dismiss" style="background:transparent;border:none;color:var(--text-muted);font-size:18px;line-height:1;cursor:pointer">&times;</button>
+        </div>
+        <div style="padding:14px;font-size:12px;line-height:1.7;color:var(--text-primary)">${answerHtml}</div>
+        ${srcLinks}
+      </div>`;
+    }
+    document.getElementById('intelSearchInput').value='';
+    switchView('dashboard');
   }catch(e){
     el.innerHTML=`<div class="empty-state" style="color:#f87171">Search failed: ${esc(e.message)}. Try a simpler query.</div>`;
   }
