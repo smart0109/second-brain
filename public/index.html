@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root { color-scheme: light; --bg-base: #f4f7fb; --bg-card: #ffffff; --bg-card-hover: #eef2f7; --bg-surface: #e9eef5; --bg-elevated: #ffffff; --border: rgba(15,23,42,0.08); --border-hover: rgba(15,23,42,0.16); --text-primary: #0f172a; --text-secondary: #475569; --text-muted: #94a3b8; --accent: #2563eb; --accent-dim: rgba(37,99,235,0.12); --accent-text: #1d4ed8; --blue: #2563eb; --green: #16a34a; --red: #dc2626; --orange: #ea580c; --purple: #7c3aed; --pink: #db2777; --teal: #0d9488; --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif; --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1); }
+:root { color-scheme: light; --bg-base: #f4f7fb; --bg-card: #ffffff; --bg-card-hover: #eef2f7; --bg-surface: #e9eef5; --bg-elevated: #ffffff; --border: rgba(15,23,42,0.08); --border-hover: rgba(15,23,42,0.16); --text-primary: #0f172a; --text-secondary: #1f2937; --text-muted: #334155; --accent: #2563eb; --accent-dim: rgba(37,99,235,0.12); --accent-text: #1d4ed8; --blue: #2563eb; --green: #16a34a; --red: #dc2626; --orange: #ea580c; --purple: #7c3aed; --pink: #db2777; --teal: #0d9488; --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif; --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1); }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font-body); background: var(--bg-base); color: var(--text-primary); font-size: 14px; line-height: 1.6; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .app { display: flex; flex-direction: column; min-height: 100vh; }
@@ -123,15 +123,15 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .hero-weather:hover { background:rgba(255,255,255,0.06) }
 .hero-weather-icon { font-size:28px;line-height:1 }
 .hero-weather-temp { font-family:var(--font-display);font-size:18px;font-weight:700;color:#f1f5f9 }
-.hero-weather-loc { font-size:10px;color:#94a3b8 }
+.hero-weather-loc { font-size:10px;color:#334155 }
 .hero-clocks { display:flex;gap:12px;flex:1;justify-content:center }
 .hero-clock { text-align:center;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background 0.2s;min-width:70px }
 .hero-clock:hover { background:rgba(255,255,255,0.06) }
 .hero-clock-time { font-family:var(--font-display);font-size:16px;font-weight:700;color:#e2e8f0;letter-spacing:0.5px }
-.hero-clock-label { font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px }
-.hero-quote { flex:1;min-width:200px;font-size:12px;font-style:italic;color:#94a3b8;text-align:right;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.3s;line-height:1.4 }
+.hero-clock-label { font-size:9px;color:#334155;text-transform:uppercase;letter-spacing:0.5px }
+.hero-quote { flex:1;min-width:200px;font-size:12px;font-style:italic;color:#334155;text-align:right;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.3s;line-height:1.4 }
 .hero-quote:hover { color:#c9a227 }
-.hero-quote .quote-attr { font-size:10px;font-style:normal;color:#64748b;margin-top:2px }
+.hero-quote .quote-attr { font-size:10px;font-style:normal;color:#334155;margin-top:2px }
 
 /* Contact 360 hero */
 .contact-hero { display: flex; align-items: center; gap: 16px; padding: 22px; background: linear-gradient(135deg, var(--bg-elevated) 0%, #1a2744 100%); color: #fff; border-radius: 12px; margin-bottom: 14px; border: 1px solid var(--border); }
@@ -652,7 +652,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div class="stat-card"><div class="stat-num" id="statPipeline">-</div><div class="stat-label">Pipeline $</div></div>
       </div>
       <div id="staleAlerts" style="display:none"></div>
-      <div class="section-header" style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="document.getElementById('autoStatusPanel').style.display=document.getElementById('autoStatusPanel').style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=document.getElementById('autoStatusPanel').style.display==='none'?'+':'-'">Automation Status <span class="toggle-arrow" style="font-size:14px;color:#64748b">-</span></div>
+      <div class="section-header" style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="document.getElementById('autoStatusPanel').style.display=document.getElementById('autoStatusPanel').style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=document.getElementById('autoStatusPanel').style.display==='none'?'+':'-'">Automation Status <span class="toggle-arrow" style="font-size:14px;color:#334155">-</span></div>
       <div id="autoStatusPanel"><div class="card" style="margin-bottom:10px"><div class="card-body" style="padding:10px" id="automationStatus"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div></div>
       <div class="grid-2">
         <div>
@@ -732,7 +732,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <span style="margin-left:8px;color:#475569">|</span>
         <button class="brand-toggle" id="viewToggleKanban" onclick="togglePipelineView('kanban')" style="font-size:11px;padding:5px 12px">Board</button>
         <button class="brand-toggle" id="viewToggleList" onclick="togglePipelineView('list')" style="font-size:11px;padding:5px 12px">List</button>
-        <span id="pipelineSummary" style="margin-left:auto;font-size:11px;color:#94a3b8"></span>
+        <span id="pipelineSummary" style="margin-left:auto;font-size:11px;color:#334155"></span>
       </div>
 
       <!-- Bulk action toolbar (hidden until deals selected) -->
@@ -1698,7 +1698,7 @@ function renderMarkdown(text){
   s=s.replace(/^## (.+)$/gm,'<h3 style="font-size:13px;font-weight:700;margin:12px 0 6px;color:#f1f5f9">$1</h3>');
   s=s.replace(/^---$/gm,'<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0">');
   s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-  s=s.replace(/^- (.+)$/gm,'<div style="padding:1px 0 1px 14px;position:relative"><span style="position:absolute;left:3px;color:#64748b">&#8226;</span>$1</div>');
+  s=s.replace(/^- (.+)$/gm,'<div style="padding:1px 0 1px 14px;position:relative"><span style="position:absolute;left:3px;color:#334155">&#8226;</span>$1</div>');
   s=s.replace(/\n\n/g,'<div style="height:6px"></div>');
   s=s.replace(/\n/g,'<br>');
   return s;
@@ -2522,7 +2522,7 @@ window._editClock=function(idx){
   const existing=document.getElementById('clockPicker');if(existing)existing.remove();
   const picker=document.createElement('div');picker.id='clockPicker';
   picker.style.cssText='position:absolute;z-index:100;background:#1a2235;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:6px;max-height:300px;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5)';
-  picker.innerHTML='<div style="font-size:10px;color:#94a3b8;padding:4px 8px;font-weight:600">Select timezone for slot '+(idx+1)+':</div>'+menu;
+  picker.innerHTML='<div style="font-size:10px;color:#334155;padding:4px 8px;font-weight:600">Select timezone for slot '+(idx+1)+':</div>'+menu;
   el.style.position='relative';el.appendChild(picker);
   document.addEventListener('click',function h(ev){if(!picker.contains(ev.target)){picker.remove();document.removeEventListener('click',h)}},{once:false,capture:true});
 };
@@ -3011,7 +3011,7 @@ async function loadAllCRMContacts(){
     if(!all.length){placeholder.innerHTML='<div class="empty-state">No CRM contacts found. Click a VIP button or search.</div>';return;}
     // Group by recency, show as clickable cards
     placeholder.innerHTML=`<div style="padding:4px 0">
-      <div style="font-size:11px;color:#64748b;margin-bottom:8px">${all.length} recent CRM contacts and leads (click to view)</div>
+      <div style="font-size:11px;color:#334155;margin-bottom:8px">${all.length} recent CRM contacts and leads (click to view)</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px">
       ${all.slice(0,40).map(c=>{
         const name=c.Full_Name||'Unknown';
@@ -3024,7 +3024,7 @@ async function loadAllCRMContacts(){
             <div class="contact-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">${initials(name)}</div>
             <div style="overflow:hidden">
               <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}${modBadge}</div>
-              <div style="font-size:9px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}${company?' at '+esc(company):''}</div>
+              <div style="font-size:9px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}${company?' at '+esc(company):''}</div>
             </div>
           </div>
         </div>`;
@@ -3695,7 +3695,7 @@ function renderPipelineView(brand){
   const sLabels=Object.keys(stages);
   const sValues=sLabels.map(s=>stages[s].value);
   const pcEl=document.getElementById('pipelineChart');
-  if(pcEl)_pipeChartInstance=new Chart(pcEl,{type:'bar',data:{labels:sLabels.map(s=>stageLabel(s)),datasets:[{label:'Pipeline Value',data:sValues,backgroundColor:sLabels.map(s=>STAGE_COLORS[s]||'#64748b')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMoney(v)}}}}});
+  if(pcEl)_pipeChartInstance=new Chart(pcEl,{type:'bar',data:{labels:sLabels.map(s=>stageLabel(s)),datasets:[{label:'Pipeline Value',data:sValues,backgroundColor:sLabels.map(s=>STAGE_COLORS[s]||'#334155')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMoney(v)}}}}});
   const oLabels=Object.keys(owners);
   const oValues=oLabels.map(o=>owners[o].value);
   const ocEl=document.getElementById('ownerChart');
@@ -3729,7 +3729,7 @@ function renderKanbanBoard(deals,brand){
   el.innerHTML=columnsToShow.map(stage=>{
     const stageDeals=deals.filter(d=>d.Stage===stage).sort((a,b)=>(b.Amount||0)-(a.Amount||0));
     const stageVal=stageDeals.reduce((s,d)=>s+(d.Amount||0),0);
-    const color=STAGE_COLORS[stage]||'#64748b';
+    const color=STAGE_COLORS[stage]||'#334155';
     const cards=stageDeals.map(d=>{
       const dealId=d.id||'';
       const acctName=typeof d.Account_Name==='object'?(d.Account_Name?.name||''):safeStr(d.Account_Name);
@@ -4238,7 +4238,7 @@ async function toggleMeetingNotes(notesId,meetingId){
       contentEl.innerHTML='<div class="notes-content">'+renderMarkdown(text.slice(0,3000))+'</div>';
       contentEl.dataset.loaded='1';
     }else{
-      contentEl.innerHTML='<div style="padding:6px;font-size:10px;color:#64748b">No transcript available for this meeting.</div>';
+      contentEl.innerHTML='<div style="padding:6px;font-size:10px;color:#334155">No transcript available for this meeting.</div>';
       greyOutNotes(notesId);
       contentEl.dataset.loaded='1';
     }
@@ -4282,10 +4282,10 @@ async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
       return `<a class="mtg-email-item" href="${gmailUrl(t.id)}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit">
         <div class="mtg-email-icon" style="background:rgba(248,113,113,0.15);color:#f87171">&#9993;</div>
         <div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(truncate(m.subject||'',45))}</div>
-        <div style="font-size:10px;color:#94a3b8">${esc(m.sender?.split('@')[0]||'')} &middot; ${fmtDate(m.date)} &middot; ${t.messages?.length||0} msgs</div></div></a>`;
+        <div style="font-size:10px;color:#334155">${esc(m.sender?.split('@')[0]||'')} &middot; ${fmtDate(m.date)} &middot; ${t.messages?.length||0} msgs</div></div></a>`;
     }).join('');
   } else {
-    html+='<div style="font-size:10px;color:#64748b;padding:4px 0">No recent email threads with attendees</div>';
+    html+='<div style="font-size:10px;color:#334155;padding:4px 0">No recent email threads with attendees</div>';
   }
 
   // Meeting transcript
@@ -4308,7 +4308,7 @@ async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
     }
   }
 
-  el.innerHTML=html||'<div style="font-size:10px;color:#64748b;padding:4px 0">No previous context found for attendees</div>';
+  el.innerHTML=html||'<div style="font-size:10px;color:#334155;padding:4px 0">No previous context found for attendees</div>';
   el.dataset.loaded='1';
 }
 
@@ -4372,7 +4372,7 @@ async function loadMeetingsView(){
       let label=dateKey;
       if(evtDate.getTime()===today.getTime())label='Today - '+dateKey;
       else if(evtDate.getTime()===tomorrow.getTime())label='Tomorrow - '+dateKey;
-      calHtml+=`<div style="font-size:11px;font-weight:700;color:#60a5fa;padding:10px 0 4px 0;margin-top:8px;border-bottom:1px solid rgba(96,165,250,0.15);text-transform:uppercase;letter-spacing:0.5px">${label} <span style="color:#64748b;font-weight:400">(${items.length} meeting${items.length>1?'s':''})</span></div>`;
+      calHtml+=`<div style="font-size:11px;font-weight:700;color:#60a5fa;padding:10px 0 4px 0;margin-top:8px;border-bottom:1px solid rgba(96,165,250,0.15);text-transform:uppercase;letter-spacing:0.5px">${label} <span style="color:#334155;font-weight:400">(${items.length} meeting${items.length>1?'s':''})</span></div>`;
       calHtml+=items.map(({e,i})=>{
         const start=e.start?.dateTime||e.start?.date||'';
         const attendees=(e.attendees||[]).filter(a=>!a.self);
@@ -4398,7 +4398,7 @@ async function loadMeetingsView(){
         } else if(hasNotes){
           statusBadge='<span style="color:#fb923c;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.15);margin-right:4px">Notes Only</span>';
         } else {
-          statusBadge='<span class="gen-prep-btn" data-title="'+escAttr(e.summary||'')+'" data-emails="'+escAttr(emails.join(','))+'" data-time="'+escAttr(fmt(start))+'" data-names="'+escAttr(names.join(','))+'" onclick="event.stopPropagation();genMeetingPrep(this)" style="color:#64748b;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px;cursor:pointer;border:1px solid rgba(100,116,139,0.3)" title="Click to generate meeting prep">No Prep</span>';
+          statusBadge='<span class="gen-prep-btn" data-title="'+escAttr(e.summary||'')+'" data-emails="'+escAttr(emails.join(','))+'" data-time="'+escAttr(fmt(start))+'" data-names="'+escAttr(names.join(','))+'" onclick="event.stopPropagation();genMeetingPrep(this)" style="color:#334155;font-size:10px;padding:2px 6px;border-radius:3px;background:#1a2235;margin-right:4px;cursor:pointer;border:1px solid rgba(100,116,139,0.3)" title="Click to generate meeting prep">No Prep</span>';
         }
         return `<div class="item" style="cursor:pointer;padding-bottom:0" onclick="expandMeeting('${escAttr(meetId||'')}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}','${escAttr(names.join(','))}','${escAttr(fmt(start))}')">
           <div class="item-row">
@@ -4490,7 +4490,7 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const brandLabel=hasCadient?'Cadient':hasVorro?'Vorro':hasCV3?'CV3':'';
   let html=`<div style="background:#1e2a3a;border-radius:8px;border:1px solid rgba(255,255,255,0.1);padding:16px;margin-bottom:12px">
     <h2 style="font-size:16px;margin-bottom:4px">${esc(title)}</h2>
-    <div style="font-size:12px;color:#94a3b8">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}${brandLabel?' &middot; <span style="color:#c9a227;font-weight:600">'+esc(brandLabel)+'</span>':''}</div>
+    <div style="font-size:12px;color:#334155">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}${brandLabel?' &middot; <span style="color:#c9a227;font-weight:600">'+esc(brandLabel)+'</span>':''}</div>
   </div>`;
 
   // CRM data
@@ -4716,7 +4716,7 @@ async function runIntelSearch(){
   ]);
 
   // Build source context for AI
-  const ctx=[];let srcHtml='<div style="font-size:10px;color:#64748b;display:flex;gap:8px;flex-wrap:wrap">';
+  const ctx=[];let srcHtml='<div style="font-size:10px;color:#334155;display:flex;gap:8px;flex-wrap:wrap">';
   const emails=(emailR.status==='fulfilled'?(emailR.value?.threads||[]):[]);
   if(emails.length){
     ctx.push({label:'Email threads',value:emails.slice(0,8).map(t=>{const m=t.messages?.[t.messages.length-1]||{};return `Subject: ${m.subject}, From: ${m.sender}, Date: ${m.date}, Snippet: ${m.snippet||''}`}).join('\n')});
@@ -5335,7 +5335,7 @@ async function copilotAction(type){
   }catch(e){
     const errMsg=e.message||'Unknown error';
     if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
-      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; AI requires ANTHROPIC_API_KEY on Render.<br><span style="font-size:11px;color:#64748b">Go to Render dashboard > Environment > add ANTHROPIC_API_KEY</span></div>';
+      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; AI requires ANTHROPIC_API_KEY on Render.<br><span style="font-size:11px;color:#334155">Go to Render dashboard > Environment > add ANTHROPIC_API_KEY</span></div>';
     }else{
       body.innerHTML=`<div class="empty-state">AI response failed: ${esc(errMsg)}</div>`;
     }
@@ -5781,7 +5781,7 @@ Be specific to what was actually said. Never generic. Reference ${kb.product} fe
 function addCoachFeedItem(type,text,icon){
   const feed=document.getElementById('coachingFeed');
   if(!feed)return;
-  const colors={system:'#64748b',rebuttal:'#ff9800',signal:'#60a5fa',advise:'#4caf50',watch:'#a78bfa',topic:'#f472b6'};
+  const colors={system:'#334155',rebuttal:'#ff9800',signal:'#60a5fa',advise:'#4caf50',watch:'#a78bfa',topic:'#f472b6'};
   const labels={system:'System',rebuttal:'Rebuttal',signal:'Signal',advise:'Say This',watch:'Watch For',topic:'Topic'};
   const now=new Date();
   const timeStr=now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
@@ -5795,7 +5795,7 @@ function addCoachFeedItem(type,text,icon){
   item.innerHTML=`
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
       <span style="font-size:13px">${icon||'&#128172;'}</span>
-      <span style="font-weight:600;color:${colors[type]||'#94a3b8'};font-size:10px;text-transform:uppercase;letter-spacing:0.5px">${labels[type]||type}</span>
+      <span style="font-weight:600;color:${colors[type]||'#334155'};font-size:10px;text-transform:uppercase;letter-spacing:0.5px">${labels[type]||type}</span>
       <span style="margin-left:auto;font-size:9px;color:var(--text-muted)">${timeStr}</span>
     </div>
     <div style="color:var(--text-primary)">${esc(text)}</div>
@@ -5884,7 +5884,7 @@ async function searchCopilotProspect(){
     copilotMeetingContext+=`PROSPECT: ${c.Full_Name}, ${c.Title||''} at ${c.Company_Name||''}, ${c.Email||''}. `;
   }
   if(threads.length){
-    html+=`<div style="margin-top:4px;color:#94a3b8">${threads.length} email threads in last 30d: ${threads.slice(0,3).map(t=>esc(truncate(t.messages?.[t.messages.length-1]?.subject||'',30))).join(', ')}</div>`;
+    html+=`<div style="margin-top:4px;color:#334155">${threads.length} email threads in last 30d: ${threads.slice(0,3).map(t=>esc(truncate(t.messages?.[t.messages.length-1]?.subject||'',30))).join(', ')}</div>`;
     copilotMeetingContext+=`RECENT EMAILS: ${threads.slice(0,5).map(t=>t.messages?.[t.messages.length-1]?.subject).filter(Boolean).join('; ')}. `;
   }
   if(granola){
@@ -5894,7 +5894,7 @@ async function searchCopilotProspect(){
       copilotMeetingContext+=`MEETING HISTORY: ${gt.slice(0,500)}. `;
     }
   }
-  if(!contacts.length&&!threads.length&&!granola)html+='<div style="color:#64748b">No data found for this prospect.</div>';
+  if(!contacts.length&&!threads.length&&!granola)html+='<div style="color:#334155">No data found for this prospect.</div>';
   html+='</div>';
   ctxEl.innerHTML=html;
 
@@ -6120,7 +6120,7 @@ function renderKanban(){
         <div class="kc-title">${esc(t.title)}</div>
         ${t.context?`<div class="kc-context">${esc(t.context)}</div>`:''}
         <div class="kc-meta">
-          <span class="kc-tag" style="background:#1a2235;color:#94a3b8">${sourceIcon}</span>
+          <span class="kc-tag" style="background:#1a2235;color:#334155">${sourceIcon}</span>
           ${t.person?`<span class="kc-tag person">${esc(t.person)}</span>`:''}
           ${t.due?`<span class="kc-tag due ${isOverdue?'overdue':''}">${isOverdue?'OVERDUE ':''} ${t.due}</span>`:''}
           ${t.created&&!t.due?`<span class="kc-tag since">since ${t.created}</span>`:''}
@@ -6795,7 +6795,7 @@ async function legalSearchClient(q){
         call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{word:q,per_page:5,fields:'Full_Name,Email,Company,Title'}})
       ]);
       const contacts=[...(cR.status==='fulfilled'?(cR.value?.data||[]):[]),...(lR.status==='fulfilled'?(lR.value?.data||[]):[])];
-      if(!contacts.length){el.innerHTML='<div style="padding:10px;font-size:11px;color:#64748b">No results. Type the company name manually.</div>';return}
+      if(!contacts.length){el.innerHTML='<div style="padding:10px;font-size:11px;color:#334155">No results. Type the company name manually.</div>';return}
       el.innerHTML=contacts.map(c=>{
         const name=c.Full_Name||'';
         const company=c.Company_Name||c.Company||'';
@@ -7037,7 +7037,7 @@ async function loadStaleThreads(){
           <a href="${gmailUrl(s.thread.id)}" target="_blank" style="color:#e2e8f0;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             <strong>${esc(name)}</strong>: ${esc(truncate(s.last.subject||'(no subject)',45))}
           </a>
-          <span onclick="_staleDismiss('${escAttr(s.thread.id)}',event)" style="cursor:pointer;color:#64748b;font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
+          <span onclick="_staleDismiss('${escAttr(s.thread.id)}',event)" style="cursor:pointer;color:#334155;font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
         </div>`;
       }).join('')}
       ${visibleStale.length>8?`<div style="font-size:10px;color:#fb923c;margin-top:4px">+ ${visibleStale.length-8} more</div>`:''}
@@ -7087,7 +7087,7 @@ async function loadContactAssets(name,email,company){
     }).join('');
 
     el.innerHTML=existing+`<div style="border-top:1px solid rgba(255,255,255,0.06);margin-top:4px">
-      <div style="padding:8px 14px 4px;font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Generated Prep Briefs</div>
+      <div style="padding:8px 14px 4px;font-size:10px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:0.5px">Generated Prep Briefs</div>
       ${assetLinks}
     </div>`;
     dbg('Contact assets: found '+threads.length+' prep briefs for '+name,'ok');
@@ -7340,7 +7340,7 @@ function renderArtifacts(){
     html+='<h3 style="font-size:14px;font-weight:700;color:'+brand.color+';margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06)">'+brand.label+'</h3>';
 
     for(const sec of brand.sections){
-      html+='<div class="section-header" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'+\':\'-\'">'+sec.icon+' '+sec.title+' <span style="color:#64748b;font-size:11px;margin-left:4px">('+sec.items.length+')</span> <span class="toggle-arrow" style="font-size:14px;color:#64748b;margin-left:auto">-</span></div>';
+      html+='<div class="section-header" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'+\':\'-\'">'+sec.icon+' '+sec.title+' <span style="color:#334155;font-size:11px;margin-left:4px">('+sec.items.length+')</span> <span class="toggle-arrow" style="font-size:14px;color:#334155;margin-left:auto">-</span></div>';
       html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-bottom:14px">';
 
       for(const item of sec.items){
@@ -7654,7 +7654,7 @@ function renderPersonas(containerId,config){
   let html='<div style="margin-bottom:14px"><div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">'+esc(config.brand)+' — '+esc(config.product)+'</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">'+esc(config.focus)+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px"><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(167,139,250,0.15);color:#a78bfa">Min '+config.min_employees+'+ employees</span><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(96,165,250,0.15);color:#60a5fa">'+esc(config.geo)+'</span><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(251,146,60,0.15);color:#fb923c">Min title score: '+config.min_title_score+'</span></div></div>';
   html+='<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Target Personas</div>';
   (config.target_personas||[]).forEach(function(p){
-    var tc=tierColors[p.tier]||'#64748b';
+    var tc=tierColors[p.tier]||'#334155';
     html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid var(--border)"><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+tc+'22;color:'+tc+'">'+p.tier+'</span><span style="flex:1;font-size:12px;color:var(--text-primary)">'+esc(p.title)+'</span><span style="font-size:11px;color:var(--text-muted)">Score '+p.score+'</span></div>';
   });
   html+='<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">Target Industries</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
@@ -7680,7 +7680,7 @@ function renderCrmRecommendations(analysis){
   }
   html+='<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"><div style="padding:10px 14px;border-radius:8px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#34d399">'+(analysis.won?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Won Deals</div></div><div style="padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f87171">'+(analysis.lost?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Lost Deals</div></div><div style="padding:10px 14px;border-radius:8px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);flex:1;min-width:100px;text-align:center"><div style="font-size:20px;font-weight:800;color:#60a5fa">'+(analysis.open?.count||0)+'</div><div style="font-size:10px;color:var(--text-muted)">Open Pipeline</div></div></div>';
   analysis.recommendations.forEach(function(rec){
-    var color=priorityColors[rec.priority]||'#64748b';
+    var color=priorityColors[rec.priority]||'#334155';
     html+='<div style="padding:12px 14px;border-radius:10px;border:1px solid '+color+'33;background:'+color+'08;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:'+color+'">'+esc(rec.priority)+' — '+esc(rec.type.replace(/_/g,' '))+'</span></div><div style="font-size:12px;color:var(--text-primary);line-height:1.5">'+esc(rec.message)+'</div></div>';
   });
   el.innerHTML=html;
@@ -7716,7 +7716,7 @@ async function scoreProspect(){
     var result=await res.json();
     var tierColors={A:'#34d399',B:'#60a5fa',C:'#fb923c',DISQUALIFIED:'#f87171'};
     var tierBg={A:'rgba(52,211,153,0.15)',B:'rgba(96,165,250,0.15)',C:'rgba(251,146,60,0.15)',DISQUALIFIED:'rgba(248,113,113,0.15)'};
-    var tc=tierColors[result.tier]||'#64748b';
+    var tc=tierColors[result.tier]||'#334155';
     var tb=tierBg[result.tier]||'rgba(100,116,139,0.15)';
     var html='<div style="padding:16px;border-radius:12px;border:1px solid '+tc+'44;background:'+tb+'"><div style="display:flex;align-items:center;gap:14px;margin-bottom:12px"><div style="width:56px;height:56px;border-radius:12px;background:'+tb+';display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:'+tc+';border:2px solid '+tc+'44">'+result.tier+'</div><div style="flex:1"><div style="font-size:15px;font-weight:700;color:var(--text-primary)">'+esc(result.name||'Prospect')+'</div><div style="font-size:12px;color:var(--text-secondary)">'+esc(result.title)+(result.company?' at '+esc(result.company):'')+'</div></div><div style="text-align:right"><div style="font-size:28px;font-weight:800;color:'+tc+'">'+result.score+'</div><div style="font-size:10px;color:var(--text-muted)">ICP Score</div></div></div><div style="font-size:12px;color:var(--text-primary);padding:10px;border-radius:8px;background:rgba(255,255,255,0.03);margin-bottom:10px">'+esc(result.recommendation)+'</div>';
     if(result.matches&&result.matches.length){
@@ -7764,14 +7764,14 @@ async function openConnections(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center';
   const rows=_PROVIDERS.map(p=>{
     const on=have.has(p.key);
-    const status=on?'<span style="color:#22c55e;font-weight:600">Connected</span>':'<span style="color:#94a3b8">Not connected</span>';
+    const status=on?'<span style="color:#22c55e;font-weight:600">Connected</span>':'<span style="color:#334155">Not connected</span>';
     let action;
     if(on){action='<button data-disc="'+p.key+'" style="padding:6px 12px;border-radius:6px;border:1px solid #475569;background:transparent;color:#e2e8f0;cursor:pointer">Disconnect</button>';}
     else if(p.type==='oauth'){action='<a href="'+p.connect+'" style="padding:6px 12px;border-radius:6px;background:#4285f4;color:#fff;text-decoration:none">Connect</a>';}
     else{action='<button data-key="'+p.key+'" style="padding:6px 12px;border-radius:6px;background:#4285f4;color:#fff;border:none;cursor:pointer">Add key</button>';}
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #1e293b"><div><div style="font-weight:600">'+p.label+'</div><div style="font-size:12px">'+status+'</div></div><div>'+action+'</div></div>';
   }).join('');
-  ov.innerHTML='<div style="background:#0f172a;color:#e2e8f0;max-width:560px;width:92%;padding:24px;border-radius:12px;border:1px solid #334155;font-family:system-ui"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h2 style="margin:0;font-size:18px">Connect your data sources</h2><button id="connX" style="background:transparent;border:none;color:#94a3b8;font-size:22px;cursor:pointer">&times;</button></div><p style="color:#94a3b8;font-size:13px;margin:0 0 12px">Each source is linked to <b>your</b> account only. Tokens are encrypted at rest.</p>'+rows+'<p style="margin-top:16px;text-align:right"><button id="connDone" style="padding:8px 16px;border-radius:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;cursor:pointer">Done</button></p></div>';
+  ov.innerHTML='<div style="background:#0f172a;color:#e2e8f0;max-width:560px;width:92%;padding:24px;border-radius:12px;border:1px solid #334155;font-family:system-ui"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h2 style="margin:0;font-size:18px">Connect your data sources</h2><button id="connX" style="background:transparent;border:none;color:#334155;font-size:22px;cursor:pointer">&times;</button></div><p style="color:#334155;font-size:13px;margin:0 0 12px">Each source is linked to <b>your</b> account only. Tokens are encrypted at rest.</p>'+rows+'<p style="margin-top:16px;text-align:right"><button id="connDone" style="padding:8px 16px;border-radius:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155;cursor:pointer">Done</button></p></div>';
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)_connClose();});
   document.getElementById('connX').onclick=_connClose;
@@ -7811,7 +7811,7 @@ async function openCrmBoard(){
   const ov=document.createElement('div');
   ov.id='crmOverlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:flex;flex-direction:column;font-family:system-ui;color:#e2e8f0';
-  ov.innerHTML='<div style="padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1e293b;background:#0f172a"><b style="font-size:16px">CRM Board</b><span id="crmProv" style="font-size:12px;color:#94a3b8"></span><button id="crmReload" style="margin-left:auto;padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Reload</button><button id="crmClose" style="padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Close</button></div><div id="crmCols" style="flex:1;display:flex;gap:12px;overflow-x:auto;padding:16px;background:#0b1220">Loading…</div><div style="padding:12px 16px;border-top:1px solid #1e293b;background:#0f172a"><div style="display:flex;gap:8px"><input id="crmChatIn" placeholder="Tell the CRM what to change, e.g. \'move Acme to Negotiation and add a note: sent pricing\'" style="flex:1;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#e2e8f0"/><button id="crmChatSend" style="padding:10px 16px;border-radius:8px;background:#4285f4;color:#fff;border:none;cursor:pointer">Preview</button></div><div id="crmPreview" style="margin-top:10px"></div></div>';
+  ov.innerHTML='<div style="padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1e293b;background:#0f172a"><b style="font-size:16px">CRM Board</b><span id="crmProv" style="font-size:12px;color:#334155"></span><button id="crmReload" style="margin-left:auto;padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Reload</button><button id="crmClose" style="padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Close</button></div><div id="crmCols" style="flex:1;display:flex;gap:12px;overflow-x:auto;padding:16px;background:#0b1220">Loading…</div><div style="padding:12px 16px;border-top:1px solid #1e293b;background:#0f172a"><div style="display:flex;gap:8px"><input id="crmChatIn" placeholder="Tell the CRM what to change, e.g. \'move Acme to Negotiation and add a note: sent pricing\'" style="flex:1;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#e2e8f0"/><button id="crmChatSend" style="padding:10px 16px;border-radius:8px;background:#4285f4;color:#fff;border:none;cursor:pointer">Preview</button></div><div id="crmPreview" style="margin-top:10px"></div></div>';
   document.body.appendChild(ov);
   document.getElementById('crmClose').onclick=_crmClose;
   document.getElementById('crmReload').onclick=loadCrmBoard;
@@ -7833,13 +7833,13 @@ async function loadCrmBoard(){
       const c=document.createElement('div');
       c.style.cssText='min-width:260px;max-width:260px;background:#0f172a;border:1px solid #1e293b;border-radius:10px;display:flex;flex-direction:column;max-height:100%';
       c.dataset.stage=col.stageId;
-      c.innerHTML='<div style="padding:10px 12px;border-bottom:1px solid #1e293b;font-weight:600;font-size:13px">'+_esc(col.stageName)+' <span style="color:#64748b;font-weight:400">('+col.count+(col.total?' · '+_money(col.total):'')+')</span></div><div class="crmDrop" style="flex:1;overflow-y:auto;padding:8px;min-height:60px"></div>';
+      c.innerHTML='<div style="padding:10px 12px;border-bottom:1px solid #1e293b;font-weight:600;font-size:13px">'+_esc(col.stageName)+' <span style="color:#334155;font-weight:400">('+col.count+(col.total?' · '+_money(col.total):'')+')</span></div><div class="crmDrop" style="flex:1;overflow-y:auto;padding:8px;min-height:60px"></div>';
       const drop=c.querySelector('.crmDrop');
       (col.deals||[]).forEach(d=>{
         const card=document.createElement('div');
         card.draggable=true; card.dataset.deal=d.id;
         card.style.cssText='background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 10px;margin-bottom:8px;cursor:grab;font-size:12px';
-        card.innerHTML='<div style="font-weight:600">'+_esc(d.name||'(no name)')+'</div><div style="color:#94a3b8">'+_esc(d.accountName||'')+(d.amount?' · '+_money(d.amount):'')+'</div>';
+        card.innerHTML='<div style="font-weight:600">'+_esc(d.name||'(no name)')+'</div><div style="color:#334155">'+_esc(d.accountName||'')+(d.amount?' · '+_money(d.amount):'')+'</div>';
         card.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',d.id);card.style.opacity='.5';});
         card.addEventListener('dragend',()=>{card.style.opacity='1';});
         drop.appendChild(card);
@@ -7867,7 +7867,7 @@ async function crmChatPreview(){
     const data=await r.json();
     if(!r.ok){box.innerHTML='<span style="color:#fca5a5">'+_esc(data.error||'error')+'</span>';return;}
     const changes=data.changes||[];
-    if(!changes.length){box.innerHTML='<span style="color:#94a3b8">No actionable changes detected. Try naming a deal and a stage.</span>';return;}
+    if(!changes.length){box.innerHTML='<span style="color:#334155">No actionable changes detected. Try naming a deal and a stage.</span>';return;}
     const rows=changes.map(c=>'<li>'+_esc(c.action)+' — <b>'+_esc(c.dealName||c.dealId)+'</b>'+(c.stageId?' → '+_esc(c.stageId):'')+(c.note?' (note: '+_esc(c.note)+')':'')+(c.fields?' '+_esc(JSON.stringify(c.fields)):'')+'</li>').join('');
     box.innerHTML='<div style="background:#0b1220;border:1px solid #334155;border-radius:8px;padding:10px"><div style="font-weight:600;margin-bottom:6px">Proposed changes (nothing applied yet):</div><ul style="margin:0 0 10px 18px">'+rows+'</ul><button id="crmApply" style="padding:8px 16px;border-radius:6px;background:#22c55e;color:#06210f;border:none;font-weight:600;cursor:pointer">Apply '+changes.length+' change'+(changes.length>1?'s':'')+'</button> <button id="crmCancel" style="padding:8px 16px;border-radius:6px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;cursor:pointer">Cancel</button></div>';
     document.getElementById('crmCancel').onclick=()=>{box.innerHTML='';};
@@ -7898,7 +7898,7 @@ window.openCrmBoard=openCrmBoard;
         const msBtn = (status.providers&&status.providers.microsoft)
           ? '<a href="/auth/microsoft" style="display:inline-block;padding:12px 24px;background:#2f2f2f;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;margin:6px">Sign in with Microsoft</a>'
           : '';
-        main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Second Brain</h2><p style="color:#94a3b8;margin-bottom:20px">Sign in to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;margin:6px">Sign in with Google</a>'+msBtn+'<p style="color:#64748b;margin-top:16px;font-size:11px">Access is limited to allowlisted accounts. Google sign-in also links Gmail, Calendar and Drive.</p></div>';
+        main.innerHTML='<div style="text-align:center;padding:60px"><h2 style="font-size:20px;margin-bottom:12px">Second Brain</h2><p style="color:#334155;margin-bottom:20px">Sign in to access your dashboard</p><a href="/auth/google" style="display:inline-block;padding:12px 24px;background:#4285f4;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;margin:6px">Sign in with Google</a>'+msBtn+'<p style="color:#334155;margin-top:16px;font-size:11px">Access is limited to allowlisted accounts. Google sign-in also links Gmail, Calendar and Drive.</p></div>';
       }
       return;
     }
@@ -8221,9 +8221,9 @@ function showBriefModal(title, content, loading) {
       <div style="padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:10px">
         <span style="font-size:16px">📋</span>
         <span style="font-weight:700;font-size:14px;color:#e2e8f0;flex:1">${esc(title||'Meeting Brief')}</span>
-        <button onclick="document.getElementById('briefModal').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:18px;padding:2px 6px">×</button>
+        <button onclick="document.getElementById('briefModal').remove()" style="background:transparent;border:none;color:#334155;cursor:pointer;font-size:18px;padding:2px 6px">×</button>
       </div>
-      <div style="padding:16px 20px;overflow-y:auto;flex:1;font-size:12px;line-height:1.7;color:#94a3b8">
+      <div style="padding:16px 20px;overflow-y:auto;flex:1;font-size:12px;line-height:1.7;color:#334155">
         ${loading
           ? '<div style="text-align:center;padding:24px;color:#c9a227">⌛ Generating brief with live email + meeting context…</div>'
           : (content||'').replace(/\*\*(.*?)\*\*/g,'<strong style="color:#e2e8f0">$1</strong>').replace(/\n/g,'<br>')}
@@ -8231,7 +8231,7 @@ function showBriefModal(title, content, loading) {
       ${!loading && content ? `
         <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px">
           <button onclick="copilotInjectBrief(${JSON.stringify(JSON.stringify(content)).replace(/"/g,'&quot;')})" style="flex:1;padding:8px;background:rgba(201,162,39,0.15);border:1px solid rgba(201,162,39,0.3);border-radius:6px;color:#c9a227;font-size:12px;font-weight:600;cursor:pointer">Open in Copilot</button>
-          <button onclick="document.getElementById('briefModal').remove()" style="padding:8px 14px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#64748b;font-size:12px;cursor:pointer">Close</button>
+          <button onclick="document.getElementById('briefModal').remove()" style="padding:8px 14px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#334155;font-size:12px;cursor:pointer">Close</button>
         </div>
       ` : ''}
     </div>
@@ -8300,12 +8300,12 @@ function showDealScoresPanel(scores) {
     <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:8px">
       <span style="font-size:14px">⚡</span>
       <span style="font-weight:700;font-size:13px;color:#e2e8f0;flex:1">Deal Risk Scores</span>
-      <button onclick="document.getElementById('dealScoresPanel').remove()" style="background:transparent;border:none;color:#64748b;cursor:pointer;font-size:16px">×</button>
+      <button onclick="document.getElementById('dealScoresPanel').remove()" style="background:transparent;border:none;color:#334155;cursor:pointer;font-size:16px">×</button>
     </div>
     <div style="overflow-y:auto;flex:1;padding:8px 0">
       ${sorted.map(s => {
         const riskColor = s.risk_score>=7?'#f87171':s.risk_score>=4?'#fb923c':'#34d399';
-        const oppColor = s.opp_score>=7?'#34d399':s.opp_score>=4?'#c9a227':'#64748b';
+        const oppColor = s.opp_score>=7?'#34d399':s.opp_score>=4?'#c9a227':'#334155';
         return `
           <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04)">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -8313,7 +8313,7 @@ function showDealScoresPanel(scores) {
               <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:${riskColor}22;color:${riskColor};font-weight:700">Risk ${s.risk_score}/10</div>
               <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:${oppColor}22;color:${oppColor};font-weight:700">Opp ${s.opp_score}/10</div>
             </div>
-            <div style="font-size:11px;color:#94a3b8">${esc(s.risk_reason||'')}</div>
+            <div style="font-size:11px;color:#334155">${esc(s.risk_reason||'')}</div>
             ${s.action ? `<div style="font-size:11px;color:#c9a227;margin-top:2px">→ ${esc(s.action)}</div>` : ''}
           </div>
         `;
