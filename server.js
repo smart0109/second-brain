@@ -684,6 +684,30 @@ async function handleDrive(toolName, args) {
     return { files };
   }
 
+  if (toolName === 'get_file_metadata') {
+    const fid = (args && (args.fileId || args.id));
+    if (!fid) throw new Error('fileId required');
+    const meta = await drive.files.get({ fileId: fid, fields: 'id,name,mimeType,modifiedTime,webViewLink,size' });
+    return meta.data;
+  }
+
+  if (toolName === 'read_file_content' || toolName === 'download_file_content') {
+    const fid = (args && (args.fileId || args.id));
+    if (!fid) throw new Error('fileId required');
+    const meta = await drive.files.get({ fileId: fid, fields: 'id,name,mimeType' });
+    const mt = meta.data.mimeType || '';
+    let content = '';
+    if (mt.startsWith('application/vnd.google-apps')) {
+      const exportMime = mt.includes('spreadsheet') ? 'text/csv' : 'text/plain';
+      const resp = await drive.files.export({ fileId: fid, mimeType: exportMime }, { responseType: 'text' });
+      content = typeof resp.data === 'string' ? resp.data : String(resp.data || '');
+    } else {
+      const resp = await drive.files.get({ fileId: fid, alt: 'media' }, { responseType: 'text' });
+      content = typeof resp.data === 'string' ? resp.data : String(resp.data || '');
+    }
+    return { id: fid, name: meta.data.name, mimeType: mt, content };
+  }
+
   throw new Error(`Unknown Drive tool: ${toolName}`);
 }
 
