@@ -16,6 +16,7 @@ const msgraph = require('./lib/msgraph');
 const hubspotLib = require('./lib/crm_hubspot');
 const crm = require('./lib/crm');
 const recall = require('./lib/recall');
+const recallBots = require('./lib/recall_bots');
 
 const app = express();
 
@@ -1109,16 +1110,29 @@ app.post('/api/transcription/bot', requireAuth, async (req, res) => {
   if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected. Add your API key in Connections.' });
   const { meetingUrl, botName } = req.body || {};
   if (!meetingUrl) return res.status(400).json({ error: 'meetingUrl required' });
-  try { res.json(await recall.createBot(cfg, { meetingUrl, botName })); }
-  catch (e) { res.status(502).json({ error: e.message }); }
+  try {
+    const bot = await recall.createBot(cfg, { meetingUrl, botName });
+    if (bot && bot.id) { try { await recallBots.record(req.session.userId, bot.id, meetingUrl); } catch (e) { console.error('recall ownership record failed:', e.message); } }
+    res.json(bot);
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
 app.get('/api/transcription/bot/:id', requireAuth, async (req, res) => {
   const cfg = await getRecallConfig(); if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected.' });
-  try { res.json(await recall.getBot(cfg, req.params.id)); } catch (e) { res.status(502).json({ error: e.message }); }
+  try {
+    await recallBots.assertOwner(req.session.userId, req.params.id);
+    res.json(await recall.getBot(cfg, req.params.id));
+  } catch (e) { res.status(e.status || 502).json({ error: e.message }); }
 });
 app.get('/api/transcription/bot/:id/transcript', requireAuth, async (req, res) => {
   const cfg = await getRecallConfig(); if (!cfg) return res.status(503).json({ error: 'Recall.ai not connected.' });
-  try { res.json(await recall.getTranscript(cfg, req.params.id)); } catch (e) { res.status(502).json({ error: e.message }); }
+  try {
+    await recallBots.assertOwner(req.session.userId, req.params.id);
+    res.json(await recall.getTranscript(cfg, req.params.id));
+  } catch (e) { res.status(e.status || 502).json({ error: e.message }); }
+});
+app.get('/api/transcription/bots', requireAuth, async (req, res) => {
+  try { res.json({ bots: await recallBots.listForUser(req.session.userId) }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 // ---- CRM-agnostic board + write-back ----

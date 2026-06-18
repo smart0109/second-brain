@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node test/test_multiuser.js && node test/test_msgraph.js && node test/test_hubspot.js && node test/test_recall.js && node test/test_crm.js"
+    "test": "node test/test_multiuser.js && node test/test_msgraph.js && node test/test_hubspot.js && node test/test_recall.js && node test/test_crm.js && node test/test_recall_bots.js"
   },
   "engines": {
     "node": "20.x"

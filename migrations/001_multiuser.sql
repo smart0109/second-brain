@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS memory_blobs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+
+-- Recall.ai bot ownership: which user launched each bot, so transcript reads can
+-- be scoped per-user even when admins share a single env API key.
+CREATE TABLE IF NOT EXISTS recall_bots (
+  bot_id      TEXT PRIMARY KEY,
+  user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  meeting_url TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_recall_bots_user ON recall_bots(user_id);
+
 -- connect-pg-simple session table (also auto-created at runtime; declared here for completeness).
 CREATE TABLE IF NOT EXISTS "session" (
   sid    VARCHAR NOT NULL PRIMARY KEY,
