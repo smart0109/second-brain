@@ -5111,8 +5111,25 @@ function renameDgSpeaker(sp){
   renderCopilotTranscript();
 }
 
+function sbGetSessions(){try{return JSON.parse(localStorage.getItem('sbSessions')||'[]');}catch(e){return[];}}
+function sbSaveSession(){
+  try{
+    if(!copilotTranscriptLines||copilotTranscriptLines.length<2)return;
+    const m=copilotCurrentMeeting||{};
+    const title=m.summary||m.title||'Untitled meeting';
+    const date=(m.start&&(m.start.dateTime||m.start.date))||m.date||new Date().toISOString();
+    const parts=(m.attendees||[]).map(a=>a.displayName||a.email||'').filter(Boolean).join(', ')||(m.parts||'');
+    const sess={id:'local_'+Date.now(),title,date,parts,lines:copilotTranscriptLines.map(l=>({text:l.text,speaker:l.speaker||'',t:(l.time&&l.time.toISOString)?l.time.toISOString():null}))};
+    const key=(title+'|'+String(date).slice(0,10)).toLowerCase();
+    let arr=sbGetSessions().filter(x=>((x.title+'|'+String(x.date).slice(0,10)).toLowerCase())!==key);
+    arr.unshift(sess);
+    localStorage.setItem('sbSessions',JSON.stringify(arr.slice(0,50)));
+  }catch(e){}
+}
+
 function stopListeningAll(){
   copilotListening=false;
+  try{sbSaveSession();}catch(e){}
   if(dgMode==='browser'&&copilotRecognition){try{copilotRecognition.stop()}catch(e){}}
   if(dgMediaRecorder&&dgMediaRecorder.state!=='inactive'){try{dgMediaRecorder.stop()}catch(e){}}
   dgMediaRecorder=null;
@@ -6019,8 +6036,24 @@ async function loadCopilotMeetingFromFilter(){
     const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=meeting.title||'Meeting';
     const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.textContent=(meeting.date||'')+' | '+(meeting.parts||'');
 
-    // Load transcript + Granola notes in parallel
     const tEl=document.getElementById('copilotTranscript');
+    if(meeting.src==='local'){
+      const sv=sbGetSessions().find(x=>x.id===meeting.id);
+      if(sv&&sv.lines&&sv.lines.length){
+        copilotTranscriptLines=sv.lines.map(l=>({text:l.text,speaker:l.speaker||'',time:l.t?new Date(l.t):new Date(),confidence:1,dgSpeaker:-1}));
+        renderCopilotTranscript();return;
+      }
+    }
+    if(meeting.src==='drive'){
+      try{
+        const cr=await call(`${DRIVE}__read_file_content`,{fileId:meeting.id});
+        const lines=parseMeetTranscript((cr&&cr.content)||'');
+        if(lines.length){copilotTranscriptLines=lines;renderCopilotTranscript();return;}
+        if(tEl)tEl.innerHTML='<div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(((cr&&cr.content)||'').slice(0,6000))+'</div>';
+        return;
+      }catch(e){if(tEl)tEl.innerHTML='<div class="empty-state">Could not read Drive transcript: '+esc(e.message)+'</div>';return;}
+    }
+
     if(tEl)tEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading meeting notes...</div>';
     let loaded=false;
     const [transcriptR,granolaR]=await Promise.allSettled([
@@ -6053,24 +6086,30 @@ async function loadCopilotMeetingFromFilter(){
 
 // Populate copilot meeting dropdown on load
 async function populateCopilotMeetings(){
+  const sel=document.getElementById('copilotMeetingFilter'); if(!sel)return;
+  const opts=[];
+  sbGetSessions().forEach(x=>opts.push({src:'local',id:x.id,title:x.title,date:x.date,parts:x.parts}));
   try{
-    const r=await call(`${GRAN}__list_meetings`,{time_range:'last_30_days'});
-    const ms=parseMeetings(r);
-    // Sort by date descending (newest first)
-    ms.sort((a,b)=>{
-      const da=a.date?new Date(a.date):new Date(0);
-      const db=b.date?new Date(b.date):new Date(0);
-      return db-da;
-    });
-    const sel=document.getElementById('copilotMeetingFilter');
-    if(sel&&ms.length){
-      sel.innerHTML='<option value="">Select past meeting ('+ms.length+' total)...</option>'+ms.map(m=>{
-        const d=m.date?new Date(m.date):null;
-        const dateLabel=d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}):m.date;
-        return `<option value='${escAttr(JSON.stringify({id:m.id,title:m.title,date:m.date,parts:m.parts}))}'>${esc(truncate(m.title,35))} | ${dateLabel}</option>`;
-      }).join('');
-    }
-  }catch(e){dbg('populateCopilotMeetings failed: '+e.message,'err');}
+    const r=await call(`${DRIVE}__search_files`,{query:"mimeType='application/vnd.google-apps.document' and (name contains 'Transcript' or name contains 'Gemini' or name contains 'Notes') and trashed=false",pageSize:30});
+    ((r&&r.files)||[]).forEach(f=>opts.push({src:'drive',id:f.id,title:f.title,date:f.modifiedTime||'',parts:''}));
+  }catch(e){}
+  try{
+    const gr=await call(`${GRAN}__list_meetings`,{time_range:'last_30_days'});
+    parseMeetings(gr).forEach(m=>opts.push({src:'granola',id:m.id,title:m.title,date:m.date,parts:m.parts}));
+  }catch(e){}
+  const seen=new Set();
+  const clean=opts.filter(o=>{const k=((o.title||'')+'|'+String(o.date).slice(0,10)).toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});
+  clean.sort((a,b)=>{const da=a.date?new Date(a.date):new Date(0);const db=b.date?new Date(b.date):new Date(0);return db-da;});
+  if(clean.length){
+    sel.innerHTML='<option value="">Select past meeting ('+clean.length+' total)...</option>'+clean.map(o=>{
+      const d=o.date?new Date(o.date):null;
+      const dl=d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'';
+      const tag=o.src==='local'?'[saved] ':o.src==='drive'?'[Drive] ':'';
+      return `<option value='${escAttr(JSON.stringify(o))}'>${esc(tag+truncate(o.title||'(untitled)',30))} | ${dl}</option>`;
+    }).join('');
+  }else{
+    sel.innerHTML='<option value="">No past meetings found (save a session or enable Meet/Gemini transcripts)</option>';
+  }
 }
 
 // ══════════════════════════════════════
