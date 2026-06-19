@@ -2568,10 +2568,12 @@ function _socialId() { return 's_' + Date.now().toString(36) + Math.random().toS
 // (which passes server-side via the GOOGLE_REFRESH_TOKEN bypass).
 function bridgeGuard(req, res, next) {
   const want = process.env.SOCIAL_BRIDGE_TOKEN;
-  if (want) {
-    if (req.get('x-bridge-token') === want) return next();
-    return res.status(401).json({ error: 'Invalid bridge token' });
-  }
+  const svc = process.env.SERVICE_API_TOKEN;
+  if (want && req.get('x-bridge-token') === want) return next();
+  if (svc && req.get('x-api-token') === svc) return next();
+  // If a token is configured but neither header matched, reject (fail-closed).
+  if (want || svc) return res.status(401).json({ error: 'Invalid bridge/service token' });
+  // No token configured yet: require a signed-in session (never wide open).
   return requireAuth(req, res, next);
 }
 
