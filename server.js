@@ -65,7 +65,6 @@ const GOOGLE_SCOPES = [
 // Middleware
 // ---------------------------------------------------------------------------
 app.use(express.json({ limit: '2mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Trust Render's reverse proxy for secure cookies / correct protocol
 if (process.env.NODE_ENV === 'production') {
@@ -84,6 +83,18 @@ app.use(
     },
   })
 );
+
+// Data files that live under /public must NOT be served to anonymous visitors.
+// (meetings-cache.json contains meeting summaries, participants, deal/pricing data.)
+// requireAuth is hoisted; session middleware above has already run at this point.
+const PROTECTED_STATIC = [/^\/meetings-cache\.json$/i, /\.json$/i];
+app.use((req, res, next) => {
+  if (req.method === 'GET' && PROTECTED_STATIC.some((re) => re.test(req.path))) {
+    return requireAuth(req, res, next);
+  }
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------------------------------------------------------------------------
 // Google OAuth2 helpers
