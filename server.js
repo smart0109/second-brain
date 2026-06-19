@@ -2640,6 +2640,10 @@ app.post('/api/social/targets', bridgeGuard, (req, res) => {
     authorTitle: t.authorTitle || t.headline || '',
     score: t.score != null ? t.score : (t.target_score != null ? t.target_score : null),
     topic: t.topic || t.matched_template || '',
+    source: t.source || null,
+    likes: t.likes != null ? t.likes : null,
+    comments: t.comments != null ? t.comments : null,
+    shares: t.shares != null ? t.shares : null,
   }));
   _writeJsonSocial(SOCIAL_TARGETS_PATH, { updatedAt: new Date().toISOString(), targets: norm });
   res.json({ ok: true, count: norm.length });
@@ -2671,6 +2675,76 @@ app.post('/api/social/posts/:id/result', bridgeGuard, (req, res) => {
   job.postedAt = new Date().toISOString();
   _writeJsonSocial(SOCIAL_POSTS_PATH, store);
   res.json({ ok: true, job });
+});
+
+// --- Breaking-source "be first" monitor + refresh + super-viral email alert ----
+const SOCIAL_SOURCES_PATH = path.join(__dirname, 'data', 'social-sources.json');
+const SOCIAL_REFRESH_PATH = path.join(__dirname, 'data', 'social-refresh.json');
+const SOCIAL_ALERTS_PATH = path.join(__dirname, 'data', 'social-alerts.json');
+
+// Breaking news sources the page shows (pushed by the local news monitor)
+app.get('/api/social/sources', requireAuth, (_req, res) => {
+  res.json(_readJsonSafe(SOCIAL_SOURCES_PATH, { updatedAt: null, sources: [] }));
+});
+app.post('/api/social/sources', bridgeGuard, (req, res) => {
+  const sources = (req.body && req.body.sources) || [];
+  _writeJsonSocial(SOCIAL_SOURCES_PATH, { updatedAt: new Date().toISOString(), sources });
+  res.json({ ok: true, count: sources.length });
+});
+
+// "Find viral posts" button -> request an on-demand refresh the local poller runs
+app.post('/api/social/refresh', requireAuth, (req, res) => {
+  const store = _readJsonSafe(SOCIAL_REFRESH_PATH, {});
+  store.requestedAt = new Date().toISOString();
+  store.kind = (req.body && req.body.kind) || 'viral';
+  _writeJsonSocial(SOCIAL_REFRESH_PATH, store);
+  res.json({ ok: true, requestedAt: store.requestedAt });
+});
+app.get('/api/social/refresh', bridgeGuard, (_req, res) => {
+  const s = _readJsonSafe(SOCIAL_REFRESH_PATH, {});
+  res.json({ pending: !!(s.requestedAt && s.requestedAt !== s.doneAt), requestedAt: s.requestedAt || null, kind: s.kind || 'viral' });
+});
+app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
+  const s = _readJsonSafe(SOCIAL_REFRESH_PATH, {});
+  s.doneAt = (req.body && req.body.requestedAt) || s.requestedAt || new Date().toISOString();
+  _writeJsonSocial(SOCIAL_REFRESH_PATH, s);
+  res.json({ ok: true });
+});
+
+// Send a real super-viral alert email to the owner (recipient hardcoded; never outreach)
+async function _sendAlertEmail(subject, htmlBody) {
+  const auth = getAuthedClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const to = process.env.ALLOWED_EMAIL || 'manish696@gmail.com';
+  const raw = Buffer.from(
+    `To: ${to}\r\nSubject: ${subject}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n${htmlBody}`
+  ).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+}
+
+app.post('/api/social/alert', bridgeGuard, async (req, res) => {
+  const posts = (req.body && req.body.posts) || [];
+  const threshold = (req.body && req.body.threshold) || 0;
+  if (!posts.length) return res.json({ ok: true, emailed: 0, note: 'no posts' });
+  const seen = _readJsonSafe(SOCIAL_ALERTS_PATH, { urls: [] });
+  const fresh = posts.filter(p => p.url && !seen.urls.includes(p.url));
+  if (!fresh.length) return res.json({ ok: true, emailed: 0, note: 'all already alerted' });
+  const rows = fresh.map(p =>
+    `<tr><td style="padding:6px 10px;font-weight:700">${(p.score||p.engagement||'')}</td>`
+    + `<td style="padding:6px 10px">${(p.author||'')}</td>`
+    + `<td style="padding:6px 10px">${((p.text||'').slice(0,140)).replace(/</g,'&lt;')}`
+    + (p.url ? ` <a href="${p.url}">open</a>` : '') + '</td></tr>').join('');
+  const html = `<h2>Super-viral posts (score &ge; ${threshold})</h2>`
+    + `<table style="border-collapse:collapse;font-family:Arial">${rows}</table>`
+    + `<p>Detected by your Social Posting monitor.</p>`;
+  try {
+    await _sendAlertEmail(`Super-viral alert: ${fresh.length} post(s)`, html);
+    seen.urls = (seen.urls || []).concat(fresh.map(p => p.url)).slice(-500);
+    _writeJsonSocial(SOCIAL_ALERTS_PATH, seen);
+    res.json({ ok: true, emailed: fresh.length });
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
 });
 
 app.get('*', (_req, res) => {

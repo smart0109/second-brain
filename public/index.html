@@ -1359,9 +1359,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div id="view-socialPosting" class="view">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
         <h2 style="font-size:16px;font-weight:700;flex:1;color:#2dd4bf">Social Media Posting</h2>
+        <button class="prod-btn" onclick="spFindViral()" style="background:rgba(45,212,191,0.28);color:#2dd4bf;border-color:rgba(45,212,191,0.5);font-weight:700">Find viral posts</button>
         <button class="prod-btn" onclick="window._socialPostingLoaded=false;loadSocialPosting()" style="background:rgba(45,212,191,0.15);color:#2dd4bf;border-color:rgba(45,212,191,0.3)">Refresh</button>
       </div>
       <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">Pick a viral post to engage with, generate two AI drafts (a punchy challenge and an expert take), edit if you like, then Post. Posting runs through your local LinkedIn poster.</div>
+      <div id="spSources"></div>
       <div id="spTargets"><div class="loading"><div class="spinner"></div><br>Loading viral posts...</div></div>
       <div id="spDrafts" style="margin-top:16px"></div>
       <div id="spHistory" style="margin-top:22px"></div>
@@ -2327,14 +2329,52 @@ window._spSelected = null;
 
 async function loadSocialPosting(){
   window._socialPostingLoaded = true;
-  const tEl = document.getElementById('spTargets');
-  const [tg, hist] = await Promise.all([
+  const [tg, hist, src] = await Promise.all([
     fetch('/api/social/targets').then(r=>r.json()).catch(()=>({targets:[]})),
-    fetch('/api/social/posts').then(r=>r.json()).catch(()=>({jobs:[]}))
+    fetch('/api/social/posts').then(r=>r.json()).catch(()=>({jobs:[]})),
+    fetch('/api/social/sources').then(r=>r.json()).catch(()=>({sources:[]}))
   ]);
   window._spTargets = tg.targets || [];
+  spRenderSources(src);
   spRenderTargets(tg);
   spRenderHistory(hist.jobs || []);
+}
+
+async function spFindViral(){
+  if(!confirm('Run a fresh viral-post search now? This uses Apify (about $0.50) and updates the list within a few minutes.')) return;
+  try{
+    const r = await fetch('/api/social/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'viral'})});
+    if(!r.ok) throw new Error('request failed');
+    showToast('Searching for viral posts + breaking sources... refresh in a few minutes','ok');
+    let n=0; const iv=setInterval(()=>{ n++; window._socialPostingLoaded=false; loadSocialPosting(); if(n>=6) clearInterval(iv); }, 30000);
+  }catch(e){ showToast('Could not start search: '+e.message,'err'); }
+}
+
+function spTimeAgo(d){ try{ const ms=Date.now()-new Date(d).getTime(); const h=Math.floor(ms/3600000); if(h<1) return 'just now'; if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; }catch(e){ return ''; } }
+
+function spRenderSources(src){
+  const el=document.getElementById('spSources'); if(!el) return;
+  const sources=(src&&src.sources)||[];
+  if(!sources.length){ el.innerHTML=''; return; }
+  let html='<div style="background:rgba(45,212,191,0.07);border:1px solid rgba(45,212,191,0.25);border-radius:10px;padding:12px;margin-bottom:14px">'
+    +'<div style="font-size:13px;font-weight:700;color:#2dd4bf;margin-bottom:8px">Be First &mdash; breaking sources behind the virality</div>';
+  sources.slice(0,12).forEach(x=>{
+    const fresh=(x.hours!=null && x.hours<=24);
+    html+='<div style="padding:7px 0;border-top:1px solid #1e293b">'
+      +'<div style="font-size:12px;color:#e2e8f0">'+(fresh?'<span style="color:#34d399;font-weight:700">FRESH </span>':'')
+      +esc(x.title||'')+'</div>'
+      +'<div style="font-size:11px;color:#94a3b8;margin-top:2px">'+esc(x.source||'')+' &middot; '+esc(x.age||'')
+      +(x.link?(' &middot; <a href="'+esc(x.link)+'" target="_blank" style="color:#60a5fa">read source</a>'):'')
+      +' &middot; <a href="#" onclick="spDraftFromSource('+JSON.stringify(sources.indexOf(x))+');return false" style="color:#2dd4bf">draft a post</a></div>'
+      +'</div>';
+  });
+  html+='</div>'; el.innerHTML=html; window._spSources=sources;
+}
+
+async function spDraftFromSource(i){
+  const x=(window._spSources||[])[i]; if(!x) return;
+  window._spSelected={ text:(x.title||'')+'\n\n'+(x.snippet||''), url:null, author:'', authorTitle:'' };
+  await spDoGenerate({ post:{ text:(x.title||'')+'. '+(x.snippet||'')+' (source: '+(x.source||'')+')', author:'', authorTitle:'' } });
 }
 
 function spRenderTargets(tg){
@@ -2351,6 +2391,7 @@ function spRenderTargets(tg){
     html += '<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:8px">'
       + '<div style="font-size:12px;color:#e2e8f0;margin-bottom:6px">'+esc((t.text||'').slice(0,400))+((t.text||'').length>400?'...':'')+'</div>'
       + '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px">'+score+esc(t.author||'')+(t.authorTitle?(' — '+esc(t.authorTitle)):'')+(t.url?(' · <a href="'+esc(t.url)+'" target="_blank" style="color:#60a5fa">open</a>'):'')+'</div>'
+      + (t.source?('<div style="font-size:11px;color:#fbbf24;margin-bottom:8px">Source: '+esc(t.source.title||'')+(t.source.link?(' <a href="'+esc(t.source.link)+'" target="_blank" style="color:#60a5fa">'+esc(t.source.source||'link')+'</a>'):'')+'</div>'):'')
       + '<button class="prod-btn" style="background:rgba(45,212,191,0.15);color:#2dd4bf;border-color:rgba(45,212,191,0.3)" onclick="spGenerate('+i+')">Generate drafts</button>'
       + '</div>';
   });
