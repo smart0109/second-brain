@@ -2476,10 +2476,11 @@ const _capBuffers = new Map();
 const _capCodes = new Map();
 function _capCleanup(){ const now=Date.now(); for(const [c,m] of _capCodes) if(m.exp<now){_capCodes.delete(c);_capBuffers.delete(c);} }
 setInterval(_capCleanup, 10*60*1000).unref && setInterval(_capCleanup,10*60*1000).unref();
+function _stableCapCode(req){ const id=(req.session&&(req.session.userId||req.session.email))||'anon'; const secret=process.env.SESSION_SECRET||'sb-captions'; return dgCrypto.createHmac('sha256',secret).update('cap:'+id).digest('hex').slice(0,8).toUpperCase(); }
 app.post('/api/live-captions/code', requireAuth, (req, res) => {
-  const code = dgCrypto.randomBytes(4).toString('hex').toUpperCase();
-  _capCodes.set(code, { userId: (req.session && (req.session.userId||req.session.email)) || 'user', exp: Date.now()+12*60*60*1000 });
-  _capBuffers.set(code, { lines: [], updated: Date.now() });
+  const code = _stableCapCode(req);
+  _capCodes.set(code, { userId: (req.session && (req.session.userId||req.session.email)) || 'user', exp: Date.now()+24*60*60*1000 });
+  if(!_capBuffers.has(code)) _capBuffers.set(code, { lines: [], updated: Date.now() });
   res.json({ code });
 });
 app.options('/api/live-captions', (_req, res) => { res.set('Access-Control-Allow-Origin','*'); res.set('Access-Control-Allow-Methods','POST, GET, OPTIONS'); res.set('Access-Control-Allow-Headers','Content-Type'); res.sendStatus(204); });
@@ -2498,6 +2499,7 @@ app.post('/api/live-captions', (req, res) => {
 app.get('/api/live-captions', requireAuth, (req, res) => {
   const code = String(req.query.code||'').trim().toUpperCase();
   const since = Number(req.query.since)||0;
+  const meta=_capCodes.get(code); if(meta)meta.exp=Date.now()+24*60*60*1000;
   const buf = _capBuffers.get(code);
   if (!buf) return res.json({ lines: [], now: Date.now() });
   res.json({ lines: buf.lines.filter((l)=>l.ts>since), now: Date.now() });
