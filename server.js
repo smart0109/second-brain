@@ -1156,10 +1156,15 @@ function _capCleanup() {
 setInterval(_capCleanup, 10 * 60 * 1000).unref?.();
 
 // Issue a pairing code (logged-in user)
+function _stableCapCode(req) {
+  const id = (req.session && (req.session.userId || req.session.email)) || 'anon';
+  const secret = process.env.SESSION_SECRET || 'sb-captions';
+  return require('crypto').createHmac('sha256', secret).update('cap:' + id).digest('hex').slice(0, 8).toUpperCase();
+}
 app.post('/api/live-captions/code', requireAuth, (req, res) => {
-  const code = require('crypto').randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars
-  _capCodes.set(code, { userId: req.session.userId, exp: Date.now() + 12 * 60 * 60 * 1000 });
-  _capBuffers.set(code, { lines: [], updated: Date.now(), owner: req.session.userId });
+  const code = _stableCapCode(req); // deterministic per user -> configure the extension once
+  _capCodes.set(code, { userId: (req.session && (req.session.userId || req.session.email)) || 'user', exp: Date.now() + 24 * 60 * 60 * 1000 });
+  if (!_capBuffers.has(code)) _capBuffers.set(code, { lines: [], updated: Date.now() });
   res.json({ code });
 });
 
@@ -1193,6 +1198,7 @@ app.post('/api/live-captions', (req, res) => {
 app.get('/api/live-captions', requireAuth, (req, res) => {
   const code = String(req.query.code || '').trim().toUpperCase();
   const since = Number(req.query.since) || 0;
+  const meta = _capCodes.get(code); if (meta) meta.exp = Date.now() + 24 * 60 * 60 * 1000;
   const buf = _capBuffers.get(code);
   if (!buf) return res.json({ lines: [], now: Date.now() });
   res.json({ lines: buf.lines.filter((l) => l.ts > since), now: Date.now() });
