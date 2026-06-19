@@ -41,7 +41,13 @@ const ALLOWED_EMAILS = [
   (process.env.ALLOWED_EMAIL || 'manish696@gmail.com').toLowerCase(),
   'manish@basisvps.com',
 ];
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
+const SESSION_SECRET = process.env.SESSION_SECRET
+  || (process.env.NODE_ENV === 'production'
+      ? require('crypto').randomBytes(32).toString('hex')   // random per-boot: not forgeable; sessions reset on redeploy
+      : 'dev-secret-change-me');
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  console.warn('[auth] SESSION_SECRET not set — using a random per-boot secret. Set SESSION_SECRET in env to keep sessions across deploys.');
+}
 
 const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
@@ -102,8 +108,14 @@ function getAuthedClient() {
 // Auth middleware
 // ---------------------------------------------------------------------------
 function requireAuth(req, res, next) {
+  // Browser users: must have a signed-in session (Google OAuth + allowlisted email).
   if (req.session && req.session.authenticated) return next();
-  if (process.env.GOOGLE_REFRESH_TOKEN) return next(); // env-based persistent auth
+  // Server-to-server automation (schedulers, local bridge, sync): explicit shared token.
+  // NOTE: we intentionally do NOT fall back to the presence of GOOGLE_REFRESH_TOKEN —
+  // that env var is a data-access credential, not proof the *caller* is authorized,
+  // and using it as an auth bypass left the whole site open to anyone with the link.
+  const svc = process.env.SERVICE_API_TOKEN;
+  if (svc && req.get('x-api-token') === svc) return next();
   return res.status(401).json({ error: 'Not authenticated. Visit /auth/google to sign in.' });
 }
 
@@ -747,7 +759,7 @@ app.get('/health', (_req, res) => {
 // Auth status
 app.get('/auth/status', (req, res) => {
   res.json({
-    authenticated: !!(req.session?.authenticated || process.env.GOOGLE_REFRESH_TOKEN),
+    authenticated: !!(req.session && req.session.authenticated),
     email: req.session?.email || process.env.ALLOWED_EMAIL || null,
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
