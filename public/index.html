@@ -595,6 +595,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="tab" data-view="icpchecker" data-org="sales" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Checker</div>
     <div class="tab" data-view="followups" data-org="sales" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="color:#e879f9;font-weight:600">Artifacts</div>
+    <div class="tab" data-view="socialPosting" data-org="sales" onclick="switchView('socialPosting')" style="color:#2dd4bf;font-weight:600">Social Posting</div>
     <!-- Marketing tabs -->
     <div class="tab" data-view="mktCampaigns" data-org="marketing" onclick="switchView('mktCampaigns')" style="display:none;color:#60a5fa;font-weight:600">Campaigns</div>
     <div class="tab" data-view="mktLeads" data-org="marketing" onclick="switchView('mktLeads')" style="display:none;color:#60a5fa;font-weight:600">Lead Analytics</div>
@@ -1353,6 +1354,17 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <div class="fu-stats" id="fuStats"></div>
       <div class="fu-filter-bar" id="fuFilterBar"></div>
       <div id="fuDraftsList"><div class="loading"><div class="spinner"></div><br>Loading drafts...</div></div>
+    </div>
+
+    <div id="view-socialPosting" class="view">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <h2 style="font-size:16px;font-weight:700;flex:1;color:#2dd4bf">Social Media Posting</h2>
+        <button class="prod-btn" onclick="window._socialPostingLoaded=false;loadSocialPosting()" style="background:rgba(45,212,191,0.15);color:#2dd4bf;border-color:rgba(45,212,191,0.3)">Refresh</button>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">Pick a viral post to engage with, generate two AI drafts (a punchy challenge and an expert take), edit if you like, then Post. Posting runs through your local LinkedIn poster.</div>
+      <div id="spTargets"><div class="loading"><div class="spinner"></div><br>Loading viral posts...</div></div>
+      <div id="spDrafts" style="margin-top:16px"></div>
+      <div id="spHistory" style="margin-top:22px"></div>
     </div>
 
     <div id="view-newsfeed" class="view">
@@ -2309,6 +2321,125 @@ function initFavorites(){
 initFavorites();
 
 // ── View Switching ──
+// ===== Social Media Posting =====
+window._spTargets = [];
+window._spSelected = null;
+
+async function loadSocialPosting(){
+  window._socialPostingLoaded = true;
+  const tEl = document.getElementById('spTargets');
+  const [tg, hist] = await Promise.all([
+    fetch('/api/social/targets').then(r=>r.json()).catch(()=>({targets:[]})),
+    fetch('/api/social/posts').then(r=>r.json()).catch(()=>({jobs:[]}))
+  ]);
+  window._spTargets = tg.targets || [];
+  spRenderTargets(tg);
+  spRenderHistory(hist.jobs || []);
+}
+
+function spRenderTargets(tg){
+  const el = document.getElementById('spTargets');
+  const targets = tg.targets || [];
+  if(!targets.length){
+    el.innerHTML = '<div class="empty-state" style="padding:20px;color:#94a3b8">No viral posts queued yet. Run the local target uploader (push_social_targets) to populate this list, or paste a post URL/text below.<div style="margin-top:10px"><textarea id="spPasteText" placeholder="Paste a LinkedIn post you want to engage with..." style="width:100%;min-height:70px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px;font-size:12px"></textarea><input id="spPasteUrl" placeholder="Post URL (optional)" style="width:100%;margin-top:6px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px;font-size:12px"><button class="prod-btn" style="margin-top:8px;background:rgba(45,212,191,0.15);color:#2dd4bf" onclick="spGenerateFromPaste()">Generate drafts</button></div></div>';
+    return;
+  }
+  const updated = tg.updatedAt ? new Date(tg.updatedAt).toLocaleString() : 'unknown';
+  let html = '<div style="font-size:11px;color:#64748b;margin-bottom:8px">Updated: '+esc(updated)+'</div>';
+  targets.forEach((t,i)=>{
+    const score = (t.score!=null) ? ('<span style="color:#2dd4bf;font-weight:700">score '+esc(String(t.score))+'</span> ') : '';
+    html += '<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:8px">'
+      + '<div style="font-size:12px;color:#e2e8f0;margin-bottom:6px">'+esc((t.text||'').slice(0,400))+((t.text||'').length>400?'...':'')+'</div>'
+      + '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px">'+score+esc(t.author||'')+(t.authorTitle?(' — '+esc(t.authorTitle)):'')+(t.url?(' · <a href="'+esc(t.url)+'" target="_blank" style="color:#60a5fa">open</a>'):'')+'</div>'
+      + '<button class="prod-btn" style="background:rgba(45,212,191,0.15);color:#2dd4bf;border-color:rgba(45,212,191,0.3)" onclick="spGenerate('+i+')">Generate drafts</button>'
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+async function spGenerate(idx){
+  const t = window._spTargets[idx];
+  if(!t) return;
+  window._spSelected = t;
+  await spDoGenerate({ targetId: t.id, post: t });
+}
+
+async function spGenerateFromPaste(){
+  const text = (document.getElementById('spPasteText')||{}).value || '';
+  const url = (document.getElementById('spPasteUrl')||{}).value || '';
+  if(!text.trim()){ showToast('Paste a post first','err'); return; }
+  const post = { text: text.trim(), url: url.trim()||null, author:'', authorTitle:'' };
+  window._spSelected = post;
+  await spDoGenerate({ post: post });
+}
+
+async function spDoGenerate(body){
+  const d = document.getElementById('spDrafts');
+  d.innerHTML = '<div class="loading"><div class="spinner"></div><br>Generating drafts...</div>';
+  try{
+    const r = await fetch('/api/social/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'draft failed');
+    spRenderDrafts(j);
+    d.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }catch(e){
+    d.innerHTML = '<div class="empty-state" style="color:#f87171;padding:16px">Draft generation failed: '+esc(e.message)+'</div>';
+  }
+}
+
+function spDraftBlock(style, label, text){
+  return '<div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px;margin-bottom:10px">'
+    + '<div style="font-size:12px;font-weight:700;color:#2dd4bf;margin-bottom:6px">'+esc(label)+'</div>'
+    + '<textarea id="spText-'+style+'" style="width:100%;min-height:90px;background:#0b1220;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px;font-size:12px">'+esc(text)+'</textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:8px">'
+    + '<button class="prod-btn" style="background:rgba(45,212,191,0.18);color:#2dd4bf;border-color:rgba(45,212,191,0.3)" onclick="spPost(\''+style+'\')">Post to LinkedIn</button>'
+    + '<button class="prod-btn" onclick="navigator.clipboard.writeText(document.getElementById(\'spText-'+style+'\').value);showToast(\'Copied\',\'ok\')">Copy</button>'
+    + '</div></div>';
+}
+
+function spRenderDrafts(j){
+  const d = document.getElementById('spDrafts');
+  d.innerHTML = '<h3 style="font-size:13px;font-weight:700;color:#e2e8f0;margin:4px 0 10px">AI Drafts</h3>'
+    + spDraftBlock('challenging','Challenging / Punchy', j.challenging||'')
+    + spDraftBlock('expert','Expert Opinion', j.expert||'');
+}
+
+async function spPost(style){
+  const ta = document.getElementById('spText-'+style);
+  if(!ta || !ta.value.trim()){ showToast('Nothing to post','err'); return; }
+  const t = window._spSelected || {};
+  if(!confirm('Post this '+style+' draft to LinkedIn? It will be queued for your local poster to publish.')) return;
+  try{
+    const r = await fetch('/api/social/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      text: ta.value.trim(), style: style, platform:'linkedin', mode:'comment',
+      targetId: t.id||null, targetUrl: t.url||null
+    })});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error||'post failed');
+    showToast('Queued for posting','ok');
+    const hist = await fetch('/api/social/posts').then(x=>x.json()).catch(()=>({jobs:[]}));
+    spRenderHistory(hist.jobs||[]);
+  }catch(e){ showToast('Post failed: '+e.message,'err'); }
+}
+
+function spRenderHistory(jobs){
+  const el = document.getElementById('spHistory');
+  if(!jobs || !jobs.length){ el.innerHTML=''; return; }
+  const color = {pending:'#fbbf24',claimed:'#60a5fa',posted:'#34d399',failed:'#f87171'};
+  let html = '<h3 style="font-size:13px;font-weight:700;color:#e2e8f0;margin:4px 0 10px">Recent posts</h3>';
+  jobs.forEach(j=>{
+    const c = color[j.status]||'#94a3b8';
+    html += '<div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px;margin-bottom:6px">'
+      + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px"><span style="color:'+c+';font-weight:700;font-size:11px;text-transform:uppercase">'+esc(j.status)+'</span>'
+      + '<span style="font-size:11px;color:#64748b">'+esc(j.style||'')+' · '+esc(new Date(j.createdAt).toLocaleString())+'</span></div>'
+      + '<div style="font-size:12px;color:#cbd5e1">'+esc((j.text||'').slice(0,200))+((j.text||'').length>200?'...':'')+'</div>'
+      + (j.resultUrl?('<div style="margin-top:4px"><a href="'+esc(j.resultUrl)+'" target="_blank" style="color:#60a5fa;font-size:11px">view</a></div>'):'')
+      + (j.error?('<div style="margin-top:4px;color:#f87171;font-size:11px">'+esc(j.error)+'</div>'):'')
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
 function switchView(v){
   dbg('switchView('+v+')');
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
@@ -2342,6 +2473,7 @@ function switchView(v){
   if(v==='newsfeed'&&!window._newsLoaded)safeLoad(loadNewsFeed,'News Feed');
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
   if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
+  if(v==='socialPosting'&&!window._socialPostingLoaded)safeLoad(loadSocialPosting,'Social Posting');
   if(v==='artifacts'&&!window._artifactsLoaded)safeLoad(loadArtifacts,'Artifacts');
   // Marketing views
   if(v==='mktCampaigns'&&!window._mktCampaignsLoaded){window._mktCampaignsLoaded=true;safeLoad(loadMktCampaigns,'Campaigns');}

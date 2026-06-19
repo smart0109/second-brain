@@ -2512,6 +2512,149 @@ const MEET_CAPTION_CONFIG = { version:1, updated:'2026-06-18',
 app.get('/api/meet-caption-config', (_req, res) => { res.set('Access-Control-Allow-Origin','*'); res.json(MEET_CAPTION_CONFIG); });
 app.options('/api/meet-caption-config', (_req, res) => { res.set('Access-Control-Allow-Origin','*'); res.set('Access-Control-Allow-Methods','GET, OPTIONS'); res.set('Access-Control-Allow-Headers','Content-Type'); res.sendStatus(204); });
 
+// ===========================================================================
+// SOCIAL MEDIA POSTING  (viral-post engagement + AI drafts + local-poster bridge)
+// ---------------------------------------------------------------------------
+// Flow: local machine pushes today's viral LinkedIn targets -> this page shows
+// the post to engage with -> generates 2 AI drafts (challenging/punchy +
+// expert opinion) -> "Post" creates a pending job -> the local Windows poller
+// (reusing the Selenium stack) claims the job, posts to LinkedIn, reports back.
+// ===========================================================================
+const SOCIAL_TARGETS_PATH = path.join(__dirname, 'data', 'social-targets.json');
+const SOCIAL_POSTS_PATH = path.join(__dirname, 'data', 'social-posts.json');
+
+function _readJsonSafe(p, fallback) {
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
+}
+function _writeJsonSocial(p, obj) {
+  const dir = path.dirname(p);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2));
+}
+function _socialId() { return 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// Guard for endpoints the LOCAL poller calls. If SOCIAL_BRIDGE_TOKEN is set,
+// require a matching x-bridge-token header; otherwise fall back to requireAuth
+// (which passes server-side via the GOOGLE_REFRESH_TOKEN bypass).
+function bridgeGuard(req, res, next) {
+  const want = process.env.SOCIAL_BRIDGE_TOKEN;
+  if (want) {
+    if (req.get('x-bridge-token') === want) return next();
+    return res.status(401).json({ error: 'Invalid bridge token' });
+  }
+  return requireAuth(req, res, next);
+}
+
+// Generate one LinkedIn draft in a given style, grounded in Manish's context.
+async function _genSocialDraft(style, post) {
+  const styleSpec = style === 'expert'
+    ? 'Write a credible EXPERT-OPINION LinkedIn comment (3 to 5 sentences, 60 to 100 words). Add one sharp, specific insight or operator-level data point that reframes the discussion and positions the writer as a seasoned CRO. Professional but human.'
+    : 'Write a CHALLENGING, PUNCHY LinkedIn comment (2 to 4 sentences, under 60 words). Take a bold, slightly contrarian stance that sparks debate and makes people stop scrolling. Conversational and confident.';
+  const systemPrompt = 'You are drafting LinkedIn engagement comments for Manish, a CRO who runs Cadient (AI-powered high-volume hiring / talent platform) and Vorro (healthcare data integration, BridgeGate EiPaaS). Write in first person as Manish. Rules: sound like a real human, use contractions, no hashtags, no emojis, no asterisks or hyphens or arrows as formatting, do NOT pitch or name products, do not be salesy. Return ONLY the comment text, nothing else.';
+  const userContent = `${styleSpec}\n\n--- POST TO ENGAGE WITH ---\nAuthor: ${post.author || 'Unknown'}${post.authorTitle ? ' (' + post.authorTitle + ')' : ''}\nPost:\n${post.text || '(no text captured)'}\n`;
+  const providers = [
+    () => askGemini(systemPrompt, userContent, 320),
+    () => askGroq(systemPrompt, userContent, 320),
+    () => askAnthropic(systemPrompt, userContent, 320),
+  ];
+  for (const fn of providers) {
+    try { const out = await fn(); if (out && out.trim()) return out.trim(); } catch (e) { console.warn('social draft provider failed:', e.message); }
+  }
+  throw new Error('All AI providers failed (check GEMINI_API_KEY / GROQ_API_KEY / ANTHROPIC_API_KEY)');
+}
+
+// --- Page-facing endpoints (requireAuth) -----------------------------------
+app.get('/api/social/targets', requireAuth, (_req, res) => {
+  res.json(_readJsonSafe(SOCIAL_TARGETS_PATH, { updatedAt: null, targets: [] }));
+});
+
+app.post('/api/social/draft', requireAuth, async (req, res) => {
+  try {
+    let post = req.body && req.body.post;
+    if (!post && req.body && req.body.targetId) {
+      const store = _readJsonSafe(SOCIAL_TARGETS_PATH, { targets: [] });
+      post = (store.targets || []).find(t => t.id === req.body.targetId);
+    }
+    if (!post) return res.status(400).json({ error: 'Provide a targetId or a post object' });
+    const [challenging, expert] = await Promise.all([
+      _genSocialDraft('challenging', post),
+      _genSocialDraft('expert', post),
+    ]);
+    res.json({ challenging, expert });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+app.get('/api/social/posts', requireAuth, (_req, res) => {
+  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  res.json({ jobs: (store.jobs || []).slice(-50).reverse() });
+});
+
+app.post('/api/social/posts', requireAuth, (req, res) => {
+  const b = req.body || {};
+  if (!b.text || !b.text.trim()) return res.status(400).json({ error: 'Missing draft text' });
+  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const job = {
+    id: _socialId(),
+    createdAt: new Date().toISOString(),
+    platform: b.platform || 'linkedin',
+    mode: b.mode || 'comment',
+    targetId: b.targetId || null,
+    targetUrl: b.targetUrl || null,
+    style: b.style || null,
+    text: b.text.trim(),
+    status: 'pending',
+    claimedAt: null, postedAt: null, error: null, resultUrl: null,
+  };
+  store.jobs = store.jobs || []; store.jobs.push(job);
+  _writeJsonSocial(SOCIAL_POSTS_PATH, store);
+  res.json({ ok: true, job });
+});
+
+// --- Local-poster bridge endpoints (bridgeGuard) ---------------------------
+app.post('/api/social/targets', bridgeGuard, (req, res) => {
+  const targets = (req.body && req.body.targets) || [];
+  const norm = targets.map(t => ({
+    id: t.id || _socialId(),
+    platform: t.platform || 'linkedin',
+    url: t.url || t.postUrl || null,
+    text: t.text || t.postText || '',
+    author: t.author || t.authorName || '',
+    authorTitle: t.authorTitle || t.headline || '',
+    score: t.score != null ? t.score : (t.target_score != null ? t.target_score : null),
+    topic: t.topic || t.matched_template || '',
+  }));
+  _writeJsonSocial(SOCIAL_TARGETS_PATH, { updatedAt: new Date().toISOString(), targets: norm });
+  res.json({ ok: true, count: norm.length });
+});
+
+app.get('/api/social/posts/pending', bridgeGuard, (_req, res) => {
+  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  res.json({ jobs: (store.jobs || []).filter(j => j.status === 'pending') });
+});
+
+app.post('/api/social/posts/:id/claim', bridgeGuard, (req, res) => {
+  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const job = (store.jobs || []).find(j => j.id === req.params.id);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  if (job.status !== 'pending') return res.status(409).json({ error: 'Already ' + job.status });
+  job.status = 'claimed'; job.claimedAt = new Date().toISOString();
+  _writeJsonSocial(SOCIAL_POSTS_PATH, store);
+  res.json({ ok: true, job });
+});
+
+app.post('/api/social/posts/:id/result', bridgeGuard, (req, res) => {
+  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const job = (store.jobs || []).find(j => j.id === req.params.id);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  const b = req.body || {};
+  job.status = b.status === 'posted' ? 'posted' : 'failed';
+  job.resultUrl = b.resultUrl || null;
+  job.error = b.error || null;
+  job.postedAt = new Date().toISOString();
+  _writeJsonSocial(SOCIAL_POSTS_PATH, store);
+  res.json({ ok: true, job });
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
