@@ -757,21 +757,18 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    services: {
-      google: !!process.env.GOOGLE_REFRESH_TOKEN,
-      zoho: !!process.env.ZOHO_REFRESH_TOKEN,
-      vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
-      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
-      claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
-    },
   });
 });
 
 // Auth status
 app.get('/auth/status', (req, res) => {
+  // Anonymous visitors get ZERO identifying info or config detail.
+  if (!(req.session && req.session.authenticated)) {
+    return res.json({ authenticated: false });
+  }
   res.json({
-    authenticated: !!(req.session && req.session.authenticated),
-    email: req.session?.email || process.env.ALLOWED_EMAIL || null,
+    authenticated: true,
+    email: req.session.email || null,
     services: {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
