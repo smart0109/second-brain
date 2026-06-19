@@ -5688,7 +5688,11 @@ async function copilotAction(type){
 
   try{
     const response=await ask(prompts[type],data);
-    renderCopilotResponse(type,response);
+    if(typeof response==='string' && response.indexOf('AI unavailable')===0){
+      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; '+esc(response)+'</div>';
+    } else {
+      renderCopilotResponse(type,response);
+    }
   }catch(e){
     const errMsg=e.message||'Unknown error';
     if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
@@ -6362,13 +6366,9 @@ async function ask(p,d,opts){
     return typeof json==='string'?json:(json.text||json.content||json.response||json.answer||JSON.stringify(json));
   }catch(e){
     dbg('askClaude failed: '+e.message,'err');
-    // Build useful fallback from raw data if available
-    if(d&&d.length){
-      let fallback='**AI unavailable** (set ANTHROPIC_API_KEY on Render). Raw context:\n\n';
-      d.forEach(item=>{if(item&&item.label&&item.value)fallback+=`**${item.label}:**\n${typeof item.value==='string'?item.value.slice(0,500):JSON.stringify(item.value).slice(0,500)}\n\n`;});
-      return fallback;
-    }
-    return 'AI response unavailable. Set ANTHROPIC_API_KEY on server.';
+    // Do NOT dump the raw prompt/CRM data into the UI (privacy + noise).
+    // Return a clean sentinel; callers detect 'AI unavailable' and show guidance.
+    return 'AI unavailable \u2014 add a free GEMINI_API_KEY on Render (Environment tab) to turn on live answers. Gemini and Groq both have free tiers; Anthropic is the paid fallback.';
   }
 }
 
