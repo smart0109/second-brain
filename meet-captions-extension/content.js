@@ -28,10 +28,14 @@
     } catch (e) { log('config fetch failed, using defaults'); }
   }
 
+  function captionsOn() {
+    const region = pick(document, cfg.regionSelectors);
+    return !!(region && region.querySelector(cfg.rowSelectors.join(',')));
+  }
   function enableCaptions() {
-    // Try the CC button first, then the keyboard shortcut.
+    if (captionsOn()) return; // already on — don't toggle off
     const btn = pick(document, cfg.captionsButtonSelectors);
-    if (btn) { const lbl = (btn.getAttribute('aria-label') || '').toLowerCase(); if (!/turn off|stop/.test(lbl)) { try { btn.click(); log('clicked captions button'); return; } catch (e) {} } }
+    if (btn) { const lbl = (btn.getAttribute('aria-label') || '').toLowerCase(); if (!/turn off|stop|disable/.test(lbl)) { try { btn.click(); log('clicked captions button'); return; } catch (e) {} } }
     try {
       document.body.dispatchEvent(new KeyboardEvent('keydown', { key: cfg.toggleKey, code: 'Key' + cfg.toggleKey.toUpperCase(), bubbles: true }));
       log('sent captions shortcut');
@@ -92,10 +96,33 @@
       }));
     });
     mo.observe(document.body, { childList: true, subtree: true });
-    setTimeout(enableCaptions, 2500);
+    // Captions UI loads slowly and varies — retry enabling for the first ~20s.
+    let tries = 0;
+    const enableTimer = setInterval(() => { enableCaptions(); if (++tries >= 8) clearInterval(enableTimer); }, 2500);
     setInterval(scan, 700);
     setInterval(flush, 1500);
+    showBanner();
+    notifyOnce();
     log('started; appUrl=' + appUrl + ' code=' + code);
+  }
+
+  function showBanner() {
+    if (document.getElementById('sb-cap-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'sb-cap-banner';
+    b.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;background:#0f172a;color:#fff;font:500 12px system-ui,sans-serif;padding:8px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;align-items:center;gap:8px;max-width:300px';
+    b.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;box-shadow:0 0 0 0 #22c55e"></span><span>Second Brain is capturing this meeting (with speaker names). Open the AI Transcription tab for live rebuttals.</span><span id="sb-cap-x" style="cursor:pointer;opacity:.6;margin-left:4px">×</span>';
+    (document.body || document.documentElement).appendChild(b);
+    const x = b.querySelector('#sb-cap-x'); if (x) x.onclick = () => b.remove();
+    setTimeout(() => { const el = document.getElementById('sb-cap-banner'); if (el) el.style.opacity = '0.85'; }, 8000);
+  }
+
+  function notifyOnce() {
+    try {
+      if (!('Notification' in window)) return;
+      if (Notification.permission === 'granted') { new Notification('Second Brain', { body: 'Capturing this meeting — names + live rebuttals in your dashboard.' }); }
+      else if (Notification.permission !== 'denied') { Notification.requestPermission().then((p) => { if (p === 'granted') new Notification('Second Brain', { body: 'Capturing this meeting — names + live rebuttals in your dashboard.' }); }); }
+    } catch (e) {}
   }
 
   // Wait for Meet UI to settle.

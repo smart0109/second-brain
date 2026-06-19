@@ -1,19 +1,31 @@
 {
   "manifest_version": 3,
-  "name": "Second Brain — Meet Live Captions",
+  "name": "Second Brain \u2014 Meet Live Captions",
   "version": "1.0.0",
   "description": "Streams Google Meet live captions (with speaker names) into your Second Brain copilot. No bot joins the call.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "notifications"
+  ],
   "host_permissions": [
     "https://meet.google.com/*",
     "https://second-brain-iida.onrender.com/*",
     "https://*.onrender.com/*"
   ],
-  "action": { "default_popup": "popup.html", "default_title": "Second Brain Captions" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Second Brain Captions"
+  },
   "content_scripts": [
     {
-      "matches": ["https://meet.google.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://meet.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]
