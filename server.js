@@ -2504,7 +2504,23 @@ app.get('/api/live-captions', requireAuth, (req, res) => {
   if (!buf) return res.json({ lines: [], now: Date.now() });
   res.json({ lines: buf.lines.filter((l)=>l.ts>since), now: Date.now() });
 });
-const MEET_CAPTION_CONFIG = { version:1, updated:'2026-06-18',
+const MEET_CAPTION_CONFIG = { version:2, updated:'2026-06-18',
+  platforms:{
+    meet:{ regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
+      rowSelectors:['.nMcdL','.TBMuR','div[class*="caption"]'],
+      speakerSelectors:['.NWpY1d','.zs7s8d','span[class*="name" i]'],
+      textSelectors:['.bh44bd','.iTTPOb','div[class*="text" i]'],
+      captionsButtonSelectors:['button[aria-label*="aption" i]','button[jsname][data-tooltip*="aption" i]'], toggleKey:'c' },
+    teams:{ regionSelectors:['[data-tid="closed-captions-renderer"]','[aria-label*="aptions" i]','[class*="closed-caption" i]'],
+      rowSelectors:['[data-tid="closed-caption-message"]','.ui-chat__item','[class*="caption" i][class*="message" i]','div[class*="caption" i]'],
+      speakerSelectors:['[data-tid="author"]','[class*="author" i]','[class*="name" i]'],
+      textSelectors:['[data-tid="caption-text"]','[class*="caption-text" i]','[class*="text" i]'],
+      captionsButtonSelectors:['button[aria-label*="aption" i]'], toggleKey:null },
+    zoom:{ regionSelectors:['[aria-label*="aptions" i]','.live-transcription-subtitle','[class*="transcription" i]','[class*="caption" i]'],
+      rowSelectors:['.live-transcription-subtitle__item','[class*="subtitle__item" i]','[class*="caption-item" i]','div[class*="caption" i]'],
+      speakerSelectors:['.live-transcription-subtitle__item-name','[class*="item-name" i]','[class*="name" i]'],
+      textSelectors:['.live-transcription-subtitle__item-text','[class*="item-text" i]','[class*="text" i]'],
+      captionsButtonSelectors:['button[aria-label*="aption" i]','button[aria-label*="ranscript" i]'], toggleKey:null } },
   regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
   rowSelectors:['.nMcdL','.TBMuR','div[class*="caption"]'],
   speakerSelectors:['.NWpY1d','.zs7s8d','span[class*="name" i]'],
