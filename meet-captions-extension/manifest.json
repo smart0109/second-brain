@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Second Brain \u2014 Meet Live Captions",
   "version": "1.0.0",
-  "description": "Streams Google Meet live captions (with speaker names) into your Second Brain copilot. No bot joins the call.",
+  "description": "Streams Google Meet / Microsoft Teams / Zoom (web) live captions with speaker names into your Second Brain copilot. No bot joins the call.",
   "permissions": [
     "storage",
     "activeTab",
@@ -10,9 +10,12 @@
     "notifications"
   ],
   "host_permissions": [
+    "https://*.onrender.com/*",
+    "https://*.zoom.us/*",
     "https://meet.google.com/*",
     "https://second-brain-iida.onrender.com/*",
-    "https://*.onrender.com/*"
+    "https://teams.live.com/*",
+    "https://teams.microsoft.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -21,7 +24,10 @@
   "content_scripts": [
     {
       "matches": [
-        "https://meet.google.com/*"
+        "https://meet.google.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://*.zoom.us/*"
       ],
       "js": [
         "content.js"
