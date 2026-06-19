@@ -8107,6 +8107,7 @@ let _lastNotifiedMeeting=null; // prevent repeat notifications for same meeting
 let _meetingOverlayDismissed=false;
 
 function startMeetingWatcher(){
+  try{ if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }catch(e){}
   // Check every 60 seconds for meetings starting soon
   _meetingWatcherTimer=setInterval(checkUpcomingMeetings,60000);
   // Also check immediately after 5s (let dashboard settle)
@@ -8164,7 +8165,13 @@ async function checkUpcomingMeetings(){
       else if(loc.includes('teams.microsoft.com')){platform='Teams';joinUrl=loc;}
     }
 
-    // Show the overlay
+    try{
+      if('Notification' in window && Notification.permission==='granted'){
+        const capNote = platform==='Google Meet' ? ' AI will auto-capture with names.' : (platform==='Teams'||platform==='Zoom') ? ' Use Live (mic/system) to capture; named transcript after via '+(platform==='Teams'?'Teams/Graph':'Zoom cloud')+'.' : '';
+        const n=new Notification('Meeting starting '+timeStr+(platform?' · '+platform:''), { body: (meeting.summary||'Meeting') + (names?' — '+names:'') + '.' + capNote, tag: meetingId });
+        n.onclick=()=>{ try{ window.focus(); switchView('copilot'); }catch(e){} if(joinUrl)window.open(joinUrl,'_blank'); n.close(); };
+      }
+    }catch(e){}
     showMeetingOverlay(meeting,attendees,isExternal,timeStr,platform,joinUrl);
 
   }catch(e){
