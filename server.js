@@ -2577,12 +2577,12 @@ function _socialId() { return 's_' + Date.now().toString(36) + Math.random().toS
 function bridgeGuard(req, res, next) {
   const want = process.env.SOCIAL_BRIDGE_TOKEN;
   const svc = process.env.SERVICE_API_TOKEN;
+  // Server-to-server callers (local poller / schedulers) present a token header.
   if (want && req.get('x-bridge-token') === want) return next();
   if (svc && req.get('x-api-token') === svc) return next();
-  // If a token is configured but neither header matched, reject (fail-closed).
-  if (want || svc) return res.status(401).json({ error: 'Invalid bridge/service token' });
-  // No token configured yet: require a signed-in session (never wide open).
-  return requireAuth(req, res, next);
+  // Browser users on the dashboard are authorized by their signed-in session.
+  if (req.session && req.session.authenticated) return next();
+  return res.status(401).json({ error: 'Not authorized for bridge endpoint.' });
 }
 
 // Generate one LinkedIn draft in a given style, grounded in Manish's context.
