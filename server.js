@@ -2561,10 +2561,46 @@ app.options('/api/meet-caption-config', (_req, res) => { res.set('Access-Control
 const SOCIAL_TARGETS_PATH = path.join(__dirname, 'data', 'social-targets.json');
 const SOCIAL_POSTS_PATH = path.join(__dirname, 'data', 'social-posts.json');
 
+// ---- Durable KV: Postgres-backed when DATABASE_URL is set; file fallback otherwise ----
+// Render's filesystem is EPHEMERAL (wiped on every redeploy), which silently erased
+// viral targets + meeting-prep entries. With DATABASE_URL we persist these small JSON
+// stores in Postgres (hydrated into memory at boot) so they survive redeploys.
+let _pgPool = null;
+const _kv = {};
+let _kvHydrated = false;
+if (process.env.DATABASE_URL) {
+  try {
+    const { Pool } = require('pg');
+    _pgPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 3 });
+    _pgPool.on('error', (e) => console.warn('pg pool error:', e.message));
+  } catch (e) { console.warn('pg unavailable, using file storage:', e.message); _pgPool = null; }
+}
+async function _kvInit() {
+  if (!_pgPool) { _kvHydrated = true; return; }
+  try {
+    await _pgPool.query('CREATE TABLE IF NOT EXISTS app_kv (k text primary key, v jsonb, updated_at timestamptz default now())');
+    const r = await _pgPool.query('SELECT k, v FROM app_kv');
+    for (const row of r.rows) _kv[row.k] = row.v;
+    _kvHydrated = true;
+    console.log('Durable KV hydrated from Postgres:', r.rows.length, 'keys');
+  } catch (e) {
+    console.warn('KV init failed, falling back to files:', e.message);
+    _pgPool = null; _kvHydrated = true;
+  }
+}
+const _kvKey = (p) => path.basename(p);
+
 function _readJsonSafe(p, fallback) {
+  if (_pgPool) { const k = _kvKey(p); return (k in _kv) ? _kv[k] : fallback; }
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
 }
 function _writeJsonSocial(p, obj) {
+  if (_pgPool) {
+    const k = _kvKey(p); _kv[k] = obj;
+    _pgPool.query('INSERT INTO app_kv(k,v,updated_at) VALUES($1,$2,now()) ON CONFLICT(k) DO UPDATE SET v=$2, updated_at=now()', [k, JSON.stringify(obj)])
+      .catch((e) => console.warn('kv write ' + k + ' failed:', e.message));
+    return;
+  }
   const dir = path.dirname(p);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(p, JSON.stringify(obj, null, 2));
@@ -2776,15 +2812,8 @@ app.post('/api/social/alert', bridgeGuard, async (req, res) => {
 // them to link "Prep Doc" instead of opening a Gmail draft.
 // ===========================================================================
 const PREP_INDEX_FILE = path.join(__dirname, 'data', 'meeting-prep-index.json');
-function _loadPrepIndex() {
-  try { return JSON.parse(fs.readFileSync(PREP_INDEX_FILE, 'utf8')); }
-  catch (e) { return { entries: [] }; }
-}
-function _savePrepIndex(idx) {
-  try { fs.mkdirSync(path.dirname(PREP_INDEX_FILE), { recursive: true });
-        fs.writeFileSync(PREP_INDEX_FILE, JSON.stringify(idx, null, 2)); }
-  catch (e) { console.warn('prep index save failed:', e.message); }
-}
+function _loadPrepIndex() { return _readJsonSafe(PREP_INDEX_FILE, { entries: [] }); }
+function _savePrepIndex(idx) { _writeJsonSocial(PREP_INDEX_FILE, idx); }
 // Service token OR a signed-in session may write prep entries.
 function prepWriteGuard(req, res, next) {
   const svc = process.env.SERVICE_API_TOKEN;
@@ -2836,6 +2865,7 @@ app.use((err, _req, res, _next) => {
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
+_kvInit();
 const httpServer = app.listen(PORT, () => {
   console.log(`Second Brain server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);
