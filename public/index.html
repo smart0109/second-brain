@@ -677,6 +677,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <button onclick="searchCRM()" style="padding:10px 18px;background:#c9a227;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Search CRM</button>
         </div>
         <div id="crmSearchResults"></div>
+        <div class="section-header">Most Mentioned (Across Meetings)</div>
+        <div class="card"><div class="card-body" id="mostMentionedList"><div class="loading"><div class="spinner"></div><br>Tallying meeting participants...</div></div></div>
+        <div class="section-header">Recent Executive Changes</div>
+        <div class="card"><div class="card-body" id="recentExecChanges"><div class="loading"><div class="spinner"></div><br>Checking C-Suite Monitor...</div></div></div>
         <div class="section-header">Recent Contacts (Last 2 Weeks)</div>
         <div class="card"><div class="card-body scroll-panel" id="recentContactsList"><div class="loading"><div class="spinner"></div><br>Loading recent contacts...</div></div></div>
       </div>
@@ -2509,7 +2513,7 @@ function switchView(v){
   if(v==='intelligence'&&!window._intelLoaded)safeLoad(loadIntelligence,'Intelligence');
   if(v==='copilot'&&!window._copilotLoaded)safeLoad(loadCopilot,'Copilot');
   if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
-  if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadRecentContacts();}
+  if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadRecentContacts();loadMostMentioned();loadRecentExecChanges();}
   // Legal tab is static — no data load needed on switch
   if(v==='newsfeed'&&!window._newsLoaded)safeLoad(loadNewsFeed,'News Feed');
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
@@ -3174,6 +3178,113 @@ async function loadRecentContacts(){
       <div class="item-content"><div class="item-title">${esc(c.name)}</div>
       <div class="item-sub">${esc(c.email)} &middot; ${c.count} msgs &middot; ${fmtDate(c.lastDate)}</div></div></div></div>`).join('');
   }catch(e){el.innerHTML='<div class="empty-state">Failed to load: '+esc(e.message)+'</div>';}
+}
+
+
+// ── Most Mentioned contacts (tallied from the meetings cache) ──
+// Internal team / self names to exclude so the list surfaces EXTERNAL contacts.
+const MM_INTERNAL_NAMES=['manish','manish agarwal','prateek','thomas','justin','anshu','kyle','anjali','nida','kashif','akanksha','pamela','scott','terry','shashank','toiba','tpaul','gibran','rashmi','david','girija','yara','aakriti','mark','sharma'];
+function mmIsInternalOrJunk(name){
+  const n=(name||'').toLowerCase().trim();
+  if(!n)return true;
+  if(n.length<3)return true;
+  // No real name: just an email handle, a number, or a single token without a space and with digits
+  if(/^[^a-z]+$/i.test(n))return true;
+  if(n.includes('@'))return true;
+  if(/(unknown|guest|caller|attendee|participant|no name|notetaker|recorder|granola|n\/a)/.test(n))return true;
+  // First-name or full-name match against the internal roster
+  const first=n.split(/\s+/)[0];
+  if(MM_INTERNAL_NAMES.includes(n)||MM_INTERNAL_NAMES.includes(first))return true;
+  return false;
+}
+async function loadMostMentioned(){
+  const el=document.getElementById('mostMentionedList');if(!el)return;
+  try{
+    const res=await fetch('/meetings-cache.json',{credentials:'same-origin'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const raw=await res.json();
+    const meetings=Array.isArray(raw)?raw:(raw.meetings||raw.data||[]);
+    const tally={};
+    (meetings||[]).forEach(m=>{
+      const parts=Array.isArray(m&&m.participants)?m.participants:[];
+      // de-dupe within a single meeting so one meeting counts a person once
+      const seen=new Set();
+      parts.forEach(p=>{
+        const name=typeof p==='string'?p:String((p&&(p.name||p.displayName||p.email))||'');
+        const clean=name.trim();
+        if(mmIsInternalOrJunk(clean))return;
+        const key=clean.toLowerCase();
+        if(seen.has(key))return;seen.add(key);
+        if(!tally[key])tally[key]={name:clean,count:0};
+        tally[key].count++;
+      });
+    });
+    const ranked=Object.values(tally).sort((a,b)=>b.count-a.count).slice(0,8);
+    if(!ranked.length){el.innerHTML='<div class="empty-state">No mentioned contacts found in meetings yet</div>';return;}
+    el.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px">'+ranked.map(c=>
+      `<div onclick="loadContact('${escAttr(c.name)}','')" style="cursor:pointer;display:flex;align-items:center;gap:8px;background:var(--bg-elevated,#1e2a3a);border:1px solid var(--border,rgba(255,255,255,0.1));border-radius:999px;padding:6px 12px 6px 6px">
+        <div class="contact-avatar" style="width:26px;height:26px;font-size:10px;flex-shrink:0">${initials(c.name)}</div>
+        <div style="line-height:1.2"><div style="font-size:12px;font-weight:600;color:var(--text-primary,#e2e8f0)">${esc(c.name)}</div>
+        <div style="font-size:9px;color:var(--text-muted,#64748b)">${c.count} meeting${c.count!==1?'s':''}</div></div>
+      </div>`).join('')+'</div>';
+    dbg('Most-mentioned: '+ranked.length+' contacts','ok');
+  }catch(e){
+    dbg('loadMostMentioned failed: '+e.message,'err');
+    el.innerHTML='<div class="empty-state">Could not load meeting participants: '+esc(e.message)+'</div>';
+  }
+}
+
+// ── Recent Executive Changes (surfaced from the csuite-change-monitor Gmail alert) ──
+async function loadRecentExecChanges(){
+  const el=document.getElementById('recentExecChanges');if(!el)return;
+  try{
+    const r=await call(`${GMAIL}__search_threads`,{query:'subject:"C-SUITE MONITOR" newer_than:60d',pageSize:5});
+    const threads=(r&&r.threads)||[];
+    if(!threads.length){
+      el.innerHTML='<div class="empty-state" style="line-height:1.6">No recent exec changes tracked.<div style="font-size:10px;color:var(--text-muted,#64748b);margin-top:4px">The weekly C-Suite Monitor runs Mondays and emails a "[C-SUITE MONITOR]" alert; it will appear here once a report exists.</div></div>';
+      return;
+    }
+    // Most recent thread first; fetch its full body
+    const tid=threads[0].id||threads[0].threadId;
+    let body='';let subject='';let date='';
+    try{
+      const th=await call(`${GMAIL}__get_thread`,{threadId:tid,messageFormat:'FULL_CONTENT'});
+      const msgs=(th&&(th.messages||th.thread&&th.thread.messages))||[];
+      const last=msgs[msgs.length-1]||msgs[0]||{};
+      body=last.plaintextBody||last.plainTextBody||last.body||last.snippet||'';
+      subject=last.subject||(threads[0].messages&&threads[0].messages[0]&&threads[0].messages[0].subject)||'';
+      date=last.date||'';
+    }catch(_e){
+      const fm=(threads[0].messages&&threads[0].messages[0])||{};
+      subject=fm.subject||'';body=fm.snippet||'';date=fm.date||'';
+    }
+    // Parse "[C-SUITE MONITOR] Week of {date} - {N} changes detected"
+    const headMatch=(subject||'').match(/Week of\s*(.+?)\s*-\s*(.+)$/i);
+    const weekOf=headMatch?headMatch[1].trim():(date?fmtDate(date):'');
+    const headline=headMatch?headMatch[2].trim():(subject||'C-Suite Monitor report');
+    // Pull individual change lines from the body if present (lines mentioning a change type).
+    const lines=(body||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    const changeLines=lines.filter(l=>/(NEW HIRE|DEPARTURE|PROMOTION|HIRED|DEPARTED|PROMOTED|appointed|named|steps down|joins as)/i.test(l)).slice(0,8);
+    let html='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      +'<span style="font-size:14px">&#128188;</span>'
+      +`<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text-primary,#e2e8f0)">${esc(headline)}</div>`
+      +(weekOf?`<div style="font-size:10px;color:var(--text-muted,#64748b)">Week of ${esc(weekOf)} &middot; from C-Suite Monitor</div>`:'')
+      +'</div></div>';
+    if(changeLines.length){
+      html+='<div style="display:flex;flex-direction:column;gap:6px">'+changeLines.map(l=>
+        `<div style="font-size:11px;color:var(--text-secondary,#cbd5e1);background:var(--bg-elevated,#1e2a3a);border:1px solid var(--border,rgba(255,255,255,0.08));border-radius:8px;padding:8px 10px;line-height:1.4">${esc(l.replace(/^[-*•]\s*/,''))}</div>`).join('')+'</div>';
+    }else if(/no changes detected/i.test(subject||'')){
+      html+='<div style="font-size:11px;color:var(--text-muted,#64748b)">No leadership changes detected in the latest weekly scan.</div>';
+    }else{
+      html+='<div style="font-size:11px;color:var(--text-muted,#64748b)">See the full "[C-SUITE MONITOR]" email for details.</div>';
+    }
+    html+='<div style="margin-top:8px"><a class="contact-link" href="https://mail.google.com/mail/u/0/#search/'+encodeURIComponent('subject:"C-SUITE MONITOR"')+'" target="_blank" style="font-size:10px">Open in Gmail</a></div>';
+    el.innerHTML=html;
+    dbg('Recent exec changes: '+changeLines.length+' lines','ok');
+  }catch(e){
+    dbg('loadRecentExecChanges failed: '+e.message,'err');
+    el.innerHTML='<div class="empty-state" style="line-height:1.6">No recent exec changes tracked.<div style="font-size:10px;color:var(--text-muted,#64748b);margin-top:4px">Could not read the C-Suite Monitor alert: '+esc(e.message)+'</div></div>';
+  }
 }
 
 async function loadAllCRMContacts(){
