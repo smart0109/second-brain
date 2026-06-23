@@ -2769,6 +2769,67 @@ app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
   res.json({ ok: true });
 });
 
+// ===========================================================================
+// ARTIFACTS — pin/remove preferences + most-emailed-client ranking
+// Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
+// Prefs survive redeploys and are shared across devices for the single owner.
+// ===========================================================================
+const ARTIFACT_PREFS_PATH = path.join(__dirname, 'data', 'artifact-prefs.json');
+const ARTIFACT_CLIENTS_PATH = path.join(__dirname, 'data', 'artifact-clients.json');
+
+// Pin/hide preferences. Shape: { pinned:[...ids], hidden:[...ids], updatedAt }
+app.get('/api/artifacts/prefs', requireAuth, (_req, res) => {
+  const p = _readJsonSafe(ARTIFACT_PREFS_PATH, { pinned: [], hidden: [], updatedAt: null });
+  res.json({ pinned: Array.isArray(p.pinned) ? p.pinned : [], hidden: Array.isArray(p.hidden) ? p.hidden : [], updatedAt: p.updatedAt || null });
+});
+app.post('/api/artifacts/prefs', requireAuth, (req, res) => {
+  const b = req.body || {};
+  const clean = (a) => Array.from(new Set((Array.isArray(a) ? a : []).filter(x => typeof x === 'string' && x).map(String))).slice(0, 2000);
+  const obj = { pinned: clean(b.pinned), hidden: clean(b.hidden), updatedAt: new Date().toISOString() };
+  _writeJsonSocial(ARTIFACT_PREFS_PATH, obj);
+  res.json({ ok: true, pinned: obj.pinned, hidden: obj.hidden });
+});
+
+// Most-emailed client ranking (computed from Gmail SENT mail, last ~90d, external
+// domains only). Served to the SPA so "Sort: Most-emailed clients" can order
+// artifacts by client relevance. A scheduler/agent may refresh it durably via POST
+// (bridgeGuard: service token or signed-in session). Seeded so it works immediately.
+const _ARTIFACT_CLIENTS_SEED = {
+  updatedAt: null,
+  source: 'gmail:in:sent newer_than:90d (external domains, seeded 2026-06-22)',
+  clients: [
+    { domain: 'chaiclassconsulting.com', company: 'chaiclassconsulting', weight: 6 },
+    { domain: 'medreviq.com', company: 'medreviq', weight: 5 },
+    { domain: 'airmeez.com', company: 'airmeez', weight: 3 },
+    { domain: 'ipill.tech', company: 'ipill', weight: 3 },
+    { domain: 'medozai.com', company: 'medozai', weight: 3 },
+    { domain: 'ipex.health', company: 'ipex', weight: 2 },
+    { domain: 'fadv.com', company: 'fadv', weight: 2 },
+    { domain: 'unilogcorp.com', company: 'unilog', weight: 2 },
+    { domain: 'stancehealthsolutions.com', company: 'stancehealth', weight: 2 },
+    { domain: 'safespace.tools', company: 'safespace', weight: 2 },
+    { domain: 'athenaequity.com', company: 'athenaequity', weight: 2 },
+    { domain: 'etherfax.net', company: 'etherfax', weight: 1 },
+    { domain: 'ehe.health', company: 'ehe', weight: 1 },
+    { domain: 'safestartmedical.com', company: 'safestartmedical', weight: 1 },
+    { domain: 'aarkai.com', company: 'aarkai', weight: 1 },
+    { domain: 'latentbridge.com', company: 'latentbridge', weight: 1 },
+    { domain: 'boydbeauty.com', company: 'boydbeauty', weight: 1 }
+  ]
+};
+app.get('/api/artifacts/clients', requireAuth, (_req, res) => {
+  const c = _readJsonSafe(ARTIFACT_CLIENTS_PATH, _ARTIFACT_CLIENTS_SEED);
+  res.json({ updatedAt: c.updatedAt || null, source: c.source || _ARTIFACT_CLIENTS_SEED.source, clients: Array.isArray(c.clients) ? c.clients : [] });
+});
+app.post('/api/artifacts/clients', bridgeGuard, (req, res) => {
+  const b = req.body || {};
+  const clients = (Array.isArray(b.clients) ? b.clients : []).filter(x => x && (x.domain || x.company)).slice(0, 500)
+    .map(x => ({ domain: String(x.domain || '').toLowerCase(), company: String(x.company || (x.domain || '').split('.')[0] || '').toLowerCase(), weight: Number(x.weight) || 1 }));
+  const obj = { updatedAt: new Date().toISOString(), source: b.source || 'gmail:in:sent', clients };
+  _writeJsonSocial(ARTIFACT_CLIENTS_PATH, obj);
+  res.json({ ok: true, count: clients.length });
+});
+
 // Send a real super-viral alert email to the owner (recipient hardcoded; never outreach)
 async function _sendAlertEmail(subject, htmlBody) {
   const auth = getAuthedClient();
