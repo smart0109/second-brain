@@ -1271,6 +1271,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <button class="prod-btn" onclick="filterArtifacts('cadient')" id="artFilterCadient" style="background:rgba(232,121,249,0.1);color:#e879f9;border-color:rgba(232,121,249,0.2)">Cadient</button>
           <button class="prod-btn" onclick="filterArtifacts('vorro')" id="artFilterVorro" style="background:rgba(232,121,249,0.1);color:#e879f9;border-color:rgba(232,121,249,0.2)">Vorro</button>
         </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+          <button class="prod-btn" id="artSortDefault" onclick="setArtifactSort('default')" title="Default order" style="background:rgba(232,121,249,0.25);color:#e879f9;border-color:rgba(232,121,249,0.4)">Default</button>
+          <button class="prod-btn" id="artSortClients" onclick="setArtifactSort('clients')" title="Rank by the clients you email most (from Gmail sent mail)" style="background:rgba(232,121,249,0.1);color:#e879f9;border-color:rgba(232,121,249,0.2)">&#128231; Most-emailed clients</button>
+          <button class="prod-btn" id="artShowHidden" onclick="toggleArtifactHidden()" title="Show/hide removed artifacts" style="background:rgba(255,255,255,0.04);color:var(--text-secondary);border-color:var(--border);display:none">Show hidden (0)</button>
+        </div>
       </div>
       <div id="artifactsContent"><div class="loading"><div class="spinner"></div><br>Loading artifacts...</div></div>
     </div>
@@ -7551,6 +7556,69 @@ async function loadNewsFeed(forceRefresh){
 // ── ARTIFACTS TAB ──
 // ══════════════════════════════════════
 let _artFilter='all';
+let _artSort='default';
+let _artShowHidden=false;
+let _artPrefs={pinned:[],hidden:[]};
+let _artClients=[];
+// Stable id for an artifact (slug of name+url) so prefs survive across reloads.
+function artId(item){
+  const base=((item.name||'')+'|'+(item.url||'')).toLowerCase();
+  return base.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
+}
+// Score an artifact against the most-emailed-client ranking. Higher = more relevant.
+function artClientScore(item,brandKey){
+  if(!_artClients.length)return 0;
+  const hay=((item.name||'')+' '+(item.desc||'')+' '+(item.url||'')+' '+brandKey).toLowerCase();
+  let best=0;
+  for(const c of _artClients){
+    const company=(c.company||'').toLowerCase();
+    const dom=(c.domain||'').toLowerCase();
+    const stem=dom.split('.')[0];
+    let hit=false;
+    if(company&&company.length>=3&&hay.includes(company))hit=true;
+    else if(stem&&stem.length>=4&&hay.includes(stem))hit=true;
+    else if(dom&&hay.includes(dom))hit=true;
+    if(hit){const w=Number(c.weight)||1; if(w>best)best=w;}
+  }
+  return best;
+}
+async function loadArtifactPrefs(){
+  try{
+    const[p,c]=await Promise.all([
+      fetch('/api/artifacts/prefs',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null),
+      fetch('/api/artifacts/clients',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null)
+    ]);
+    if(p)_artPrefs={pinned:Array.isArray(p.pinned)?p.pinned:[],hidden:Array.isArray(p.hidden)?p.hidden:[]};
+    if(c&&Array.isArray(c.clients))_artClients=c.clients;
+  }catch(e){dbg('artifact prefs load failed: '+e.message,'warn');}
+}
+async function saveArtifactPrefs(){
+  try{
+    await fetch('/api/artifacts/prefs',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({pinned:_artPrefs.pinned,hidden:_artPrefs.hidden})});
+  }catch(e){dbg('artifact prefs save failed: '+e.message,'warn');}
+}
+function togglePinArtifact(id){
+  const i=_artPrefs.pinned.indexOf(id);
+  if(i>=0)_artPrefs.pinned.splice(i,1); else _artPrefs.pinned.push(id);
+  saveArtifactPrefs();renderArtifacts();
+}
+function hideArtifact(id){
+  if(!_artPrefs.hidden.includes(id))_artPrefs.hidden.push(id);
+  const pi=_artPrefs.pinned.indexOf(id); if(pi>=0)_artPrefs.pinned.splice(pi,1);
+  saveArtifactPrefs();renderArtifacts();
+}
+function unhideArtifact(id){
+  const i=_artPrefs.hidden.indexOf(id); if(i>=0)_artPrefs.hidden.splice(i,1);
+  saveArtifactPrefs();renderArtifacts();
+}
+function setArtifactSort(mode){
+  _artSort=mode;
+  const d=document.getElementById('artSortDefault'),c=document.getElementById('artSortClients');
+  if(d)d.style.background=mode==='default'?'rgba(232,121,249,0.25)':'rgba(232,121,249,0.1)';
+  if(c)c.style.background=mode==='clients'?'rgba(232,121,249,0.25)':'rgba(232,121,249,0.1)';
+  renderArtifacts();
+}
+function toggleArtifactHidden(){_artShowHidden=!_artShowHidden;renderArtifacts();}
 const ARTIFACTS_DATA={
   cadient:{
     label:'Cadient Talent',
@@ -7631,6 +7699,7 @@ const ARTIFACTS_DATA={
 async function loadArtifacts(){
   dbg('loadArtifacts() started');
   window._artifactsLoaded=true;
+  await loadArtifactPrefs();
   renderArtifacts();
   dbg('loadArtifacts() done','ok');
 }
@@ -7665,10 +7734,24 @@ function renderArtifacts(){
     html+='<h3 style="font-size:14px;font-weight:700;color:'+brand.color+';margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06)">'+brand.label+'</h3>';
 
     for(const sec of brand.sections){
-      html+='<div class="section-header" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'+\':\'-\'">'+sec.icon+' '+sec.title+' <span style="color:#334155;font-size:11px;margin-left:4px">('+sec.items.length+')</span> <span class="toggle-arrow" style="font-size:14px;color:#334155;margin-left:auto">-</span></div>';
+      // Build the item list with stable ids; apply hide + pinned-first + optional client sort.
+      let secItems=sec.items.map((item,idx)=>{
+        const id=artId(item);
+        return {item,id,idx,pinned:_artPrefs.pinned.includes(id),hidden:_artPrefs.hidden.includes(id),cscore:artClientScore(item,brandKey)};
+      });
+      const sectionHiddenCount=secItems.filter(x=>x.hidden).length;
+      let visible=_artShowHidden?secItems:secItems.filter(x=>!x.hidden);
+      visible.sort((a,b)=>{
+        if(a.pinned!==b.pinned)return a.pinned?-1:1;
+        if(_artSort==='clients'&&b.cscore!==a.cscore)return b.cscore-a.cscore;
+        return a.idx-b.idx;
+      });
+
+      html+='<div class="section-header" style="cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.toggle-arrow\').textContent=this.nextElementSibling.style.display===\'none\'?\'+\':\'-\'">'+sec.icon+' '+sec.title+' <span style="color:#334155;font-size:11px;margin-left:4px">('+visible.length+')</span>'+(sectionHiddenCount&&!_artShowHidden?' <span style="color:#64748b;font-size:10px;margin-left:4px">'+sectionHiddenCount+' hidden</span>':'')+' <span class="toggle-arrow" style="font-size:14px;color:#334155;margin-left:auto">-</span></div>';
       html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-bottom:14px">';
 
-      for(const item of sec.items){
+      for(const entry of visible){
+        const item=entry.item,id=entry.id,isPinned=entry.pinned,isHidden=entry.hidden;
         const isPending=item.type==='pending';
         const isYT=item.type==='youtube';
         const isDrive=item.type==='drive';
@@ -7692,9 +7775,13 @@ function renderArtifacts(){
           icon='&#128279;';
           badge='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(45,212,191,0.12);color:#2dd4bf;margin-left:6px">Web</span>';
         }
+        if(isPinned)badge+='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(232,121,249,0.18);color:#e879f9;margin-left:6px">&#128204; Pinned</span>';
+        if(_artSort==='clients'&&entry.cscore>0)badge+='<span style="display:inline-block;font-size:9px;padding:1px 6px;border-radius:10px;background:rgba(45,212,191,0.14);color:#2dd4bf;margin-left:6px" title="Matches a client you email often">&#128231; Client</span>';
 
-        const clickAction=isPending?'':'onclick="window.open(\''+item.url+'\',\'_blank\')" style="cursor:pointer;'+bgStyle+'"';
-        const cardStyle=isPending?'style="'+bgStyle+';opacity:0.7"':clickAction;
+        let cardExtra=isPinned?'border-color:rgba(232,121,249,0.45);box-shadow:0 0 0 1px rgba(232,121,249,0.25) inset;':'';
+        if(isHidden)cardExtra+='opacity:0.45;';
+        const clickAction=isPending?'':'onclick="window.open(\''+item.url+'\',\'_blank\')" style="cursor:pointer;'+bgStyle+';'+cardExtra+'"';
+        const cardStyle=isPending?'style="'+bgStyle+';opacity:0.7;'+cardExtra+'"':clickAction;
 
         html+='<div class="card" '+cardStyle+'>';
         html+='<div class="card-body" style="padding:10px">';
@@ -7704,11 +7791,17 @@ function renderArtifacts(){
         html+='<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px">'+item.name+badge+'</div>';
         html+='<div style="font-size:11px;color:var(--text-secondary);line-height:1.3">'+item.desc+'</div>';
         html+='</div>';
-        if(!isPending){
-          html+='<div style="display:flex;flex-direction:column;gap:4px;margin-left:8px">';
-          html+='<button onclick="event.stopPropagation();shareArtifactLink(this)" data-url="'+item.url+'" data-name="'+(item.name||'').replace(/"/g,'&amp;quot;')+'" style="background:none;border:1px solid rgba(232,121,249,0.3);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#e879f9;white-space:nowrap" title="Copy share link">&#128279; Share</button>';
-          html+='</div>';
+        html+='<div style="display:flex;flex-direction:column;gap:4px;margin-left:8px">';
+        html+='<button onclick="event.stopPropagation();togglePinArtifact(\''+id+'\')" style="background:'+(isPinned?'rgba(232,121,249,0.2)':'none')+';border:1px solid rgba(232,121,249,0.3);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#e879f9;white-space:nowrap" title="'+(isPinned?'Unpin':'Pin to top')+'">&#128204; '+(isPinned?'Unpin':'Pin')+'</button>';
+        if(isHidden){
+          html+='<button onclick="event.stopPropagation();unhideArtifact(\''+id+'\')" style="background:none;border:1px solid rgba(255,255,255,0.18);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:var(--text-secondary);white-space:nowrap" title="Un-hide">&#8634; Unhide</button>';
+        }else{
+          html+='<button onclick="event.stopPropagation();hideArtifact(\''+id+'\')" style="background:none;border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#94a3b8;white-space:nowrap" title="Remove from list">&#10005; Remove</button>';
         }
+        if(!isPending){
+          html+='<button onclick="event.stopPropagation();shareArtifactLink(this)" data-url="'+item.url+'" data-name="'+(item.name||'').replace(/"/g,'&amp;quot;')+'" style="background:none;border:1px solid rgba(232,121,249,0.3);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:10px;color:#e879f9;white-space:nowrap" title="Copy share link">&#128279; Share</button>';
+        }
+        html+='</div>';
         html+='</div>';
         html+='</div></div>';
       }
@@ -7717,6 +7810,15 @@ function renderArtifacts(){
     html+='</div>';
   }
   el.innerHTML=html;
+  // Update the "Show hidden (N)" affordance.
+  const totalHidden=_artPrefs.hidden.length;
+  const shBtn=document.getElementById('artShowHidden');
+  if(shBtn){
+    shBtn.style.display=totalHidden>0?'inline-block':'none';
+    shBtn.textContent=(_artShowHidden?'Hide removed (':'Show hidden (')+totalHidden+')';
+    shBtn.style.background=_artShowHidden?'rgba(232,121,249,0.18)':'rgba(255,255,255,0.04)';
+    shBtn.style.color=_artShowHidden?'#e879f9':'var(--text-secondary)';
+  }
 }
 
 function filterArtifacts(f){

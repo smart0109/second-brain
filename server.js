@@ -2882,6 +2882,96 @@ app.post('/api/transcribe/token', requireAuth, (_req, res) => {
   res.json({ token });
 });
 
+// ===========================================================================
+// ARTIFACTS — pin/remove preferences + most-emailed-client ranking
+// Durable owner-level KV (Postgres app_kv table when DATABASE_URL is set; file
+// fallback otherwise). Keyed by file basename so prefs survive redeploys and are
+// shared across devices. Mirrors the durable-KV pattern used on main.
+// ===========================================================================
+const ARTIFACT_PREFS_PATH = path.join(__dirname, 'data', 'artifact-prefs.json');
+const ARTIFACT_CLIENTS_PATH = path.join(__dirname, 'data', 'artifact-clients.json');
+const _artKvCache = {};
+let _artKvReady = false;
+async function _artKvInit() {
+  if (!db.isConfigured()) { _artKvReady = true; return; }
+  try {
+    await db.query('CREATE TABLE IF NOT EXISTS app_kv (k text primary key, v jsonb, updated_at timestamptz default now())');
+    const r = await db.query('SELECT k, v FROM app_kv');
+    for (const row of r.rows) _artKvCache[row.k] = row.v;
+    _artKvReady = true;
+    console.log('Artifact KV hydrated from Postgres:', r.rows.length, 'keys');
+  } catch (e) { console.warn('artifact KV init failed, using files:', e.message); _artKvReady = true; }
+}
+_artKvInit();
+const _artKvKey = (p) => path.basename(p);
+function _artReadJson(p, fallback) {
+  if (db.isConfigured()) { const k = _artKvKey(p); return (k in _artKvCache) ? _artKvCache[k] : fallback; }
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
+}
+function _artWriteJson(p, obj) {
+  if (db.isConfigured()) {
+    const k = _artKvKey(p); _artKvCache[k] = obj;
+    db.query('INSERT INTO app_kv(k,v,updated_at) VALUES($1,$2,now()) ON CONFLICT(k) DO UPDATE SET v=$2, updated_at=now()', [k, JSON.stringify(obj)])
+      .catch((e) => console.warn('artifact kv write ' + k + ' failed:', e.message));
+    return;
+  }
+  const dir = path.dirname(p);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2));
+}
+
+// Pin/hide preferences. Shape: { pinned:[...ids], hidden:[...ids], updatedAt }
+app.get('/api/artifacts/prefs', requireAuth, (_req, res) => {
+  const p = _artReadJson(ARTIFACT_PREFS_PATH, { pinned: [], hidden: [], updatedAt: null });
+  res.json({ pinned: Array.isArray(p.pinned) ? p.pinned : [], hidden: Array.isArray(p.hidden) ? p.hidden : [], updatedAt: p.updatedAt || null });
+});
+app.post('/api/artifacts/prefs', requireAuth, (req, res) => {
+  const b = req.body || {};
+  const clean = (a) => Array.from(new Set((Array.isArray(a) ? a : []).filter(x => typeof x === 'string' && x).map(String))).slice(0, 2000);
+  const obj = { pinned: clean(b.pinned), hidden: clean(b.hidden), updatedAt: new Date().toISOString() };
+  _artWriteJson(ARTIFACT_PREFS_PATH, obj);
+  res.json({ ok: true, pinned: obj.pinned, hidden: obj.hidden });
+});
+
+// Most-emailed client ranking (Gmail SENT mail, ~90d, external domains). Served to
+// the SPA so "Sort: Most-emailed clients" can order artifacts by client relevance.
+// Seeded so it works immediately; refreshable by an authenticated session via POST.
+const _ARTIFACT_CLIENTS_SEED = {
+  updatedAt: null,
+  source: 'gmail:in:sent newer_than:90d (external domains, seeded 2026-06-22)',
+  clients: [
+    { domain: 'chaiclassconsulting.com', company: 'chaiclassconsulting', weight: 6 },
+    { domain: 'medreviq.com', company: 'medreviq', weight: 5 },
+    { domain: 'airmeez.com', company: 'airmeez', weight: 3 },
+    { domain: 'ipill.tech', company: 'ipill', weight: 3 },
+    { domain: 'medozai.com', company: 'medozai', weight: 3 },
+    { domain: 'ipex.health', company: 'ipex', weight: 2 },
+    { domain: 'fadv.com', company: 'fadv', weight: 2 },
+    { domain: 'unilogcorp.com', company: 'unilog', weight: 2 },
+    { domain: 'stancehealthsolutions.com', company: 'stancehealth', weight: 2 },
+    { domain: 'safespace.tools', company: 'safespace', weight: 2 },
+    { domain: 'athenaequity.com', company: 'athenaequity', weight: 2 },
+    { domain: 'etherfax.net', company: 'etherfax', weight: 1 },
+    { domain: 'ehe.health', company: 'ehe', weight: 1 },
+    { domain: 'safestartmedical.com', company: 'safestartmedical', weight: 1 },
+    { domain: 'aarkai.com', company: 'aarkai', weight: 1 },
+    { domain: 'latentbridge.com', company: 'latentbridge', weight: 1 },
+    { domain: 'boydbeauty.com', company: 'boydbeauty', weight: 1 }
+  ]
+};
+app.get('/api/artifacts/clients', requireAuth, (_req, res) => {
+  const c = _artReadJson(ARTIFACT_CLIENTS_PATH, _ARTIFACT_CLIENTS_SEED);
+  res.json({ updatedAt: c.updatedAt || null, source: c.source || _ARTIFACT_CLIENTS_SEED.source, clients: Array.isArray(c.clients) ? c.clients : [] });
+});
+app.post('/api/artifacts/clients', requireAuth, (req, res) => {
+  const b = req.body || {};
+  const clients = (Array.isArray(b.clients) ? b.clients : []).filter(x => x && (x.domain || x.company)).slice(0, 500)
+    .map(x => ({ domain: String(x.domain || '').toLowerCase(), company: String(x.company || (x.domain || '').split('.')[0] || '').toLowerCase(), weight: Number(x.weight) || 1 }));
+  const obj = { updatedAt: new Date().toISOString(), source: b.source || 'gmail:in:sent', clients };
+  _artWriteJson(ARTIFACT_CLIENTS_PATH, obj);
+  res.json({ ok: true, count: clients.length });
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
