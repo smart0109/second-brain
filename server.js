@@ -2769,6 +2769,58 @@ app.post('/api/social/alert', bridgeGuard, async (req, res) => {
   }
 });
 
+// ===========================================================================
+// MEETING PREP INDEX
+// The morning prep run (pre-meeting-prospect-prep) POSTs one entry per meeting
+// with the Drive doc link + local file path (service token). The dashboard GETs
+// them to link "Prep Doc" instead of opening a Gmail draft.
+// ===========================================================================
+const PREP_INDEX_FILE = path.join(__dirname, 'data', 'meeting-prep-index.json');
+function _loadPrepIndex() {
+  try { return JSON.parse(fs.readFileSync(PREP_INDEX_FILE, 'utf8')); }
+  catch (e) { return { entries: [] }; }
+}
+function _savePrepIndex(idx) {
+  try { fs.mkdirSync(path.dirname(PREP_INDEX_FILE), { recursive: true });
+        fs.writeFileSync(PREP_INDEX_FILE, JSON.stringify(idx, null, 2)); }
+  catch (e) { console.warn('prep index save failed:', e.message); }
+}
+// Service token OR a signed-in session may write prep entries.
+function prepWriteGuard(req, res, next) {
+  const svc = process.env.SERVICE_API_TOKEN;
+  if (svc && req.get('x-api-token') === svc) return next();
+  return requireAuth(req, res, next);
+}
+app.post('/api/prep', prepWriteGuard, (req, res) => {
+  const body = req.body || {};
+  const items = Array.isArray(body) ? body : (Array.isArray(body.entries) ? body.entries : [body]);
+  const idx = _loadPrepIndex();
+  const byKey = new Map((idx.entries || []).map((e) => [e.key || e.meetingId || e.title, e]));
+  let n = 0;
+  for (const it of items) {
+    if (!it || !(it.title || it.meetingId)) continue;
+    const key = it.key || it.meetingId || it.title;
+    const entry = {
+      key, meetingId: it.meetingId || '', title: it.title || '',
+      date: it.date || '', startTime: it.startTime || it.start || '',
+      driveUrl: it.driveUrl || '', driveId: it.driveId || '',
+      localPath: it.localPath || '', attendees: it.attendees || [],
+      company: it.company || '', angle: it.angle || '',
+      updatedAt: new Date().toISOString(),
+    };
+    byKey.set(key, Object.assign(byKey.get(key) || {}, entry));
+    n++;
+  }
+  let entries = Array.from(byKey.values());
+  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000; // prune >14 days old
+  entries = entries.filter((e) => { const t = Date.parse(e.startTime || e.date); return isNaN(t) ? true : t > cutoff; });
+  _savePrepIndex({ entries });
+  res.json({ ok: true, upserted: n, total: entries.length });
+});
+app.get('/api/prep', requireAuth, (_req, res) => {
+  res.json(_loadPrepIndex());
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
