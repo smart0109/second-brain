@@ -8383,7 +8383,7 @@ function renderBriefingPanel(container, data) {
       ${today_events.length ? `
         <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
           <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Today's Meetings</div>
-          ${today_events.slice(0,4).map(e=>{
+          <div style="max-height:240px;overflow-y:auto;margin:0 -4px;padding:0 4px">${today_events.map(e=>{
             const t = new Date(e.start?.dateTime || e.start?.date);
             const timeStr = t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
             const atts = (e.attendees||[]).slice(0,3).join(', ');
@@ -8395,7 +8395,7 @@ function renderBriefingPanel(container, data) {
               </div>
               <button onclick="generateBrief(${JSON.stringify(JSON.stringify({title:e.summary,attendees:e.attendees,startTime:e.start?.dateTime})).replace(/"/g,'&quot;')})" style="font-size:9px;padding:3px 7px;border-radius:4px;background:rgba(201,162,39,0.12);border:1px solid rgba(201,162,39,0.25);color:#c9a227;cursor:pointer;flex-shrink:0">Brief</button>
             </div>`;
-          }).join('')}
+          }).join('')}</div>
         </div>
       ` : ''}
     </div>
