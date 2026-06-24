@@ -11,6 +11,7 @@
     "node": "20.x"
   },
   "dependencies": {
+    "connect-pg-simple": "^9.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.21.0",
     "express-session": "^1.18.0",

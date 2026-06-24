@@ -71,8 +71,26 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
+// Persistent session store: in-memory sessions are wiped on every Render redeploy
+// (logging everyone out). When DATABASE_URL is set, store sessions in Postgres so
+// they survive redeploys. Falls back to MemoryStore if no DB or on error.
+let _sessionStore;
+if (process.env.DATABASE_URL) {
+  try {
+    const PgSession = require('connect-pg-simple')(session);
+    _sessionStore = new PgSession({
+      conObject: { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } },
+      createTableIfMissing: true,
+      tableName: 'session',
+    });
+    console.log('Session store: Postgres (persistent across redeploys)');
+  } catch (e) {
+    console.warn('Postgres session store unavailable, using MemoryStore:', e.message);
+  }
+}
 app.use(
   session({
+    store: _sessionStore,
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
