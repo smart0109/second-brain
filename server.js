@@ -1531,23 +1531,32 @@ app.post('/api/crm/vorro/deals/:id/products', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // AI API proxy — Gemini (primary, free) → Groq (fallback, free) → Anthropic (last resort)
 // ---------------------------------------------------------------------------
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 async function askGemini(systemPrompt, userContent, maxTokens) {
-  // Rotate through available Gemini keys
+  // Try each configured Gemini key in turn; skip keys that fail (e.g. 429 credits
+  // depleted) and use the first that works. Model is current (2.0-flash is retired).
   const keys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_2, process.env.GEMINI_API_KEY_3, process.env.GEMINI_API_KEY_4, process.env.GEMINI_API_KEY_5].filter(Boolean);
   if (!keys.length) return null;
-  const key = keys[Math.floor(Math.random() * keys.length)];
-  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: 'user', parts: [{ text: userContent }] }],
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.3 }
-    }),
-  });
-  if (!resp.ok) { const t = await resp.text(); throw new Error(`Gemini ${resp.status}: ${t.slice(0,200)}`); }
-  const r = await resp.json();
-  return r.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  let lastErr = null;
+  for (const key of keys) {
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userContent }] }],
+          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.3 }
+        }),
+      });
+      if (!resp.ok) { lastErr = new Error(`Gemini ${resp.status}: ${(await resp.text()).slice(0,160)}`); continue; }
+      const r = await resp.json();
+      const txt = r.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (txt) return txt;
+    } catch (e) { lastErr = e; }
+  }
+  if (lastErr) throw lastErr;
+  return '';
 }
 
 async function askGroq(systemPrompt, userContent, maxTokens) {
