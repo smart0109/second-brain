@@ -114,7 +114,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .action-link:hover { background: rgba(201,162,39,0.25); }
 .action-link.green { background: rgba(52,211,153,0.15); color: var(--green); }
 .action-link.orange { background: rgba(251,146,60,0.15); color: var(--orange); }
-.prep-task { display:flex;align-items:center;gap:6px;padding:5px 8px;margin:3px 0;border-radius:6px;cursor:pointer;transition:all 0.2s var(--transition-smooth);font-size:11px;color:#e2e8f0 }
+.prep-task { display:flex;align-items:center;gap:6px;padding:5px 8px;margin:3px 0;border-radius:6px;cursor:pointer;transition:all 0.2s var(--transition-smooth);font-size:11px;color:var(--text-primary) }
 .prep-task:hover { background:rgba(201,162,39,0.15);color:#c9a227 }
 .prep-icon { font-size:13px;flex-shrink:0;width:18px;text-align:center }
 /* Hero bar */
@@ -123,13 +123,13 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .hero-weather:hover { background:rgba(255,255,255,0.06) }
 .hero-weather-icon { font-size:28px;line-height:1 }
 .hero-weather-temp { font-family:var(--font-display);font-size:18px;font-weight:700;color:#f1f5f9 }
-.hero-weather-loc { font-size:10px;color:#334155 }
+.hero-weather-loc { font-size:10px;color:#cbd5e1 }
 .hero-clocks { display:flex;gap:12px;flex:1;justify-content:center }
 .hero-clock { text-align:center;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background 0.2s;min-width:70px }
 .hero-clock:hover { background:rgba(255,255,255,0.06) }
 .hero-clock-time { font-family:var(--font-display);font-size:16px;font-weight:700;color:#e2e8f0;letter-spacing:0.5px }
-.hero-clock-label { font-size:9px;color:#334155;text-transform:uppercase;letter-spacing:0.5px }
-.hero-quote { flex:1;min-width:200px;font-size:12px;font-style:italic;color:#334155;text-align:right;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.3s;line-height:1.4 }
+.hero-clock-label { font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px }
+.hero-quote { flex:1;min-width:200px;font-size:12px;font-style:italic;color:#cbd5e1;text-align:right;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.3s;line-height:1.4 }
 .hero-quote:hover { color:#c9a227 }
 .hero-quote .quote-attr { font-size:10px;font-style:normal;color:#334155;margin-top:2px }
 
@@ -538,7 +538,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
 /* Stale thread alerts */
 .stale-banner { background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.2); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
-.stale-banner .sb-title { font-size: 11px; font-weight: 700; color: var(--orange); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.stale-banner .sb-title { font-size: 11px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
 .stale-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; border-bottom: 1px solid rgba(251,146,60,0.1); color: var(--text-secondary); }
 .stale-item:last-child { border-bottom: none; }
 .stale-days { color: var(--orange); font-weight: 700; font-size: 10px; background: rgba(251,146,60,0.15); padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
@@ -1706,13 +1706,15 @@ function wireCollapsibleHeaders(){
   });
 }
 function fmtMoney(n){if(!n)return '$0';if(n>=1e6)return '$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return '$'+(n/1e3).toFixed(0)+'K';return '$'+n}
+// Robust amount parser: tolerates numbers OR currency-formatted strings ('$50,000').
+function amtNum(v){if(v==null)return 0;if(typeof v==='number')return isFinite(v)?v:0;const n=parseFloat(String(v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0}
 
 function renderMarkdown(text){
   if(!text)return '';
   let s=typeof text==='string'?text:JSON.stringify(text);
   s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   s=s.replace(/\[\[(\d+)\]\]\((https?:\/\/[^\)]+)\)/g,'<a href="$2" target="_blank" class="action-link">[$1]</a>');
-  s=s.replace(/^### (.+)$/gm,'<h4 style="font-size:12px;font-weight:600;margin:10px 0 4px;color:#e2e8f0">$1</h4>');
+  s=s.replace(/^### (.+)$/gm,'<h4 style="font-size:12px;font-weight:600;margin:10px 0 4px;color:var(--text-primary)">$1</h4>');
   s=s.replace(/^## (.+)$/gm,'<h3 style="font-size:13px;font-weight:700;margin:12px 0 6px;color:#f1f5f9">$1</h3>');
   s=s.replace(/^---$/gm,'<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0">');
   s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
@@ -3242,7 +3244,7 @@ async function loadContact(name,email){
   // Granola meetings
   const mEl=document.getElementById('contactMeetings');
   if(granolaR.status==='fulfilled'&&granolaR.value){
-    mEl.innerHTML=`<div style="padding:12px 14px;font-size:11px;color:#e2e8f0;line-height:1.6">${renderMarkdown(granolaR.value)}</div>`;
+    mEl.innerHTML=`<div style="padding:12px 14px;font-size:11px;color:var(--text-primary);line-height:1.6">${renderMarkdown(granolaR.value)}</div>`;
   } else {mEl.innerHTML='<div class="empty-state">No meeting data</div>'}
 
   // Files
@@ -3262,7 +3264,7 @@ async function loadContact(name,email){
     if(allCRM.length)bd.push({label:'CRM',value:JSON.stringify(allCRM[0])});
     if(deals.length)bd.push({label:'Deals',value:deals.map(d=>`${d.Deal_Name} (${d.Stage}, ${fmtMoney(d.Amount)})`).join('; ')});
     const brief=await ask(`You are a CRO's executive assistant. Generate a 3-4 sentence briefing for ${name} (${email}). Cover: relationship context, recent activity, deals in play, and suggested next action. Be specific.`,bd);
-    bEl.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:#e2e8f0;line-height:1.7">${esc(brief)}</div>`;
+    bEl.innerHTML=`<div style="padding:12px 14px;font-size:12px;color:var(--text-primary);line-height:1.7">${esc(brief)}</div>`;
   }catch(e){bEl.innerHTML='<div class="empty-state">Briefing unavailable</div>'}
 
   // ── FEATURE: Relationship Score ──
@@ -4236,9 +4238,9 @@ async function loadTeam(){
       <div class="team-stats">
         <div class="team-stat"><div class="n">${threads.length}</div><div class="l">Threads</div></div>
         <div class="team-stat"><div class="n">${myDeals.length}</div><div class="l">Deals</div></div>
-        <div class="team-stat"><div class="n">$${Math.round(myDeals.reduce((s,d)=>s+(parseFloat(d.Amount)||0),0)/1000)}K</div><div class="l">Pipeline</div></div>
+        <div class="team-stat"><div class="n">$${Math.round(myDeals.reduce((s,d)=>s+amtNum(d.Amount),0)/1000)}K</div><div class="l">Pipeline</div></div>
       </div>
-      ${myDeals.length?`<div class="team-deals-list">${myDeals.slice(0,5).map(d=>`<div class="team-deal-item"><span class="td-name">${esc(truncate(d.Deal_Name||'',30))}</span> <span class="td-stage">${esc(d.Stage||'')}</span> <span class="td-amt">${d.Amount?'$'+Math.round(parseFloat(d.Amount)/1000)+'K':''}</span>${d._brand?' <span style="font-size:8px;color:var(--text-muted)">(${esc(d._brand)})</span>':''}</div>`).join('')}</div>`:''}
+      ${myDeals.length?`<div class="team-deals-list">${myDeals.slice(0,5).map(d=>`<div class="team-deal-item"><span class="td-name">${esc(truncate(d.Deal_Name||'',30))}</span> <span class="td-stage">${esc(d.Stage||'')}</span> <span class="td-amt">${amtNum(d.Amount)?'$'+Math.round(amtNum(d.Amount)/1000)+'K':''}</span>${d._brand?' <span style="font-size:8px;color:var(--text-muted)">(${esc(d._brand)})</span>':''}</div>`).join('')}</div>`:''}
     </div>`;
   }).join('');
 
@@ -4832,12 +4834,22 @@ async function runIntelSearch(){
   el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching across email, CRM, meetings, and deals...</div>';
   srcEl.innerHTML='';
 
+  // Extract meaningful keywords (drop question/stop words) so literal-text searches
+  // against Gmail/CRM actually match instead of searching "What" / "Who".
+  const STOP=new Set(['what','who','when','where','why','how','which','the','a','an','is','are','was','were','do','does','did','have','has','this','that','these','those','my','our','me','i','of','to','in','on','for','and','or','with','from','across','all','any','need','needs','open','last','week','days','5','responded','not']);
+  const kw=q.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>2&&!STOP.has(w));
+  const searchTerm=kw.join(' ').trim();
+  const isQuestion=/[?]|^(what|who|when|where|why|how|which)\b/i.test(q)||kw.length===0;
   // Gather context from all data sources in parallel
   const [emailR,granolaR,dealR,crmR]=await Promise.allSettled([
-    call(`${GMAIL}__search_threads`,{query:`${q} newer_than:30d`,pageSize:10}),
+    call(`${GMAIL}__search_threads`,{query:`${(searchTerm||q)} newer_than:30d`,pageSize:10}),
     call(`${GRAN}__query_granola_meetings`,{query:q}),
-    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Deal_Name like '%"+q.split(' ')[0]+"%' limit 20"}}),
-    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:q,per_page:10,fields:'Full_Name,Email,Title,Phone,Company_Name'}})
+    // Only run a Deal-name LIKE when we have a real keyword; conversational questions
+    // pull recent open deals instead (so "deals needing follow-up" returns deals).
+    call(`${ZOHO}__executeCOQLQuery`,{body:{select_query: (searchTerm && !isQuestion)
+      ? "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Deal_Name like '%"+searchTerm.split(' ')[0]+"%' limit 20"
+      : "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Closing_Date asc limit 20"}}),
+    call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:(searchTerm||q),per_page:10,fields:'Full_Name,Email,Title,Phone,Company_Name'}})
   ]);
 
   // Build source context for AI
@@ -4865,7 +4877,14 @@ async function runIntelSearch(){
   srcHtml+='</div>';
   srcEl.innerHTML=srcHtml;
 
-  if(!ctx.length){el.innerHTML='<div class="empty-state">No matching data found across any source.</div>';return;}
+  if(!ctx.length){
+    // Distinguish "all sources errored" (likely auth/keys) from "genuinely no matches".
+    const allErr=[emailR,granolaR,dealR,crmR].every(r=>r.status==='rejected');
+    el.innerHTML='<div class="empty-state">'+(allErr
+      ? 'Could not reach your data sources. If you just logged in, retry; otherwise check that Gmail/Zoho/Granola are connected.'
+      : 'No matching records found for that query. Try specific names, companies, or deal terms.')+'</div>';
+    return;
+  }
 
   try{
     const answer=await ask(
@@ -7364,10 +7383,10 @@ async function loadStaleThreads(){
         const safeId=s.thread.id.replace(/[^a-zA-Z0-9]/g,'');
         return `<div class="stale-item" id="stale_${safeId}" style="display:flex;align-items:center;gap:6px">
           <span class="stale-days">${s.daysSince}d</span>
-          <a href="${gmailUrl(s.thread.id)}" target="_blank" style="color:#e2e8f0;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <a href="${gmailUrl(s.thread.id)}" target="_blank" style="color:var(--text-primary);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             <strong>${esc(name)}</strong>: ${esc(truncate(s.last.subject||'(no subject)',45))}
           </a>
-          <span onclick="_staleDismiss('${escAttr(s.thread.id)}',event)" style="cursor:pointer;color:#334155;font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
+          <span onclick="_staleDismiss('${escAttr(s.thread.id)}',event)" style="cursor:pointer;color:var(--text-muted);font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
         </div>`;
       }).join('')}
       ${visibleStale.length>8?`<div style="font-size:10px;color:#fb923c;margin-top:4px">+ ${visibleStale.length-8} more</div>`:''}

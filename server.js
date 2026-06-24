@@ -1422,7 +1422,10 @@ app.get('/api/news', requireAuth, async (req, res) => {
       const title = get('title');
       const link = get('link');
       const pubDate = get('pubDate');
-      const source = get('source');
+      // Google News wraps the source as <source url="...">Name</source>, so the
+      // plain get('source') (which only matches <source>...</source>) returns ''.
+      const sm = block.match(/<source[^>]*>(.*?)<\/source>/s);
+      const source = sm ? sm[1].replace(/<!\[CDATA\[(.*?)\]\]>/s, '$1').trim() : '';
       if (title && link) items.push({ title, link, pubDate, source });
     }
     res.json({ topic, items });
