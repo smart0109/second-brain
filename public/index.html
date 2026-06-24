@@ -1022,6 +1022,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
       <!-- Board view -->
       <div id="prodBoardView">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+          <div style="font-size:12px;color:var(--text-secondary)"><span style="font-size:14px">&#127908;</span> <strong style="color:var(--text-primary)">Action Items from Calls</strong> &mdash; tasks auto-extracted from internal meetings appear on the board. Use the Assign dropdown and status controls; changes are saved.</div>
+          <button class="prod-btn" onclick="refreshCallTasks()" title="Reload call-derived tasks">Refresh</button>
+        </div>
         <div class="kanban">
           <div class="kanban-col active" id="colActive">
             <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Active</div><div class="kch-count" id="cntActive">0</div></div>
@@ -5608,10 +5612,8 @@ async function generateTasksFromTranscript(){
 }
 
 function assignTask(id,person){
-  for(const col of ['active','waiting','someday','done']){
-    const t=prodTasks[col].find(x=>x.id===id);
-    if(t){t.person=person;break;}
-  }
+  const t=_findProdTask(id);
+  if(t){t.person=person;persistCallTask(t,{assignee:person});}
   renderKanban();
 }
 
@@ -5655,14 +5657,18 @@ async function copilotAction(type){
 
   try{
     const response=await ask(prompts[type],data);
-    if(typeof response==='string' && response.indexOf('AI unavailable')===0){
+    if(typeof response==='string' && response.indexOf('Session expired')===0){
+      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; Your session expired - reload the page and sign in again.</div>';
+    } else if(typeof response==='string' && response.indexOf('AI unavailable')===0){
       body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; '+esc(response)+'</div>';
     } else {
       renderCopilotResponse(type,response);
     }
   }catch(e){
     const errMsg=e.message||'Unknown error';
-    if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
+    if(errMsg.includes('401')||/not authenticated/i.test(errMsg)){
+      body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; Your session expired - reload the page and sign in again.</div>';
+    }else if(errMsg.includes('503')||errMsg.includes('ANTHROPIC_API_KEY')){
       body.innerHTML='<div class="empty-state" style="color:#fb923c">&#9888; AI requires ANTHROPIC_API_KEY on Render.<br><span style="font-size:11px;color:#334155">Go to Render dashboard > Environment > add ANTHROPIC_API_KEY</span></div>';
     }else{
       body.innerHTML=`<div class="empty-state">AI response failed: ${esc(errMsg)}</div>`;
@@ -6346,6 +6352,11 @@ async function ask(p,d,opts){
   }catch(e){
     dbg('askClaude failed: '+e.message,'err');
     // Do NOT dump the raw prompt/CRM data into the UI (privacy + noise).
+    // Distinguish an expired session (401) from a genuine no-provider case (503).
+    const m=e.message||'';
+    if(m.indexOf('HTTP 401')>=0||/not authenticated/i.test(m)){
+      return 'Session expired \u2014 your session expired - reload the page and sign in again.';
+    }
     return 'AI unavailable \u2014 add a free GEMINI_API_KEY on Render (Environment tab) to turn on live answers. Gemini and Groq both have free tiers; Anthropic is the paid fallback.';
   }
 }
@@ -6353,11 +6364,12 @@ async function ask(p,d,opts){
 async function loadProductivity(){
   window._prodLoaded=true;
   // Load tasks from multiple sources in parallel
-  const [calTasks,emailTasks,granolaTasks,dealTasks]=await Promise.allSettled([
+  const [calTasks,emailTasks,granolaTasks,dealTasks,callTasks]=await Promise.allSettled([
     loadCalendarTasks(),
     loadEmailTasks(),
     loadGranolaTasks(),
-    loadDealTasks()
+    loadDealTasks(),
+    loadInternalCallTasks()
   ]);
 
   // Also load memory context
@@ -6436,6 +6448,58 @@ async function loadDealTasks(){
   }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
+// Action Items from Calls — server-persisted tasks extracted post-call.
+async function loadInternalCallTasks(){
+  try{
+    const res=await fetch('/api/productivity/tasks',{credentials:'same-origin'});
+    if(!res.ok)return;
+    const json=await res.json();
+    const tasks=Array.isArray(json.tasks)?json.tasks:[];
+    tasks.forEach(t=>{
+      if(!t||!t.title)return;
+      const col=t.status==='done'?'done':(t.status==='waiting'?'waiting':'active');
+      const exists=Object.values(prodTasks).flat().some(x=>x.serverId===t.id);
+      if(exists)return;
+      prodTasks[col].push({
+        id:'t_call_'+t.id,
+        serverId:t.id,
+        title:t.title,
+        context:(t.meetingTitle?('From: '+t.meetingTitle):'From internal call')+(t.detail?(' \u2014 '+t.detail):''),
+        person:(t.assignee||'').toString().split(' ')[0]||'',
+        due:t.due||'',
+        created:(t.createdAt||'').slice(0,10),
+        source:'meeting'
+      });
+    });
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
+}
+
+async function persistCallTask(task,patch){
+  if(!task||!task.serverId)return;
+  try{
+    await fetch('/api/productivity/tasks/'+encodeURIComponent(task.serverId),{
+      method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+      body:JSON.stringify(patch)
+    });
+  }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
+}
+
+async function refreshCallTasks(){
+  for(const col of ['active','waiting','someday','done']){
+    prodTasks[col]=prodTasks[col].filter(t=>!t.serverId);
+  }
+  await loadInternalCallTasks();
+  renderKanban();
+}
+
+function _findProdTask(id){
+  for(const col of ['active','waiting','someday','done']){
+    const t=prodTasks[col].find(x=>x.id===id);
+    if(t)return t;
+  }
+  return null;
+}
+
 function addTaskIfNew(col,task){
   const key=(task.title||'').toLowerCase().trim();
   const exists=Object.values(prodTasks).flat().some(t=>(t.title||'').toLowerCase().trim()===key);
@@ -6486,6 +6550,8 @@ function moveTask(id,toCol){
       const task=prodTasks[col].splice(idx,1)[0];
       if(toCol==='done')task.completed=new Date().toISOString().slice(0,10);
       prodTasks[toCol].push(task);
+      const st=toCol==='done'?'done':(toCol==='waiting'?'waiting':'todo');
+      persistCallTask(task,{status:st});
       break;
     }
   }
