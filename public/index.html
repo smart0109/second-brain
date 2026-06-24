@@ -5110,8 +5110,9 @@ async function runIntelSearch(){
         ${srcLinks}
       </div>`;
     }
-    document.getElementById('intelSearchInput').value='';
-    switchView('dashboard');
+    // Keep the answer in the Intelligence tab (it is already rendered into intelResults).
+    // Do NOT navigate to Home. The Home mirror (homeIntelAnswer) above stays available
+    // if the user switches there, but the search result updates in this tab.
   }catch(e){
     el.innerHTML=`<div class="empty-state" style="color:#f87171">Search failed: ${esc(e.message)}. Try a simpler query.</div>`;
   }
