@@ -2524,12 +2524,12 @@ app.get('/api/live-captions', requireAuth, (req, res) => {
   if (!buf) return res.json({ lines: [], now: Date.now() });
   res.json({ lines: buf.lines.filter((l)=>l.ts>since), now: Date.now() });
 });
-const MEET_CAPTION_CONFIG = { version:2, updated:'2026-06-18',
+const MEET_CAPTION_CONFIG = { version:3, updated:'2026-06-24',
   platforms:{
     meet:{ regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
       rowSelectors:['.nMcdL','.TBMuR','div[class*="caption"]'],
       speakerSelectors:['.NWpY1d','.zs7s8d','span[class*="name" i]'],
-      textSelectors:['.bh44bd','.iTTPOb','div[class*="text" i]'],
+      textSelectors:['.ygicle','.bh44bd','.iTTPOb','div[class*="text" i]'],
       captionsButtonSelectors:['button[aria-label*="aption" i]','button[jsname][data-tooltip*="aption" i]'], toggleKey:'c' },
     teams:{ regionSelectors:['[data-tid="closed-captions-renderer"]','[aria-label*="aptions" i]','[class*="closed-caption" i]'],
       rowSelectors:['[data-tid="closed-caption-message"]','.ui-chat__item','[class*="caption" i][class*="message" i]','div[class*="caption" i]'],
@@ -2544,7 +2544,7 @@ const MEET_CAPTION_CONFIG = { version:2, updated:'2026-06-18',
   regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
   rowSelectors:['.nMcdL','.TBMuR','div[class*="caption"]'],
   speakerSelectors:['.NWpY1d','.zs7s8d','span[class*="name" i]'],
-  textSelectors:['.bh44bd','.iTTPOb','div[class*="text" i]'],
+  textSelectors:['.ygicle','.bh44bd','.iTTPOb','div[class*="text" i]'],
   captionsButtonSelectors:['button[aria-label*="aption" i]','button[jsname][data-tooltip*="aption" i]'],
   toggleKey:'c' };
 app.get('/api/meet-caption-config', (_req, res) => { res.set('Access-Control-Allow-Origin','*'); res.json(MEET_CAPTION_CONFIG); });
