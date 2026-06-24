@@ -5280,6 +5280,43 @@ async function runSearch(q){
 // ══════════════════════════════════════
 let copilotRecognition=null;
 let copilotListening=false;
+// Transcript source arbitration: when named platform captions (Meet/Teams/Zoom via the
+// extension -> /api/live-captions) are flowing, they are the SOLE source. Deepgram /
+// browser-speech ("Me"/"You"/"Speaker N") lines are suppressed to avoid a duplicate dual-engine
+// transcript and a bogus "Me" when the local user is only observing the call.
+let _namedCaptionsLastTs=0;
+const NAMED_CAPTIONS_WINDOW_MS=20000; // named captions are "active" if seen within this window
+function namedCaptionsActive(){return (Date.now()-_namedCaptionsLastTs)<NAMED_CAPTIONS_WINDOW_MS;}
+// Normalize an utterance for near-duplicate comparison: lowercase, strip punctuation, collapse ws.
+function _normUtterance(t){return String(t||'').toLowerCase().replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim();}
+// True for the generic local/diarized labels Deepgram & browser-speech emit.
+function _isUnnamedSpeaker(s){return !s || /^(me|you|them|speaker\s*\d+)$/i.test(String(s).trim());}
+// Centralized push with cross-source de-duplication. Drops same-utterance near-duplicates that
+// arrived within DEDUP_WINDOW_MS, and lets a NAMED caption supersede a recent unnamed (Me/Speaker N)
+// line carrying the same utterance. Returns true if a NEW line was appended, false otherwise.
+const DEDUP_WINDOW_MS=6000;
+function _pushTranscriptLine(line){
+  const norm=_normUtterance(line.text);
+  if(!norm)return false;
+  const now=(line.time&&line.time.getTime)?line.time.getTime():Date.now();
+  const named=!_isUnnamedSpeaker(line.speaker);
+  for(let i=copilotTranscriptLines.length-1;i>=0;i--){
+    const ex=copilotTranscriptLines[i];
+    const exT=(ex.time&&ex.time.getTime)?ex.time.getTime():0;
+    if(now-exT>DEDUP_WINDOW_MS)break; // older than the window; stop scanning
+    const exNorm=_normUtterance(ex.text);
+    if(!exNorm)continue;
+    const textMatch=exNorm===norm||exNorm.includes(norm)||norm.includes(exNorm);
+    if(!textMatch)continue;
+    const exNamed=!_isUnnamedSpeaker(ex.speaker);
+    // Same utterance already present. If the existing one is unnamed and the new one is NAMED,
+    // upgrade the existing line in place (prefer the real speaker name). Otherwise drop the dup.
+    if(!exNamed&&named){ex.speaker=line.speaker;ex.text=line.text;ex.dgSpeaker=-1;ex.upgraded=true;return false;}
+    return false; // duplicate -> drop
+  }
+  copilotTranscriptLines.push(line);
+  return true;
+}
 let copilotTranscriptLines=[];
 let copilotCurrentMeeting=null;
 let copilotMeetingContext='';
@@ -5340,6 +5377,7 @@ VORRO HEALTHCARE: ${KNOWLEDGE_BASE.vorro.product}. Key metrics: ${KNOWLEDGE_BASE
 // ── Live Transcription (Deepgram streaming, browser-speech fallback) ──
 let dgSocket=null, dgMediaRecorder=null, dgStreams=[], dgAudioCtx=null;
 let dgSpeakerNames={};
+let dgLocalName=''; // consistent label for the local mic owner (channel 0); empty -> "Me"
 let dgMode='deepgram';
 
 function initCopilotSpeech(){ /* lazy init - engines start on demand in toggleListening */ }
@@ -5416,6 +5454,9 @@ async function startDeepgram(){
 
 function handleDgMessage(m){
   if(m.dgError){setListenUI(false,'STT error: '+m.dgError);return;}
+  // Source arbitration: if named platform captions are flowing, they are the sole transcript
+  // source. Suppress Deepgram's "Me"/"Speaker N" lines so utterances do not appear twice.
+  if(namedCaptionsActive())return;
   const alt=m.channel&&m.channel.alternatives&&m.channel.alternatives[0];
   if(!alt)return;
   const _chan=Array.isArray(m.channel_index)?(m.channel_index[0]||0):0;
@@ -5434,8 +5475,11 @@ function handleDgMessage(m){
   for(const run of runs){
     const text=run.words.join(' ').trim();
     if(!text)continue;
-    const speaker=_chan===0?'Me':(dgSpeakerNames[run.sp]||('Speaker '+(run.sp+1)));
-    copilotTranscriptLines.push({text,time:new Date(),confidence:alt.confidence||1,speaker,dgSpeaker:_chan===0?-1:run.sp});
+    // Local mic channel (0) = the device owner. Use a single consistent label ("Me"); a named
+    // caption will supersede it via _pushTranscriptLine if one exists for the same utterance.
+    const speaker=_chan===0?(dgLocalName||'Me'):(dgSpeakerNames[run.sp]||('Speaker '+(run.sp+1)));
+    const added=_pushTranscriptLine({text,time:new Date(),confidence:alt.confidence||1,speaker,dgSpeaker:_chan===0?-1:run.sp});
+    if(!added)continue; // duplicate / merged into a named line -> skip side-effects
     checkObjections(text);
     const brand=detectBrandFromContext();
     const topics=[];
@@ -5497,8 +5541,11 @@ function startBrowserSpeech(statusMsg){
       for(let i=e.resultIndex;i<e.results.length;i++){
         const t=e.results[i][0].transcript;
         if(e.results[i].isFinal){
+          // Suppress browser-speech if named platform captions are the active source.
+          if(namedCaptionsActive()){ continue; }
           const speaker=document.getElementById('copilotSpeaker')?.value||'';
-          copilotTranscriptLines.push({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence,speaker});
+          const added=_pushTranscriptLine({text:t.trim(),time:new Date(),confidence:e.results[i][0].confidence,speaker});
+          if(!added){ continue; }
           renderCopilotTranscript();
           checkObjections(t);
           const brand=detectBrandFromContext();
@@ -5610,14 +5657,20 @@ async function pollMeetCaptions(){
     const d=await r.json();
     const lines=(d.lines||[]);
     if(lines.length){
+      let _anyNamed=false;
       lines.forEach(l=>{
         if(l.ts>_meetCapSince)_meetCapSince=l.ts;
-        copilotTranscriptLines.push({text:l.text,time:new Date(l.ts||Date.now()),confidence:1,speaker:l.speaker||'',dgSpeaker:-1});
+        const spk=(l.speaker||'').trim();
+        if(spk&&!_isUnnamedSpeaker(spk))_anyNamed=true;
+        const added=_pushTranscriptLine({text:l.text,time:new Date(l.ts||Date.now()),confidence:1,speaker:spk,dgSpeaker:-1});
+        if(!added)return; // duplicate / merged -> skip side-effects
         checkObjections(l.text);
         const brand=detectBrandFromContext();const topics=[];
         for(const tp of TOPIC_PATTERNS){if(tp.pattern.test(l.text))topics.push(tp);}
         if(topics.length)surfaceAssets(topics,brand);
       });
+      // Named captions are flowing -> they become the sole transcript source (suppress Deepgram).
+      if(_anyNamed)_namedCaptionsLastTs=Date.now();
       renderCopilotTranscript();
       if(_autoCoachOn&&!_coachBusy)setTimeout(runAutoCoach,800);
       const st=document.getElementById('meetCapStatus'); if(st)st.textContent='Live ('+copilotTranscriptLines.length+' lines)';
