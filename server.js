@@ -2769,6 +2769,90 @@ app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
 });
 
 // ===========================================================================
+// PRODUCTIVITY TASKS — assignable action items extracted from INTERNAL calls
+// Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
+// The scheduled internal-meeting-task-extractor writes here (x-api-token);
+// the dashboard reads/edits here (signed-in session).
+// ===========================================================================
+const PRODUCTIVITY_TASKS_PATH = path.join(__dirname, 'data', 'productivity-tasks.json');
+
+function _prodSlug(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
+function _prodTaskId(t) {
+  if (t && t.id) return String(t.id);
+  const base = (t && (t.meetingId || t.meetingTitle) || '') + '|' + (t && t.title || '');
+  return 'pt_' + (_prodSlug(base) || Date.now().toString(36));
+}
+function _normProdTask(t, existing) {
+  const now = new Date().toISOString();
+  const id = _prodTaskId(t);
+  const prev = existing || {};
+  return {
+    id,
+    title: String(t.title || prev.title || '').slice(0, 280),
+    detail: String(t.detail || t.context || prev.detail || '').slice(0, 2000),
+    assignee: (t.assignee != null ? t.assignee : (t.owner != null ? t.owner : prev.assignee)) || '',
+    status: t.status || prev.status || 'todo',
+    source: t.source || prev.source || 'internal-meeting',
+    meetingId: t.meetingId || prev.meetingId || '',
+    meetingTitle: t.meetingTitle || prev.meetingTitle || '',
+    due: t.due || prev.due || '',
+    createdAt: prev.createdAt || now,
+    updatedAt: now,
+  };
+}
+
+// GET — list all productivity tasks (signed-in session OR service token).
+app.get('/api/productivity/tasks', requireAuth, (_req, res) => {
+  const store = _readJsonSafe(PRODUCTIVITY_TASKS_PATH, { tasks: [] });
+  res.json({ tasks: Array.isArray(store.tasks) ? store.tasks : [] });
+});
+
+// POST — upsert one task or {tasks:[...]}. requireAuth already allows the
+// SERVICE_API_TOKEN (x-api-token) path, so the scheduled extractor can write.
+app.post('/api/productivity/tasks', requireAuth, (req, res) => {
+  const b = req.body || {};
+  const incoming = Array.isArray(b.tasks) ? b.tasks : (b.title ? [b] : []);
+  if (!incoming.length) return res.status(400).json({ error: 'Provide a task (title) or {tasks:[...]}' });
+  const store = _readJsonSafe(PRODUCTIVITY_TASKS_PATH, { tasks: [] });
+  const tasks = Array.isArray(store.tasks) ? store.tasks : [];
+  const byId = {};
+  tasks.forEach(t => { if (t && t.id) byId[t.id] = t; });
+  let added = 0, updated = 0;
+  const result = [];
+  for (const raw of incoming) {
+    if (!raw || !raw.title || !String(raw.title).trim()) continue;
+    const norm = _normProdTask(raw, byId[_prodTaskId(raw)]);
+    if (byId[norm.id]) { Object.assign(byId[norm.id], norm); updated++; }
+    else { byId[norm.id] = norm; tasks.push(norm); added++; }
+    result.push(norm);
+  }
+  store.tasks = tasks;
+  _writeJsonSocial(PRODUCTIVITY_TASKS_PATH, store);
+  res.json({ ok: true, added, updated, tasks: result });
+});
+
+// POST /:id — in-app edit of assignee / status / title (signed-in session).
+app.post('/api/productivity/tasks/:id', requireAuth, (req, res) => {
+  const id = req.params.id;
+  const b = req.body || {};
+  const store = _readJsonSafe(PRODUCTIVITY_TASKS_PATH, { tasks: [] });
+  const tasks = Array.isArray(store.tasks) ? store.tasks : [];
+  const t = tasks.find(x => x && x.id === id);
+  if (!t) return res.status(404).json({ error: 'Task not found' });
+  if (b.assignee !== undefined) t.assignee = String(b.assignee || '');
+  if (b.status !== undefined) t.status = String(b.status || 'todo');
+  if (b.title !== undefined && String(b.title).trim()) t.title = String(b.title).slice(0, 280);
+  if (b.detail !== undefined) t.detail = String(b.detail || '').slice(0, 2000);
+  if (b.due !== undefined) t.due = String(b.due || '');
+  t.updatedAt = new Date().toISOString();
+  store.tasks = tasks;
+  _writeJsonSocial(PRODUCTIVITY_TASKS_PATH, store);
+  res.json({ ok: true, task: t });
+});
+
+// ===========================================================================
 // ARTIFACTS — pin/remove preferences + most-emailed-client ranking
 // Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
 // Prefs survive redeploys and are shared across devices for the single owner.
