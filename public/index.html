@@ -5391,6 +5391,14 @@ function setListenUI(on,msg){
 
 async function toggleListening(){
   if(copilotListening){stopListeningAll();return;}
+  // COST GUARD: if named platform captions are already capturing this meeting, do NOT
+  // open the Deepgram stream (Deepgram bills per minute of streamed audio). Captions are
+  // free and have real names, so Deepgram is unnecessary here. This guarantees no Deepgram
+  // API usage/charge while captions are active.
+  if(typeof namedCaptionsActive==='function' && namedCaptionsActive()){
+    setListenUI(false,'Captions are already capturing this meeting with speaker names. Deepgram not started (no charge).');
+    return;
+  }
   const st=document.getElementById('listenStatus');if(st)st.textContent='Connecting...';
   try{await startDeepgram();}
   catch(e){
