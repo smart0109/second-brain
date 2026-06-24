@@ -812,32 +812,10 @@ app.get('/auth/google/callback', async (req, res) => {
     req.session.authenticated = true;
     req.session.email = email;
 
-    // If we got a refresh token, show it for the user to save
-    if (tokens.refresh_token) {
-      res.send(`
-        <html>
-        <head><title>Auth Success</title>
-        <style>
-          body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; background: #0f172a; color: #e2e8f0; }
-          .token-box { background: #1e293b; padding: 16px; border-radius: 8px; word-break: break-all; font-family: monospace; font-size: 13px; margin: 16px 0; border: 1px solid #334155; }
-          h1 { color: #38bdf8; }
-          p { line-height: 1.6; }
-          a { color: #38bdf8; }
-          code { background: #1e293b; padding: 2px 6px; border-radius: 4px; }
-        </style>
-        </head>
-        <body>
-          <h1>Authenticated as ${email}</h1>
-          <p>Save this refresh token as <code>GOOGLE_REFRESH_TOKEN</code> in your environment variables for persistent auth:</p>
-          <div class="token-box">${tokens.refresh_token}</div>
-          <p>Once saved, the server will auto-authenticate on startup without needing to sign in again.</p>
-          <p><a href="/">Go to Dashboard</a></p>
-        </body>
-        </html>
-      `);
-    } else {
-      res.redirect('/');
-    }
+    // SECURITY: never display the Google refresh token in the browser. Login is
+    // session-based and the server's GOOGLE_REFRESH_TOKEN is configured once in
+    // env for data access. Just establish the session and go to the dashboard.
+    return res.redirect('/');
   } catch (err) {
     console.error('OAuth callback error:', err);
     res.status(500).send(`Authentication failed: ${err.message}`);
