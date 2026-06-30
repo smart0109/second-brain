@@ -5168,8 +5168,7 @@ function addIntelKbNote(){
   const inp=document.getElementById('intelKbInput');
   if(!inp||!inp.value.trim())return;
   const existing=localStorage.getItem('sb_intel_notes_'+c)||'';
-  const updated=(existing?existing+'
-':'')+inp.value.trim();
+  const updated=(existing?existing+'\n':'')+inp.value.trim();
   localStorage.setItem('sb_intel_notes_'+c,updated);
   inp.value='';
   setIntelCompany(c); // refresh KB note display
@@ -9547,6 +9546,18 @@ async function aiMemDelete(id) {
 
 // Auto-load when tab is switched to
 const _origSwitchView = typeof switchView === 'function' ? switchView : null;
+
+
+// Expose AI Sync functions globally for onclick handlers
+window.loadAiSync = loadAiSync;
+window.aiSyncApprove = aiSyncApprove;
+window.aiSyncDiscard = aiSyncDiscard;
+window.aiMemEdit = aiMemEdit;
+window.aiMemDelete = aiMemDelete;
+window.setIntelCompany = setIntelCompany;
+window.showIntelKb = showIntelKb;
+window.addIntelKbNote = addIntelKbNote;
+window.runIntelSearch = runIntelSearch;
 
 </script>
 </body>
