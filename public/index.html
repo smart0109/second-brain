@@ -761,7 +761,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <div id="pipelineStages" class="stage-bar"></div>
 
       <!-- Charts (collapsible) -->
-      <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Pipeline Charts</div>
+      <div class="section-header collapsible" onclick="toggleSection(this);setTimeout(()=>{try{if(window._pipeChartInstance)_pipeChartInstance.resize();if(window._ownerChartInstance)_ownerChartInstance.resize();}catch(_e){}},120)"><span class="sh-arrow">&#9660;</span> Pipeline Charts</div>
       <div class="sh-collapsible-wrap">
         <div class="grid-2" style="margin-bottom:14px">
           <div class="card"><div class="chart-wrap"><canvas id="pipelineChart"></canvas></div></div>
@@ -4071,6 +4071,10 @@ function renderPipelineView(brand){
   if(_ownerChartInstance){_ownerChartInstance.destroy();_ownerChartInstance=null;}
   const sLabels=Object.keys(stages);
   const sValues=sLabels.map(s=>stages[s].value);
+  // PATCH: force chart section visible so Chart.js gets real canvas dimensions
+  (()=>{const _cw=document.querySelector('#view-pipeline .sh-collapsible-wrap');
+  if(_cw&&getComputedStyle(_cw).display==='none'){_cw.style.display='block';
+  const _ch=_cw.previousElementSibling;if(_ch){_ch.classList.add('open');const _arr=_ch.querySelector('.sh-arrow');if(_arr)_arr.innerHTML='&#9650;';}}})()
   const pcEl=document.getElementById('pipelineChart');
   if(pcEl)_pipeChartInstance=new Chart(pcEl,{type:'bar',data:{labels:sLabels.map(s=>stageLabel(s)),datasets:[{label:'Pipeline Value',data:sValues,backgroundColor:sLabels.map(s=>STAGE_COLORS[s]||'#334155')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmtMoney(v)}}}}});
   const oLabels=Object.keys(owners);
@@ -4086,6 +4090,9 @@ function renderPipelineView(brand){
   const ownerOpts=_zohoUsers.length?_zohoUsers:[...new Set(deals.map(d=>({name:d.Owner?.name||safeStr(d.Owner),id:d.Owner?.id})).filter(o=>o.name))];
   if(bos)bos.innerHTML='<option value="">Change Owner...</option>'+(_zohoUsers.length?_zohoUsers:ownerOpts).map(u=>'<option value="'+esc(u.id||u.name)+'">'+esc(u.name)+'</option>').join('');
 
+  // PATCH: resize charts after DOM settles (handles late-render)
+  setTimeout(()=>{try{if(window._pipeChartInstance)_pipeChartInstance.resize();
+  if(window._ownerChartInstance)_ownerChartInstance.resize();}catch(_e){}},250);
   if(_pipeViewMode==='kanban'){
     renderKanbanBoard(deals,brand);
   } else {
@@ -4465,8 +4472,12 @@ async function loadTeam(){
   ]);
   const tasks=(tasksR.status==='fulfilled'?(tasksR.value?.data||[]):[]);
   const cadientDeals=(dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[]);
+  // PATCH: fetch Zoho Meeting Report 2026 as reliable fallback
+  const _mrR=await fetch('/api/team/meeting-report',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null);
+  const _mrDeals=(_mrR?.data||[]).map(d=>({Deal_Name:d.Account_Name,Stage:d.Stage,Amount:d.Amount,Owner:{name:d.Rep_Name},Account_Name:d.Account_Name,Closing_Date:d.Close_Date}));
+  const effectiveCadientDeals=cadientDeals.length>5?cadientDeals:[...cadientDeals,..._mrDeals.filter(m=>!cadientDeals.some(c=>String(c.Account_Name||'').toLowerCase()===String(m.Account_Name||'').toLowerCase()))];
   const vorroDeals=(vorroDealsR.status==='fulfilled'?(vorroDealsR.value?.data||[]):[]).filter(d=>d.Stage&&!d.Stage.includes('Closed'));
-  const openDeals=[...cadientDeals.map(d=>({...d,_brand:'Cadient'})),...vorroDeals.map(d=>({...d,_brand:'Vorro'}))];
+  const openDeals=[...effectiveCadientDeals.map(d=>({...d,_brand:'Cadient'})),...vorroDeals.map(d=>({...d,_brand:'Vorro'}))];
 
   // Team cards
   const tgEl=document.getElementById('teamGrid');if(!tgEl)return;

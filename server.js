@@ -2980,6 +2980,83 @@ app.delete('/api/ai-memory/:id', requireAuth, (req, res) => {
 });
 
 // ===========================================================================
+// ── Team Meeting Report 2026 (Zoho Analytics snapshot) ──────────────────────
+const _MEETING_REPORT_2026 = [
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Merck Sharp & Dohme LLC","Stage":"QUALIFICATION","Amount":738438,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Costco Wholesale Corporation","Stage":"VERBAL/NEGOTIATION","Amount":1025000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Bristol-Myers Squibb","Stage":"SOLUTION DEV/SOW","Amount":201120,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"White Cap Construction Supply","Stage":"QUALIFICATION","Amount":286330,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Pacific Northwest Regional","Stage":"DISCOVERY","Amount":168940,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"UnityPoint Health","Stage":"PROPOSAL","Amount":95000,"Close_Date":"2026-07-31"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Acuity Brands","Stage":"QUALIFICATION","Amount":72000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"Bon Secours Mercy Health","Stage":"DISCOVERY","Amount":145000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Pamela Salazar","Account_Name":"Aramark Corporation","Stage":"QUALIFICATION","Amount":88500,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"Memorial Hermann Health Sys","Stage":"PROPOSAL","Amount":112000,"Close_Date":"2026-07-31"},
+  {"Rep_Name":"Manish Agarwal","Account_Name":"Basis Vectors Capital","Stage":"CONTRACTING","Amount":3000,"Close_Date":"2026-06-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Advocate Aurora Health","Stage":"QUALIFICATION","Amount":195000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Spectrum Health","Stage":"DISCOVERY","Amount":88000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Tenet Healthcare","Stage":"QUALIFICATION","Amount":167500,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"CommonSpirit Health","Stage":"DISCOVERY","Amount":245000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Geisinger Health System","Stage":"SOLUTION DEV/SOW","Amount":138000,"Close_Date":"2026-07-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Kaiser Permanente","Stage":"QUALIFICATION","Amount":310000,"Close_Date":"2026-12-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"HCA Healthcare","Stage":"DISCOVERY","Amount":225000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"CHRISTUS Health","Stage":"QUALIFICATION","Amount":95000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Ascension Healthcare","Stage":"QUALIFICATION","Amount":178000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Providence Health & Services","Stage":"PROPOSAL","Amount":312000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Adventist Health System","Stage":"DISCOVERY","Amount":96500,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Banner Health","Stage":"QUALIFICATION","Amount":143000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"Sutter Health","Stage":"PROPOSAL","Amount":87500,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Dignity Health","Stage":"DISCOVERY","Amount":126000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Pamela Salazar","Account_Name":"LifePoint Health","Stage":"QUALIFICATION","Amount":74000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Intermountain Healthcare","Stage":"QUALIFICATION","Amount":215000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"OhioHealth","Stage":"DISCOVERY","Amount":112000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"WellSpan Health","Stage":"QUALIFICATION","Amount":68000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Northwell Health","Stage":"SOLUTION DEV/SOW","Amount":387000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Mass General Brigham","Stage":"DISCOVERY","Amount":198000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"UPMC","Stage":"QUALIFICATION","Amount":256000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"Rush University Medical Center","Stage":"PROPOSAL","Amount":93000,"Close_Date":"2026-07-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Atrium Health","Stage":"DISCOVERY","Amount":178000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Pamela Salazar","Account_Name":"Piedmont Healthcare","Stage":"QUALIFICATION","Amount":62000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"NewYork-Presbyterian","Stage":"QUALIFICATION","Amount":298000,"Close_Date":"2026-12-31"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"SSM Health","Stage":"DISCOVERY","Amount":134000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Ballad Health","Stage":"QUALIFICATION","Amount":58000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Hackensack Meridian Health","Stage":"QUALIFICATION","Amount":167000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Beaumont Health","Stage":"PROPOSAL","Amount":145000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Sentara Healthcare","Stage":"DISCOVERY","Amount":134000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"WakeMed Health & Hospitals","Stage":"PROPOSAL","Amount":78000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"AdventHealth","Stage":"SOLUTION DEV/SOW","Amount":243000,"Close_Date":"2026-07-31"},
+  {"Rep_Name":"Pamela Salazar","Account_Name":"Spectrum Health System","Stage":"QUALIFICATION","Amount":55000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Vanderbilt University Med Ctr","Stage":"QUALIFICATION","Amount":189000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"Erlanger Health System","Stage":"DISCOVERY","Amount":87000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Carilion Clinic","Stage":"QUALIFICATION","Amount":73500,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Mayo Clinic Health System","Stage":"DISCOVERY","Amount":345000,"Close_Date":"2026-12-31"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Ochsner Health","Stage":"PROPOSAL","Amount":167000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Prisma Health","Stage":"QUALIFICATION","Amount":145000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"UMass Memorial Health","Stage":"DISCOVERY","Amount":91000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Baystate Health","Stage":"QUALIFICATION","Amount":112000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Pamela Salazar","Account_Name":"Hardin Memorial Health","Stage":"QUALIFICATION","Amount":48000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Yale New Haven Health","Stage":"SOLUTION DEV/SOW","Amount":267000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"Trinity Health","Stage":"DISCOVERY","Amount":156000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Lakeland Regional Health","Stage":"QUALIFICATION","Amount":64000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Cone Health","Stage":"DISCOVERY","Amount":134000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Sarasota Memorial Health Care","Stage":"PROPOSAL","Amount":123000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"OSF HealthCare","Stage":"QUALIFICATION","Amount":178000,"Close_Date":"2026-12-31"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"SCL Health","Stage":"PROPOSAL","Amount":84000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Essentia Health","Stage":"DISCOVERY","Amount":112000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Pamela Salazar","Account_Name":"Benefis Health System","Stage":"QUALIFICATION","Amount":52000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"University of Kansas Health Sys","Stage":"QUALIFICATION","Amount":198000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Justin Roberts","Account_Name":"Valley Health System","Stage":"DISCOVERY","Amount":98000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kashif Sultan","Account_Name":"Gundersen Health System","Stage":"QUALIFICATION","Amount":67000,"Close_Date":"2026-10-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"Centura Health","Stage":"SOLUTION DEV/SOW","Amount":215000,"Close_Date":"2026-09-30"},
+  {"Rep_Name":"Kyle Bidwell","Account_Name":"Beebe Healthcare","Stage":"PROPOSAL","Amount":89000,"Close_Date":"2026-08-31"},
+  {"Rep_Name":"Thomas W. Ricks","Account_Name":"St. Luke's Health System","Stage":"DISCOVERY","Amount":145000,"Close_Date":"2026-11-30"},
+  {"Rep_Name":"Anshu Bisht","Account_Name":"Carolinas HealthCare System","Stage":"PROPOSAL","Amount":103000,"Close_Date":"2026-07-31"}
+];
+
+app.get('/api/team/meeting-report', requireAuth, (req, res) => {
+  res.json({ data: _MEETING_REPORT_2026, total: _MEETING_REPORT_2026.length });
+});
+
 // PRODUCTIVITY TASKS — assignable action items extracted from INTERNAL calls
 // Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
 // The scheduled internal-meeting-task-extractor writes here (x-api-token);
