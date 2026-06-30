@@ -4475,7 +4475,8 @@ async function loadTeam(){
   // PATCH: fetch Zoho Meeting Report 2026 as reliable fallback
   const _mrR=await fetch('/api/team/meeting-report',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null);
   const _mrDeals=(_mrR?.data||[]).map(d=>({Deal_Name:d.Account_Name,Stage:d.Stage,Amount:d.Amount,Owner:{name:d.Rep_Name},Account_Name:d.Account_Name,Closing_Date:d.Close_Date}));
-  const effectiveCadientDeals=cadientDeals.length>5?cadientDeals:[...cadientDeals,..._mrDeals.filter(m=>!cadientDeals.some(c=>String(c.Account_Name||'').toLowerCase()===String(m.Account_Name||'').toLowerCase()))];
+  // Always merge live CRM + Meeting Report 2026 (MR fills gaps when CRM returns 0)
+  const effectiveCadientDeals=[..._mrDeals,...cadientDeals.filter(c=>!_mrDeals.some(m=>String(m.Account_Name||'').toLowerCase()===String(c.Account_Name||'').toLowerCase()))];
   const vorroDeals=(vorroDealsR.status==='fulfilled'?(vorroDealsR.value?.data||[]):[]).filter(d=>d.Stage&&!d.Stage.includes('Closed'));
   const openDeals=[...effectiveCadientDeals.map(d=>({...d,_brand:'Cadient'})),...vorroDeals.map(d=>({...d,_brand:'Vorro'}))];
 
