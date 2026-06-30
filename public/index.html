@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manish's HQ</title>
+<title>AI Associate</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -554,7 +554,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 <body>
 <div class="app">
   <div class="topbar">
-    <h1>Manish's HQ</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v5.0 | init...</span>
+    <h1>AI Associate</h1><span id="sbStatus" style="font-size:9px;color:rgba(255,255,255,0.4);margin-left:4px">v5.0 | init...</span>
     <button onclick="document.getElementById('debugPanel').style.display=document.getElementById('debugPanel').style.display==='none'?'block':'none'" style="margin-left:auto;padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer">Debug</button>
     <button onclick="fetch('/auth/logout',{method:'POST'}).then(()=>location.reload())" style="padding:2px 6px;font-size:9px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.2);border-radius:3px;cursor:pointer;margin-left:4px">Logout</button>
     <select id="viewSwitcher" onchange="switchOrgView(this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--accent-text);font-size:11px;font-weight:600;cursor:pointer;margin-left:6px">
@@ -590,6 +590,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="tab" data-view="team" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('team')">Team</div>
     <div class="tab" data-view="meetings" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('meetings')">Meetings</div>
     <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
+        <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
     <div class="tab" data-view="copilot" data-org="sales" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
     <div class="tab" data-view="productivity" data-org="sales" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
     <div class="tab" data-view="legal" data-org="sales" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
@@ -870,6 +871,47 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <button onclick="addIntelKbNote()" style="padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">Add</button>
       </div>
     </div>
+
+    
+    <!-- AI SYNC -->
+    <div id="view-aisync" class="view">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--text-primary)">&#129504; AI Memory Sync</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Review what the AI learned. Approve to add to memory, edit to refine, discard to reject.</div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <select id="aisyncBrandFilter" onchange="loadAiSync()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
+            <option value="all">All brands</option>
+            <option value="cadient">Cadient</option>
+            <option value="vorro">Vorro</option>
+            <option value="cv3">CV3</option>
+            <option value="revengineer">RevEngineer</option>
+          </select>
+          <button onclick="loadAiSync()" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Refresh</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- LEFT: Pending Review -->
+        <div>
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <span style="background:#fb923c;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px" id="aisyncPendingCount">0</span>
+            Pending Review
+          </div>
+          <div id="aisyncPendingList"><div class="empty-state">Loading...</div></div>
+        </div>
+        <!-- RIGHT: AI Memory -->
+        <div>
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+            <span style="background:#16a34a;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px" id="aisyncMemCount">0</span>
+            AI Memory
+          </div>
+          <div id="aisyncMemoryList"><div class="empty-state">Loading...</div></div>
+        </div>
+      </div>
+    </div>
+
 
     <!-- COPILOT -->
     <div id="view-copilot" class="view">
@@ -2542,6 +2584,7 @@ function switchView(v){
   if(v==='team'&&!window._teamLoaded)safeLoad(loadTeam,'Team');
   if(v==='meetings'&&!window._meetLoaded)safeLoad(loadMeetingsView,'Meetings');
   if(v==='intelligence'&&!window._intelLoaded)safeLoad(loadIntelligence,'Intelligence');
+  if(v==='aisync'&&!window._aisyncLoaded){window._aisyncLoaded=true;loadAiSync();}
   if(v==='copilot'&&!window._copilotLoaded)safeLoad(loadCopilot,'Copilot');
   if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
   if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadRecentContacts();loadMostMentioned();loadRecentExecChanges();}
@@ -3269,13 +3312,25 @@ async function loadMostMentioned(){
 async function loadRecentExecChanges(){
   const el=document.getElementById('recentExecChanges');if(!el)return;
   try{
-    const r=await call(`${GMAIL}__search_threads`,{query:'subject:"C-SUITE MONITOR" newer_than:60d',pageSize:5});
+    // Read from AI Memory (approved executive changes) instead of Gmail
+    const memR = await fetch('/api/ai-memory?category=executive_change', { credentials:'same-origin' });
+    const memData = memR.ok ? await memR.json() : { entries:[] };
+    const r = { threads: [] }; // kept for compat; we use memData below
     const threads=(r&&r.threads)||[];
-    if(!threads.length){
-      el.innerHTML='<div class="empty-state" style="line-height:1.6">No recent exec changes tracked.<div style="font-size:10px;color:var(--text-muted,#64748b);margin-top:4px">The weekly C-Suite Monitor runs Mondays and emails a "[C-SUITE MONITOR]" alert; it will appear here once a report exists.</div></div>';
+    const memEntries = (memData && memData.entries) || [];
+    if(!memEntries.length){
+      el.innerHTML='<div class="empty-state" style="line-height:1.6">No approved exec changes yet.<div style="font-size:10px;color:var(--text-muted,#64748b);margin-top:4px">The weekly C-Suite Monitor runs Mondays and emails a "[C-SUITE MONITOR]" alert; it will appear here once a report exists.</div></div>';
       return;
     }
-    // Most recent thread first; fetch its full body
+    // Render AI memory entries directly
+    el.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+memEntries.slice(0,5).map(e=>`
+      <div style="border:1px solid var(--border,rgba(15,23,42,0.08));border-radius:10px;padding:10px 12px;background:var(--bg-elevated,#fff)">
+        <div style="font-size:12px;color:var(--text-primary,#0f172a);line-height:1.5">${esc(e.memory)}</div>
+        <div style="font-size:10px;color:var(--text-muted,#334155);margin-top:4px">${esc(e.source||'')} · ${esc(e.date||'')}
+          <a href="#" onclick="switchView('aisync');return false" style="margin-left:8px;color:var(--accent-text,#1d4ed8)">Manage in AI Sync →</a>
+        </div>
+      </div>`).join('')+'</div>';
+    return; // skip old Gmail parsing
     const tid=threads[0].id||threads[0].threadId;
     let body='';let subject='';let date='';
     try{
@@ -9365,6 +9420,133 @@ function shareArtifactLink(btnOrUrl,name,btn){
     setTimeout(()=>{btn.innerHTML=orig;btn.style.color='';},2000);
   });
 }
+
+
+// ── AI SYNC ────────────────────────────────────────────────────────────────
+const _AISYNC_CAT_LABELS = {
+  financial: { label:'Financial', color:'#dc2626', icon:'💰' },
+  competitive_intel: { label:'Competitor Intel', color:'#2563eb', icon:'⚔️' },
+  product_knowledge: { label:'Product Knowledge', color:'#7c3aed', icon:'📦' },
+  executive_change: { label:'Executive Change', color:'#0d9488', icon:'👤' },
+  deal_intel: { label:'Deal Intel', color:'#d97706', icon:'🤝' },
+  contact_note: { label:'Contact Note', color:'#db2777', icon:'📝' },
+};
+
+function _aiCatBadge(cat) {
+  const c = _AISYNC_CAT_LABELS[cat] || { label: cat, color:'#64748b', icon:'📌' };
+  return `<span style="background:${c.color}20;color:${c.color};border:1px solid ${c.color}40;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:600">${c.icon} ${c.label}</span>`;
+}
+
+async function loadAiSync() {
+  const brand = document.getElementById('aisyncBrandFilter')?.value || 'all';
+  const [pendRes, memRes] = await Promise.allSettled([
+    fetch(`/api/ai-sync/pending?brand=${brand}`, { credentials:'same-origin' }).then(r=>r.json()),
+    fetch(`/api/ai-memory?brand=${brand}`, { credentials:'same-origin' }).then(r=>r.json()),
+  ]);
+
+  // Render pending
+  const pEl = document.getElementById('aisyncPendingList');
+  const pCount = document.getElementById('aisyncPendingCount');
+  const items = pendRes.status==='fulfilled' ? (pendRes.value.items||[]) : [];
+  if (pCount) pCount.textContent = items.length;
+  if (!items.length) {
+    pEl.innerHTML = '<div class="empty-state">No items pending review</div>';
+  } else {
+    pEl.innerHTML = items.map(item => {
+      const isPrivate = item.risk === 'PRIVATE';
+      const borderColor = isPrivate ? '#dc2626' : 'var(--border)';
+      return `<div id="aicard_${item.id}" style="border:1px solid ${borderColor};border-radius:12px;padding:14px;margin-bottom:10px;background:var(--bg-card);position:relative">
+        ${isPrivate ? `<div style="background:#dc262615;border:1px solid #dc262640;border-radius:8px;padding:6px 10px;margin-bottom:10px;display:flex;gap:8px;align-items:flex-start">
+          <span style="font-size:16px;flex-shrink:0">⚠️</span>
+          <div><div style="font-size:11px;font-weight:700;color:#dc2626">PRIVATE — Suggested Action: Discard</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">${esc(item.riskReason||'')}</div></div>
+        </div>` : ''}
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          ${_aiCatBadge(item.category)}
+          <span style="font-size:10px;color:var(--text-muted)">${esc(item.source)}</span>
+          <span style="font-size:10px;color:var(--text-muted);margin-left:auto">${esc(item.date)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px">${esc(item.content)}</div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Suggested memory entry (editable)</div>
+          <textarea id="mem_${item.id}" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text-primary);font-size:11px;line-height:1.5;resize:vertical;min-height:60px;font-family:inherit">${esc(item.suggestedMemory||'')}</textarea>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${!isPrivate ? `<button onclick="aiSyncApprove('${item.id}')" style="padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">✓ Add to Memory</button>` : ''}
+          <button onclick="aiSyncDiscard('${item.id}','${esc(item.category)}')" style="padding:6px 14px;background:${isPrivate?'#dc2626':'transparent'};color:${isPrivate?'#fff':'#dc2626'};border:1px solid #dc2626;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">✗ ${isPrivate?'Discard (Recommended)':'Discard'}</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Render memory
+  const mEl = document.getElementById('aisyncMemoryList');
+  const mCount = document.getElementById('aisyncMemCount');
+  const entries = memRes.status==='fulfilled' ? (memRes.value.entries||[]) : [];
+  if (mCount) mCount.textContent = entries.length;
+  if (!entries.length) {
+    mEl.innerHTML = '<div class="empty-state">No approved memories yet — approve items from the queue</div>';
+  } else {
+    // Group by category
+    const bycat = {};
+    entries.forEach(e => { (bycat[e.category]=bycat[e.category]||[]).push(e); });
+    mEl.innerHTML = Object.entries(bycat).map(([cat, ents]) =>
+      `<div style="margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">${_aiCatBadge(cat)}</div>
+        ${ents.map(e => `<div id="memcard_${e.id}" style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;background:var(--bg-elevated);display:flex;gap:8px;align-items:flex-start">
+          <div style="flex:1">
+            <div style="font-size:12px;color:var(--text-primary);line-height:1.5" id="memtext_${e.id}">${esc(e.memory)}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${esc(e.source)} · ${esc(e.date)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button onclick="aiMemEdit('${e.id}')" title="Edit" style="padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-muted);font-size:11px;cursor:pointer">✎</button>
+            <button onclick="aiMemDelete('${e.id}')" title="Delete" style="padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#dc2626;font-size:11px;cursor:pointer">✗</button>
+          </div>
+        </div>`).join('')}
+      </div>`
+    ).join('');
+  }
+}
+
+async function aiSyncApprove(id) {
+  const ta = document.getElementById('mem_'+id);
+  const memoryText = ta ? ta.value.trim() : '';
+  const r = await fetch(`/api/ai-sync/approve/${id}`, {
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ memoryText })
+  });
+  if (r.ok) { loadAiSync(); } else { alert('Failed to approve'); }
+}
+
+async function aiSyncDiscard(id) {
+  if (!confirm('Discard this item? It will be removed from the review queue.')) return;
+  const r = await fetch(`/api/ai-sync/discard/${id}`, { method:'POST', credentials:'same-origin' });
+  if (r.ok) { document.getElementById('aicard_'+id)?.remove(); const el=document.getElementById('aisyncPendingCount'); if(el) el.textContent=Math.max(0,parseInt(el.textContent||0)-1); }
+}
+
+async function aiMemEdit(id) {
+  const el = document.getElementById('memtext_'+id);
+  if (!el) return;
+  const cur = el.textContent;
+  const edited = prompt('Edit memory entry:', cur);
+  if (edited === null || edited === cur) return;
+  const r = await fetch(`/api/ai-memory/${id}`, {
+    method:'PUT', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ memory: edited })
+  });
+  if (r.ok) { el.textContent = edited; } else { alert('Failed to update'); }
+}
+
+async function aiMemDelete(id) {
+  if (!confirm('Remove this memory entry permanently?')) return;
+  const r = await fetch(`/api/ai-memory/${id}`, { method:'DELETE', credentials:'same-origin' });
+  if (r.ok) { document.getElementById('memcard_'+id)?.remove(); const el=document.getElementById('aisyncMemCount'); if(el) el.textContent=Math.max(0,parseInt(el.textContent||0)-1); }
+}
+
+// Auto-load when tab is switched to
+const _origSwitchView = typeof switchView === 'function' ? switchView : null;
 
 </script>
 </body>

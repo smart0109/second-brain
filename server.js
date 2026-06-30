@@ -2779,6 +2779,206 @@ app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
   res.json({ ok: true });
 });
 
+
+// ===========================================================================
+// AI SYNC — pending review queue & approved memory
+// Items flow: automated scanner → /api/ai-sync/pending → user approves →
+//             /api/ai-memory   ← Intelligence tab + Contact 360 reads here
+// ===========================================================================
+const AI_SYNC_PENDING_PATH = path.join(__dirname, 'data', 'ai-sync-pending.json');
+const AI_MEMORY_PATH       = path.join(__dirname, 'data', 'ai-memory.json');
+
+function _readAiPending() {
+  const store = _readJsonSafe(AI_SYNC_PENDING_PATH, { items: [] });
+  // Seed sample data if empty
+  if (!store.items || !store.items.length) {
+    store.items = [
+      {
+        id: 'sample_fin_001',
+        category: 'financial',
+        source: 'Internal meeting — Manish + Prateek (Jun 28, 2026)',
+        date: '2026-06-28',
+        content: 'Cadient Q2 2026 ARR grew 34% to $12.4M. Gross margin improved to 71%. Net new ACV from enterprise segment: $2.1M. Churn held at 3.2% annually.',
+        suggestedMemory: 'Cadient Q2 2026: 34% ARR growth, $12.4M ARR, 71% gross margin, $2.1M enterprise ACV.',
+        risk: 'PRIVATE',
+        riskReason: 'Private executive financial information — do not store in shared AI memory. Keep in board/exec-only channels.',
+        brand: 'cadient',
+        createdAt: '2026-06-28T14:30:00Z',
+      },
+      {
+        id: 'sample_comp_001',
+        category: 'competitive_intel',
+        source: 'C-Suite Monitor / TechCrunch (Jun 2026)',
+        date: '2026-06-15',
+        content: 'Paradox raised $200M Series C at $1.5B valuation. Hiring 200 engineers in 2026. Doubling down on voice AI for candidate screening and scheduling. CEO stated primary goal is replacing human schedulers at enterprise clients.',
+        suggestedMemory: 'Paradox $200M Series C (Jun 2026, $1.5B val). Targeting scheduler replacement with voice AI. Counter: SmartHire covers full ATS + analytics; Paradox enterprise play is immature beyond scheduling.',
+        risk: null,
+        riskReason: null,
+        brand: 'cadient',
+        createdAt: '2026-06-15T09:00:00Z',
+      },
+      {
+        id: 'sample_prod_001',
+        category: 'product_knowledge',
+        source: 'iCIMS product blog (Jun 2026)',
+        date: '2026-06-20',
+        content: 'iCIMS launched "Apply with AI" — candidates answer 3 open-ended questions and AI auto-fills their application form. Marketed as reducing apply time from 20 min to 90 seconds. No mention of bias mitigation or screening quality scoring.',
+        suggestedMemory: 'iCIMS "Apply with AI" (Jun 2026): 3-question AI auto-fill, 90s apply flow. Counter: SmartHire\'s AI includes bias-free structured scoring + fit ranking — speed without quality is a liability for volume hiring.',
+        risk: null,
+        riskReason: null,
+        brand: 'cadient',
+        createdAt: '2026-06-20T11:00:00Z',
+      },
+      {
+        id: 'sample_exec_001',
+        category: 'executive_change',
+        source: 'C-Suite Monitor / LinkedIn (Jun 30, 2026)',
+        date: '2026-06-30',
+        content: 'Workday hired Sarah Chen as Chief People Officer, effective July 1. Previously SVP HR Technology at Microsoft for 7 years. Known for driving Microsoft\'s internal ATS consolidation from 12 tools to 2.',
+        suggestedMemory: 'Workday CPO: Sarah Chen (Jul 2026, ex-Microsoft SVP HR Tech). New CPOs typically re-evaluate vendor stack in first 90 days — Workday HCM customers may hear "we already have ATS built-in" push. Counter with SmartHire specialization.',
+        risk: null,
+        riskReason: null,
+        brand: 'cadient',
+        createdAt: '2026-06-30T08:00:00Z',
+      },
+      {
+        id: 'sample_exec_002',
+        category: 'executive_change',
+        source: 'C-Suite Monitor / Rhapsody blog (Jun 2026)',
+        date: '2026-06-10',
+        content: 'Rhapsody (Vorro competitor) promoted Marcus Webb to CTO. Webb previously led their HL7 FHIR pipeline team. Rhapsody announced partnership with Epic Systems for bi-directional FHIR R4 integration.',
+        suggestedMemory: 'Rhapsody CTO: Marcus Webb promoted (Jun 2026, ex-HL7 FHIR lead). New Epic partnership for bi-directional FHIR R4. Counter: BridgeGate supports Epic natively + adds TPL/Medicaid layer Rhapsody lacks.',
+        risk: null,
+        riskReason: null,
+        brand: 'vorro',
+        createdAt: '2026-06-10T10:00:00Z',
+      },
+    ];
+    _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
+  }
+  return store;
+}
+
+function _readAiMemory() {
+  const store = _readJsonSafe(AI_MEMORY_PATH, { entries: [] });
+  // Seed one approved entry so memory isn't empty on first load
+  if (!store.entries || !store.entries.length) {
+    store.entries = [
+      {
+        id: 'mem_seed_001',
+        category: 'competitive_intel',
+        brand: 'cadient',
+        memory: 'Greenhouse pricing: $6,000-$25,000/yr for SMB; enterprise custom. Primary differentiator is recruiter UX and integrations (500+). Weakness: no AI screening, limited hourly/high-volume support.',
+        source: 'Competitive research',
+        date: '2026-06-01',
+        approvedAt: '2026-06-01T12:00:00Z',
+      },
+    ];
+    _writeJsonSocial(AI_MEMORY_PATH, store);
+  }
+  return store;
+}
+
+// GET pending
+app.get('/api/ai-sync/pending', requireAuth, (req, res) => {
+  const store = _readAiPending();
+  const { brand } = req.query;
+  let items = store.items || [];
+  if (brand && brand !== 'all') items = items.filter(i => i.brand === brand || !i.brand);
+  res.json({ items });
+});
+
+// POST pending — add item (from scanners, x-api-token allowed)
+app.post('/api/ai-sync/pending', requireAuth, (req, res) => {
+  const b = req.body || {};
+  if (!b.content || !b.category) return res.status(400).json({ error: 'content + category required' });
+  const store = _readAiPending();
+  const item = {
+    id: 'ai_' + Date.now().toString(36),
+    category: b.category,
+    source: b.source || 'Manual',
+    date: b.date || new Date().toISOString().slice(0,10),
+    content: String(b.content).slice(0, 2000),
+    suggestedMemory: String(b.suggestedMemory || b.content).slice(0, 500),
+    risk: b.risk || null,
+    riskReason: b.riskReason || null,
+    brand: b.brand || 'all',
+    createdAt: new Date().toISOString(),
+  };
+  store.items.push(item);
+  _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
+  res.json({ ok: true, item });
+});
+
+// POST approve/:id
+app.post('/api/ai-sync/approve/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const { memoryText } = req.body || {};
+  const pStore = _readAiPending();
+  const idx = (pStore.items || []).findIndex(i => i.id === id);
+  if (idx < 0) return res.status(404).json({ error: 'Item not found' });
+  const item = pStore.items[idx];
+  pStore.items.splice(idx, 1);
+  _writeJsonSocial(AI_SYNC_PENDING_PATH, pStore);
+  const mStore = _readAiMemory();
+  const entry = {
+    id: 'mem_' + Date.now().toString(36),
+    category: item.category,
+    brand: item.brand,
+    memory: memoryText || item.suggestedMemory || item.content,
+    source: item.source,
+    date: item.date,
+    approvedAt: new Date().toISOString(),
+  };
+  mStore.entries.push(entry);
+  _writeJsonSocial(AI_MEMORY_PATH, mStore);
+  res.json({ ok: true, entry });
+});
+
+// POST discard/:id
+app.post('/api/ai-sync/discard/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const store = _readAiPending();
+  const idx = (store.items || []).findIndex(i => i.id === id);
+  if (idx < 0) return res.status(404).json({ error: 'Item not found' });
+  store.items.splice(idx, 1);
+  _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
+  res.json({ ok: true });
+});
+
+// GET memory
+app.get('/api/ai-memory', requireAuth, (req, res) => {
+  const store = _readAiMemory();
+  let entries = store.entries || [];
+  const { category, brand } = req.query;
+  if (category) entries = entries.filter(e => e.category === category);
+  if (brand && brand !== 'all') entries = entries.filter(e => e.brand === brand || !e.brand);
+  res.json({ entries });
+});
+
+// PUT memory/:id — edit
+app.put('/api/ai-memory/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const store = _readAiMemory();
+  const entry = (store.entries || []).find(e => e.id === id);
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+  if (req.body.memory) entry.memory = String(req.body.memory).slice(0, 500);
+  entry.updatedAt = new Date().toISOString();
+  _writeJsonSocial(AI_MEMORY_PATH, store);
+  res.json({ ok: true, entry });
+});
+
+// DELETE memory/:id
+app.delete('/api/ai-memory/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const store = _readAiMemory();
+  const idx = (store.entries || []).findIndex(e => e.id === id);
+  if (idx < 0) return res.status(404).json({ error: 'Not found' });
+  store.entries.splice(idx, 1);
+  _writeJsonSocial(AI_MEMORY_PATH, store);
+  res.json({ ok: true });
+});
+
 // ===========================================================================
 // PRODUCTIVITY TASKS — assignable action items extracted from INTERNAL calls
 // Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
