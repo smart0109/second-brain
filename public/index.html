@@ -684,7 +684,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div class="card"><div class="card-body" id="mostMentionedList"><div class="loading"><div class="spinner"></div><br>Tallying meeting participants...</div></div></div>
         <div class="section-header">Recent Executive Changes</div>
         <div class="card"><div class="card-body" id="recentExecChanges"><div class="loading"><div class="spinner"></div><br>Checking C-Suite Monitor...</div></div></div>
-        <div class="section-header">Recent Contacts (Last 2 Weeks)</div>
+        <div class="section-header">Active Contacts — Late Stage Deals</div>
         <div class="card"><div class="card-body scroll-panel" id="recentContactsList"><div class="loading"><div class="spinner"></div><br>Loading recent contacts...</div></div></div>
       </div>
       <div id="contactContent" style="display:none">
@@ -1863,6 +1863,30 @@ function switchOrgView(orgView){
   });
   // Switch to Today tab
   switchView('dashboard');
+  // Background pre-load: copilot (AI Transcription) first, then all other tabs staggered
+  setTimeout(()=>{
+    if(!window._copilotLoaded){window._copilotLoaded=true;try{loadCopilot();}catch(e){dbg('Preload copilot: '+e.message,'err');}}
+  }, 5000);
+  setTimeout(()=>{
+    // Wave 2: contact360 data, pipeline, team
+    if(!window._contact360AutoLoaded){window._contact360AutoLoaded=true;try{loadRecentContacts();loadMostMentioned();loadRecentExecChanges();}catch(e){dbg('Preload contact360: '+e.message,'err');}}
+    if(!window._pipeLoaded){window._pipeLoaded=true;try{loadPipeline();}catch(e){dbg('Preload pipeline: '+e.message,'err');}}
+  }, 20000);
+  setTimeout(()=>{
+    // Wave 3: team, meetings, intelligence
+    if(!window._teamLoaded){window._teamLoaded=true;try{loadTeam();}catch(e){dbg('Preload team: '+e.message,'err');}}
+    if(!window._meetLoaded){window._meetLoaded=true;try{loadMeetingsView();}catch(e){dbg('Preload meetings: '+e.message,'err');}}
+    if(!window._intelLoaded){window._intelLoaded=true;try{loadIntelligence();}catch(e){dbg('Preload intelligence: '+e.message,'err');}}
+  }, 40000);
+  setTimeout(()=>{
+    // Wave 4: remaining tabs
+    if(!window._prodLoaded){window._prodLoaded=true;try{loadProductivity();}catch(e){dbg('Preload productivity: '+e.message,'err');}}
+    if(!window._newsLoaded){window._newsLoaded=true;try{loadNewsFeed();}catch(e){dbg('Preload news: '+e.message,'err');}}
+    if(!window._followupsLoaded){window._followupsLoaded=true;try{loadFollowups();}catch(e){dbg('Preload followups: '+e.message,'err');}}
+    if(!window._icpLoaded){window._icpLoaded=true;try{loadICPChecker();}catch(e){dbg('Preload ICP: '+e.message,'err');}}
+    if(!window._aisyncLoaded){window._aisyncLoaded=true;try{loadAiSync();}catch(e){dbg('Preload aisync: '+e.message,'err');}}
+    dbg('Background preload complete — all tabs ready','ok');
+  }, 60000);
 }
 
 // ── Helper: render Gmail threads as card list ──
@@ -3235,32 +3259,31 @@ async function searchCRM(){
 async function loadRecentContacts(){
   const el=document.getElementById('recentContactsList');if(!el)return;
   try{
-    const r=await call(`${GMAIL}__search_threads`,{query:'newer_than:14d',pageSize:30});
-    const threads=r?.threads||[];
-    const contactMap={};
-    threads.forEach(t=>{
-      (t.messages||[]).forEach(m=>{
-        const from=m.sender||'';const to=[].concat(m.to||'');
-        [from].concat(to).forEach(a=>{
-          const addr=typeof a==='string'?a:String((a&&(a.email||a.address||a.name))||'');
-          if(!addr)return;
-          const email=(addr.match(/<([^>]+)>/)||[null,addr])[1]||addr;
-          const emailClean=email.toLowerCase().trim();
-          if(emailClean.includes('manish')||emailClean.includes('noreply')||emailClean.includes('no-reply')||emailClean.includes('notifications')||emailClean.includes('calendar'))return;
-          const nameMatch=addr.match(/^([^<]+)</);
-          const name=nameMatch?nameMatch[1].trim().replace(/"/g,''):emailClean.split('@')[0];
-          if(!contactMap[emailClean]){contactMap[emailClean]={name,email:emailClean,lastDate:m.date,count:0};}
-          contactMap[emailClean].count++;
-          if(m.date>contactMap[emailClean].lastDate)contactMap[emailClean].lastDate=m.date;
-        });
-      });
-    });
-    const contacts=Object.values(contactMap).sort((a,b)=>(b.lastDate||'').localeCompare(a.lastDate||'')).slice(0,25);
-    if(!contacts.length){el.innerHTML='<div class="empty-state">No recent contacts found</div>';return;}
-    el.innerHTML=contacts.map(c=>`<div class="item" onclick="loadContact('${escAttr(c.name)}','${escAttr(c.email)}')" style="cursor:pointer"><div class="item-row">
-      <div class="sr-avatar">${initials(c.name)}</div>
-      <div class="item-content"><div class="item-title">${esc(c.name)}</div>
-      <div class="item-sub">${esc(c.email)} &middot; ${c.count} msgs &middot; ${fmtDate(c.lastDate)}</div></div></div></div>`).join('');
+    // Show contacts from active late-stage deals (S4+ Vorro, Proposal/Negotiation/Contract Cadient)
+    const [cadR, vorR] = await Promise.allSettled([
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}),
+      call(`${VORRO_ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}).catch(()=>null)
+    ]);
+    const cadDeals=(cadR.status==='fulfilled'?cadR.value?.data||[]:[] ).filter(d=>/Proposal|Negotiat|Contract|In Progress|Deliver/i.test(String(d.Stage||'')));
+    const vorDeals=(vorR.status==='fulfilled'&&vorR.value?vorR.value?.data||[]:[] ).filter(d=>/^S[4-6]/i.test(String(d.Stage||'')));
+    const allDeals=[...cadDeals.map(d=>({...d,_brand:'cadient'})),...vorDeals.map(d=>({...d,_brand:'vorro'}))];
+    allDeals.sort((a,b)=>(b.Amount||0)-(a.Amount||0));
+    if(!allDeals.length){el.innerHTML='<div class="empty-state">No late-stage deals found. Active prospects in Proposal, Negotiation or S4+ stages will appear here.</div>';return;}
+    const BRAND_DOT={cadient:'#c9a227',vorro:'#0ea5e9'};
+    el.innerHTML=allDeals.slice(0,20).map(d=>{
+      const cname=String((d.Contact_Name&&(d.Contact_Name.name||d.Contact_Name))||d.Account_Name||'Unknown');
+      const acct=String((d.Account_Name&&(d.Account_Name.name||d.Account_Name))||'—');
+      const amt=d.Amount?fmtMoney(d.Amount):'';
+      const dot=BRAND_DOT[d._brand]||'#888';
+      return `<div class="item" onclick="loadContact('${escAttr(cname)}','')" style="cursor:pointer"><div class="item-row">
+        <div class="sr-avatar">${initials(cname)}</div>
+        <div class="item-content">
+          <div class="item-title">${esc(cname)} <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dot};margin-left:4px;vertical-align:middle" title="${d._brand}"></span></div>
+          <div class="item-sub">${esc(acct)} &middot; ${esc(String(d.Stage||''))}${amt?' &middot; '+amt:''}</div>
+        </div>
+      </div></div>`;
+    }).join('');
+    dbg('Active late-stage contacts: '+allDeals.length,'ok');
   }catch(e){el.innerHTML='<div class="empty-state">Failed to load: '+esc(e.message)+'</div>';}
 }
 
@@ -5125,10 +5148,93 @@ const COMPANY_PROFILES={
     suggestions:['Open action items this week','What key decisions were made?','Who have I not responded to?'],
     kb:''},
   arista:{label:'Arista Networks',color:'#0369a1',
-    systemPrompt:'You are an Arista Networks expert assistant. Arista makes EOS (Extensible Operating System), CloudVision (AI-driven NetOps), and AI networking platforms (Etherlink AI). Focus on networking, data center, AI fabric, EVPN/VXLAN, and competitive positioning vs Cisco/Juniper/HPE Aruba. Use exact product names and technical details.',
-    modes:[{l:'Explain EOS',q:'Explain Arista EOS architecture and key features'},{l:'Battlecard',q:'Compare Arista vs Cisco Catalyst for AI fabric'},{l:'CloudVision',q:'What does CloudVision do and how does it differ from traditional NMS?'},{l:'AI Networking',q:'Arista AI networking: Etherlink, spine-leaf, and Ultra Ethernet'}],
-    suggestions:['EOS vs IOS XR key differences','CloudVision AI-driven NetOps','Arista AI fabric for GPU clusters'],
-    kb:'CloudVision: AI-driven NetOps platform. EOS: single binary OS with Sysdb. Etherlink: AI networking line. TACC: terabit ASIC. AVD: Ansible Validated Design.'},
+    systemPrompt:'You are an expert Arista Networks technical sales engineer. Answer questions with SPECIFIC product details, architecture facts, and competitive data. Never say you lack information about Arista — use the Company KB below which contains comprehensive facts. Be direct and confident.',
+    modes:[
+      {l:'EOS Architecture',q:'Explain Arista EOS architecture: Sysdb, agents, ISSU, and why it beats Cisco IOS XE'},
+      {l:'vs Cisco Catalyst AI',q:'Compare Arista vs Cisco Catalyst for AI fabric: EOS vs IOS XE, CloudVision vs Catalyst Center, Etherlink vs Cisco 400G'},
+      {l:'CloudVision Deep Dive',q:'What does CloudVision do and how does it differ from traditional NMS like SolarWinds or Cisco Prime?'},
+      {l:'Etherlink AI Fabric',q:'Arista Etherlink AI networking: Ultra Ethernet, 800GbE spine-leaf, GPU cluster design vs InfiniBand'},
+      {l:'vs Juniper/HPE',q:'Compare Arista EOS vs Juniper Junos and HPE Aruba CX for data center networking'},
+      {l:'EVPN/VXLAN',q:'How does Arista implement EVPN/VXLAN fabric and what are the benefits vs traditional L2 or MPLS?'}
+    ],
+    suggestions:['EOS single-binary vs IOS XE modular','CloudVision streaming telemetry vs SNMP','Etherlink vs Cisco 400G AI fabric','EVPN/VXLAN with AVD automation'],
+    kb:\`=== ARISTA KNOWLEDGE BASE ===
+
+## EOS (Extensible Operating System)
+- Single binary running on ALL Arista hardware (routing, switching, 7000/7500/7800 series)
+- Sysdb architecture: central state database; every module (routing, LLDP, SNMP) is a separate Linux process that subscribes via pub/sub — no monolithic process failures cascade
+- ISSU (In-Service Software Upgrade): upgrade EOS with ZERO planned downtime; hitless for control-plane and dataplane
+- Every EOS component restartable independently without affecting forwarding
+- EosSdk: write custom network applications in C++, Python, Go — runs as native EOS agents
+- TACC: Arista's Terabit ASIC Controller — hardware-accelerated telemetry, forwarding at line rate for 800GbE ports
+- gRPC/gNMI native out-of-box (no plugins) — streaming telemetry at per-second granularity
+- Single CLI, single config model across ALL Arista hardware platforms
+
+## CloudVision (AI-driven NetOps platform)
+- What it does: Network-wide state management, real-time streaming telemetry, intent-based provisioning, automated compliance
+- How it differs from traditional NMS (SolarWinds, PRTG, Cisco Prime):
+  * Traditional NMS polls SNMP every 5 minutes → CloudVision streams telemetry every 1 SECOND via gRPC/gNMI
+  * Traditional NMS is READ-ONLY monitoring → CloudVision knows DESIRED STATE and auto-remediates configuration drift
+  * Traditional NMS has no topology intelligence → CloudVision has full network-wide topology map with change tracking
+  * Traditional NMS lacks automation → CloudVision has built-in change management, rollback, compliance validation
+  * Traditional NMS = metric dashboards → CloudVision = AI/ML anomaly detection + predictive analytics
+- CloudVision telemetry: every 1 second, full state (not just counters), stored long-term
+- Change management: every config change logged with who/what/when, instant rollback
+- CVP (CloudVision Portal): available as on-prem appliance, cloud-hosted, or SaaS
+- Topology visualizer: auto-discovers full fabric topology including LLDP neighbors, EVPN peerings
+- Multi-domain: manage campus, data center, WAN from single pane
+
+## Etherlink AI Networking (AI Fabric)
+- Purpose-built for GPU cluster networking: scale-out AI/ML training workloads
+- Ultra Ethernet standard (open IEEE spec) — NOT proprietary like InfiniBand
+- 800GbE ports on 7060X/7800 series — highest density available
+- RDMA over Converged Ethernet (RoCEv2) for GPU-to-GPU communication at line rate
+- Arista spine-leaf for AI: 2-tier or 3-tier Clos fabric, non-blocking, microsecond latency
+- Deployed at 8 of top 10 hyperscalers (including Meta AI Research, Microsoft Azure HPC, Google)
+- vs NVIDIA InfiniBand: Ethernet uses existing ops skills, lower cost, standard tooling; InfiniBand requires specialized HCAs, proprietary switches, specialized admins
+
+## Vs Cisco Catalyst for AI Fabric
+- Arista EOS: single binary, ISSU zero-downtime upgrades
+  Cisco IOS XE (Catalyst 9000): modular OS, multiple interdependent processes, requires maintenance windows
+- Arista CloudVision: 1-second streaming telemetry, AI-driven
+  Cisco Catalyst Center (formerly DNA Center): 5-minute polling intervals, requires separate hardware controller ($50K+ appliance)
+- Arista Etherlink 7060X: native 800GbE, Ultra Ethernet, purpose-built AI fabric
+  Cisco Nexus 9000: 400GbE max per port, no Ultra Ethernet, separate AI fabric product (Cisco Silicon One)
+- Arista automation: AVD (Ansible Validated Design) — full fabric in <1 hour, open-source, community-backed
+  Cisco automation: DNA Center GUI-based, limited Ansible integration, proprietary abstraction layer
+- Arista EVPN/VXLAN: native, production-proven at hyperscaler scale
+  Cisco EVPN: supported but historically IOS XE bugs required workarounds (CSCwh49123, CSCwh50018)
+- Customer validation: 8 of top 10 hyperscalers run Arista; Cisco Catalyst is enterprise-focused
+- Arista supports ISSU: zero planned downtime on software upgrades
+  Cisco Catalyst: ISSU supported on limited platforms only (9500X, not all 9000 series)
+
+## Vs Juniper for Data Center
+- Arista EOS: single binary, simpler ops
+  Juniper EX/QFX: Junos is strong but has separate Junos vs Enhanced Junos, multiple codebases
+- Arista CloudVision: stronger AI/ML analytics
+  Juniper Apstra: strong intent-based networking, but fewer integrations; Apstra requires vendor lock-in to Apstra data model
+- Arista hyperscaler penetration: stronger (8/10 hyperscalers)
+  Juniper: strong service provider WAN/edge, weaker in pure AI data center
+
+## AVD (Ansible Validated Design)
+- Open-source framework for deploying full Arista fabric in < 1 hour
+- Generates full EVPN/VXLAN configs from simple YAML — infrastructure as code
+- Tests with ANTA (Automated Network Testing framework) before pushing to production
+- GitHub-integrated: configs in git, peer review before deploy, instant rollback via git revert
+
+## ANTA (Automated Network Testing)
+- Pre-deployment network testing: validates BGP sessions, EVPN routes, interface health before go-live
+- Post-change validation: automated regression suite runs after every change
+- Integration with CI/CD: test in pipeline before merging config changes
+
+## Key Metrics / Customer Proof
+- 8 of top 10 cloud titans run Arista
+- 10,000+ customers globally
+- Zero planned downtime via ISSU (quantified: no maintenance windows for EOS upgrades)
+- CloudVision telemetry: 1-second vs 5-minute competitive gap = 300x faster anomaly detection
+- AVD: full DC fabric deployed in <1 hour vs days with manual config or Cisco DNA Center
+- FY2025: $7B+ revenue, 26% YoY growth, fastest-growing data center networking vendor
+\`},
   cadient:{label:'Cadient Talent',color:'#4f46e5',
     systemPrompt:'You are a Cadient Talent expert. Cadient makes SmartSuite (end-to-end ATS) and SmartHire (AI hiring optimization). Competitive against Greenhouse, Workday, iCIMS, Lever. Focus on talent acquisition, ATS features, hiring workflow automation, and deal intelligence for HR buyers.',
     modes:[{l:'SmartSuite Overview',q:'What is Cadient SmartSuite and key differentiators vs Greenhouse?'},{l:'Open Deals',q:'What Cadient deals need follow-up this week?'},{l:'ATS Landscape',q:'Compare Cadient SmartSuite vs iCIMS and Workday for enterprise hiring'},{l:'ROI Story',q:'What is the Cadient ROI and cost-per-hire improvement story?'}],
@@ -5258,6 +5364,26 @@ async function runIntelSearch(){
     el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching across email, CRM, meetings, and deals...</div>';
   }
   srcEl.innerHTML='';
+
+  // ── KB-ONLY MODE: for companies not in CRM (e.g. Arista), answer from KB directly ──
+  const _kbOnlyCompanies=['arista'];
+  if(_kbOnlyCompanies.includes(currentIntelCompany)){
+    const _p=COMPANY_PROFILES[currentIntelCompany]||COMPANY_PROFILES.all;
+    const _kbStr=_p.kb||getKnowledgeString();
+    const _sys=_p.systemPrompt;
+    try{
+      const _ans=await ask(
+        _sys+'\n\nAnswer the following question using ONLY the Company KB below. Be specific, technical, and direct. Do NOT say you lack information — everything you need is in the KB. Format with short paragraphs or bullet points.\n\nQuestion: "'+q+'"',
+        [{label:'Company Knowledge Base',value:_kbStr}]
+      );
+      el.innerHTML='<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">'+renderMarkdown(typeof _ans==='string'?_ans:JSON.stringify(_ans))+'</div>'
+        +'<div style="padding:6px 14px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border)">⚡ Answered from '+esc(_p.label||currentIntelCompany)+' Knowledge Base</div>';
+      srcEl.innerHTML='<div style="font-size:10px;color:#334155;display:flex;gap:8px"><span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:2px 6px;border-radius:3px">KB Only</span></div>';
+    }catch(e){
+      el.innerHTML='<div class="empty-state">KB lookup failed: '+esc(e.message)+'</div>';
+    }
+    return;
+  }
 
   // Extract meaningful keywords (drop question/stop words) so literal-text searches
   // against Gmail/CRM actually match instead of searching "What" / "Who".
@@ -5656,23 +5782,28 @@ const KNOWLEDGE_BASE = {
   },
   arista: {
     company: 'Arista Networks',
-    product: 'EOS (Extensible OS), CloudVision (AI NetOps), Etherlink AI networking',
+    product: 'EOS (Extensible OS), CloudVision (AI NetOps platform), Etherlink AI networking',
     tools: [
-      'EOS: single-binary network OS, Sysdb state architecture, ISSU hot-restart',
-      'CloudVision: AI-driven NetOps, intent-based, per-second telemetry',
-      'Etherlink: AI fabric for GPU clusters, Ultra Ethernet, 800GbE',
-      'AVD: Ansible Validated Design for full fabric automation',
-      'ANTA: automated network testing framework'
+      'EOS: single-binary network OS with Sysdb pub/sub state architecture, ISSU zero-downtime upgrades, EosSdk for custom agents',
+      'CloudVision: AI-driven NetOps — 1-second streaming telemetry vs 5-min SNMP, intent-based provisioning, automated compliance, AI anomaly detection',
+      'Etherlink: AI fabric for GPU clusters — Ultra Ethernet, 800GbE, RoCEv2, purpose-built for AI/ML training',
+      'AVD (Ansible Validated Design): deploys full EVPN/VXLAN fabric from YAML in <1 hour, open-source',
+      'ANTA: automated network testing — pre/post change validation, CI/CD integration',
+      'TACC: Arista Terabit ASIC — hardware-accelerated telemetry at line rate'
     ],
-    metrics: '8 of top 10 hyperscalers; zero planned downtime via ISSU; per-second vs 5-min telemetry polling',
-    pricing: 'Enterprise/hyperscale pricing, contact Arista',
-    industries: 'Data centers, AI/ML clusters, enterprise networking',
+    metrics: '8 of top 10 hyperscalers (Meta, Microsoft Azure, Google); FY2025 $7B+ revenue +26% YoY; zero planned downtime via ISSU; 1-sec telemetry vs 5-min competitor polling; AVD: full fabric <1 hour',
+    pricing: 'Enterprise/hyperscale pricing — contact Arista account team',
+    industries: 'Data centers, AI/ML GPU clusters, hyperscale cloud, enterprise campus, financial services',
     objectionHandlers: {
-      'cisco': 'EOS single binary = zero planned downtime (ISSU). Cisco IOS XE needs maintenance windows. CloudVision gives per-second telemetry vs Cisco 5-min polling. Arista is in production at 8 of top 10 hyperscalers.',
-      'juniper': 'EOS has better open telemetry (gRPC/gNMI out-of-box), AVD gives full automation faster than Juniper Apstra. Stronger hyperscaler endorsements. Juniper has better SP/WAN story; Arista wins data center head-to-head.',
-      'nvidia infiniband': 'Etherlink uses standard Ethernet (Ultra Ethernet) — no proprietary HCA/switch lock-in, lower cost, IT teams already know Ethernet ops. InfiniBand requires specialized admins.',
-      'too expensive': 'Calculate the cost of planned maintenance windows. One outage at a hyperscaler is worth millions. ISSU eliminates that risk entirely. CloudVision per-second telemetry catches issues before they become outages.',
-      'competitor': 'Arista EOS is a single binary — one OS for all hardware. Competitors use modular OS with multiple processes and inter-process communication failures. Simpler = more reliable at scale.'
+      'cisco catalyst': 'EOS single binary = zero planned downtime (ISSU). Cisco IOS XE on Catalyst 9000 requires maintenance windows for upgrades. CloudVision streams telemetry every 1 second; Cisco Catalyst Center polls every 5 minutes — 300x slower anomaly detection. Arista Etherlink supports 800GbE Ultra Ethernet; Cisco Catalyst tops at 400GbE. 8 of 10 top hyperscalers chose Arista.',
+      'cisco nexus': 'Nexus 9000 lacks native Ultra Ethernet for AI fabric. Arista 7060X/7800 with Etherlink gives purpose-built AI networking. CloudVision vs Cisco NX-OS: unified single pane vs separate ACI controller. Arista EVPN/VXLAN is more production-proven at hyperscaler scale.',
+      'juniper': 'EOS has cleaner gRPC/gNMI telemetry out-of-box; Juniper requires JTI plugins. AVD deploys faster than Juniper Apstra and is fully open-source. Arista hyperscaler penetration is stronger for data center. Juniper wins service provider WAN; Arista wins data center head-to-head.',
+      'hpe aruba': 'HPE Aruba CX runs AOS-CX which is stronger in campus than data center. For AI fabric and hyperscale, Arista 7000/7800 series has more proof points and better performance at 400G/800G.',
+      'nvidia infiniband': 'Etherlink uses open Ultra Ethernet standard — your ops team already knows Ethernet, no proprietary InfiniBand HCAs ($2,000+ per GPU), no specialized InfiniBand admins needed. IT orgs are standardizing on Ethernet for AI because of cost and operational simplicity. Microsoft Azure HPC uses Arista Ethernet, not InfiniBand.',
+      'cloudvision vs solarwinds': 'SolarWinds NPM polls SNMP every 5 minutes and is read-only. CloudVision streams state every second and knows the DESIRED state — it detects configuration drift and can auto-remediate. SolarWinds shows you what happened; CloudVision prevents it.',
+      'cloudvision vs cisco prime': 'Cisco Prime is end-of-sale. Catalyst Center (DNA Center) requires a $50K+ separate hardware controller. CloudVision is available as SaaS — no hardware needed. CloudVision also covers multi-vendor (limited) vs Catalyst Center Cisco-only.',
+      'too expensive': 'Calculate the cost of one planned maintenance window. At a hyperscaler, a 2-hour outage costs $1M+. ISSU eliminates all planned outages for EOS upgrades. CloudVision per-second telemetry catches issues 300x faster than 5-min polling. One prevented outage pays for years of Arista.',
+      'open source alternative': 'OpenConfig and gNMI are open standards — and Arista implements both natively out-of-box. CloudVision uses gRPC/gNMI. You can use InfluxDB + Grafana for dashboards, and AVD (open-source) for automation. Arista is the most open-ecosystem data center vendor.'
     }
   }
 };
