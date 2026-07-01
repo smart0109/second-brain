@@ -5151,6 +5151,13 @@ const COMPANY_PROFILES={
     kb:'RevEngineer.ai: B2B GTM intelligence platform (NOT ecommerce). Signal-based prospecting, revenue intelligence, pipeline analytics.'}
 };
 
+
+function runIntelWithQuery(q){
+  const inp=document.getElementById('intelSearchInput');
+  if(inp){inp.value=q;inp.dispatchEvent(new Event('input'));}
+  runIntelSearch();
+}
+
 function setIntelCompany(c){
   currentIntelCompany=c;
   localStorage.setItem('sb_intel_company',c);
@@ -5168,12 +5175,12 @@ function setIntelCompany(c){
   // Update mode pills
   const mr=document.getElementById('intelModeRow');
   if(mr){
-    mr.innerHTML=p.modes.map(m=>`<button class="prod-btn" onclick="document.getElementById('intelSearchInput').value=${JSON.stringify(m.q)};runIntelSearch()">${m.l}</button>`).join('');
+    mr.innerHTML=p.modes.map(m=>{const sq=m.q.replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button class="prod-btn" style="padding:5px 12px;font-size:11px" onclick="runIntelWithQuery('${sq}')">${m.l}</button>`;}).join('');
   }
   // Update quick suggestions
   const qb=document.getElementById('intelQuickBtns');
   if(qb){
-    qb.innerHTML=p.suggestions.map(s=>`<button class="prod-btn" onclick="document.getElementById('intelSearchInput').value=${JSON.stringify(s)};runIntelSearch()">${s}</button>`).join('');
+    qb.innerHTML=p.suggestions.map(s=>{const sq=s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button class="prod-btn" style="padding:5px 12px;font-size:11px;background:var(--bg-elevated)" onclick="runIntelWithQuery('${sq}')">${s}</button>`;}).join('');
   }
   // Update KB note
   const kbNote=document.getElementById('intelKbNote');
@@ -5210,12 +5217,46 @@ async function loadIntelligence(){
   setIntelCompany(saved);
 }
 
+
+// Fast-path KB lookup — answers product capability questions from memory without LLM
+function getKbInstantAnswer(q, company){
+  const kb=KNOWLEDGE_BASE[company]||KNOWLEDGE_BASE.cadient;
+  if(!kb)return null;
+  const ql=q.toLowerCase().replace(/[^a-z0-9\s]/g,' ');
+  // Collect all searchable facts from KB
+  const facts=[
+    {src:'Product',text:kb.product||''},
+    ...(kb.tools||[]).map(t=>({src:'Capability',text:t})),
+    {src:'Standards/Industries',text:kb.standards||kb.industries||''},
+    {src:'Metrics',text:kb.metrics||''},
+    ...Object.entries(kb.objectionHandlers||{}).map(([k,v])=>({src:'Handles: '+k,text:v}))
+  ].filter(f=>f.text.length>5);
+  // Extract meaningful query terms
+  const stopKb=new Set(['does','vorro','cadient','arista','cv3','revengineer','support','handle','have','use','can','are','the','and','for','with','our','you','what','how','do','we','they','it','is','of','to','in','on']);
+  const terms=ql.split(/\s+/).filter(w=>w.length>2&&!stopKb.has(w));
+  if(!terms.length)return null;
+  const hits=facts.filter(f=>terms.some(t=>f.text.toLowerCase().includes(t)));
+  if(!hits.length)return null;
+  return hits;
+}
+
 async function runIntelSearch(){
   const q=document.getElementById('intelSearchInput').value.trim();
   if(!q)return;
   const el=document.getElementById('intelResults');
   const srcEl=document.getElementById('intelSources');
-  el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching across email, CRM, meetings, and deals...</div>';
+  // Fast-path: answer from KB memory instantly before hitting external sources
+  const _kbCo=currentIntelCompany==='all'?detectBrandFromContext():currentIntelCompany;
+  const _kbHits=getKbInstantAnswer(q,_kbCo);
+  if(_kbHits&&_kbHits.length){
+    const _kbHtml='<div style="background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);border-radius:8px;padding:10px 14px;margin-bottom:10px">'
+      +'<div style="font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">⚡ From Memory · '+(KNOWLEDGE_BASE[_kbCo]||{company:_kbCo}).company+'</div>'
+      +_kbHits.map(h=>'<div style="font-size:12px;color:var(--text-primary);padding:3px 0;border-bottom:1px solid rgba(96,165,250,0.1)"><span style="font-size:10px;color:var(--text-muted);min-width:90px;display:inline-block">'+esc(h.src)+'</span> '+esc(h.text)+'</div>').join('')
+      +'</div>';
+    el.innerHTML=_kbHtml+'<div class="loading" style="margin-top:8px"><div class="spinner" style="width:14px;height:14px"></div> <span style="font-size:11px;color:var(--text-muted)">Checking live data...</span></div>';
+  } else {
+    el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching across email, CRM, meetings, and deals...</div>';
+  }
   srcEl.innerHTML='';
 
   // Extract meaningful keywords (drop question/stop words) so literal-text searches
@@ -5264,9 +5305,27 @@ async function runIntelSearch(){
   if(!ctx.length){
     // Distinguish "all sources errored" (likely auth/keys) from "genuinely no matches".
     const allErr=[emailR,granolaR,dealR,crmR].every(r=>r.status==='rejected');
-    el.innerHTML='<div class="empty-state">'+(allErr
-      ? 'Could not reach your data sources. If you just logged in, retry; otherwise check that Gmail/Zoho/Granola are connected.'
-      : 'No matching records found for that query. Try specific names, companies, or deal terms.')+'</div>';
+    if(allErr){
+      // Sources down — answer from KB only
+      const _errKbCo=currentIntelCompany==='all'?detectBrandFromContext():currentIntelCompany;
+      const _errKb=KNOWLEDGE_BASE[_errKbCo]||{};
+      const _errKbStr=getKnowledgeString();
+      try{
+        const _kbOnly=await ask(
+          'You are '+(_errKb.company||'a company')+''s product expert. Answer from the product knowledge only — no external data available. Be direct and concise, 2-4 sentences max. If you cannot answer from the KB, say so plainly.',
+          [{label:'Product Knowledge Base',value:_errKbStr}]
+        );
+        const _prevKbHtml=el.innerHTML.includes('From Memory')?el.innerHTML.split('<div class="loading"')[0]:'';
+        el.innerHTML=_prevKbHtml+'<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">'+renderMarkdown(typeof _kbOnly==='string'?_kbOnly:JSON.stringify(_kbOnly))+'</div>'
+          +'<div style="padding:6px 14px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border)">⚠ Live sources unavailable — answered from product KB only</div>';
+      }catch(e2){
+        el.innerHTML=(el.innerHTML.includes('From Memory')?el.innerHTML.split('<div class="loading"')[0]:'')
+          +'<div class="empty-state">Could not reach your data sources. If you just logged in, retry; otherwise check that Gmail/Zoho/Granola are connected.</div>';
+      }
+      return;
+    }
+    el.innerHTML=(el.innerHTML.includes('From Memory')?el.innerHTML.split('<div class="loading"')[0]:'')
+      +'<div class="empty-state">No matching records found for that query. Try specific names, companies, or deal terms.</div>';
     return;
   }
 
