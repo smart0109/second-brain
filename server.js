@@ -386,14 +386,49 @@ async function handleGmail(toolName, args) {
     const { subject, body, to, threadId } = args || {};
     // Strip any <!-- THREAD_ID:xxx --> comments the LLM may inject into the body
     const cleanBody = (body || '').replace(/<!--\s*THREAD_ID:[^\s>-]+\s*-->\s*/gi, '').trim();
-    const lines = [
+
+    // When replying to a thread, fetch last message for proper reply headers + quoted body
+    let inReplyTo = '';
+    let references = '';
+    let quotedBlock = '';
+    if (threadId) {
+      try {
+        const thread = await gmail.users.threads.get({ userId: 'me', id: threadId, format: 'full' });
+        const msgs = thread.data.messages || [];
+        const lastMsg = [...msgs].reverse().find(m => !(m.labelIds || []).includes('DRAFT')) || msgs[msgs.length - 1];
+        if (lastMsg) {
+          const hdrs = (lastMsg.payload?.headers || []);
+          const getH = (n) => (hdrs.find(h => h.name.toLowerCase() === n.toLowerCase()) || {}).value || '';
+          const msgId = getH('Message-ID') || getH('Message-Id');
+          if (msgId) {
+            inReplyTo = msgId;
+            const existingRefs = getH('References');
+            references = existingRefs ? existingRefs + ' ' + msgId : msgId;
+          }
+          const origDate = getH('Date');
+          const origFrom = getH('From');
+          const origBody = extractPlainBody(lastMsg.payload) || '';
+          if (origBody.trim()) {
+            const origLines = origBody.trim().split('\n').map(l => '> ' + l).join('\n');
+            quotedBlock = '\n\n' + (origDate && origFrom ? `On ${origDate}, ${origFrom} wrote:\n` : '') + origLines;
+          }
+        }
+      } catch (e) {
+        console.warn('create_draft: failed to fetch thread for reply headers:', e.message);
+      }
+    }
+
+    const headerLines = [
       `To: ${to || ''}`,
       `Subject: ${subject || ''}`,
+      'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=utf-8',
-      '',
-      cleanBody,
     ];
-    const raw = Buffer.from(lines.join('\r\n'))
+    if (inReplyTo) headerLines.push(`In-Reply-To: ${inReplyTo}`);
+    if (references) headerLines.push(`References: ${references}`);
+
+    const fullBody = cleanBody + quotedBlock;
+    const raw = Buffer.from([...headerLines, '', fullBody].join('\r\n'))
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
@@ -3323,7 +3358,6 @@ app.use((err, _req, res, _next) => {
 // Start
 // ---------------------------------------------------------------------------
 _kvInit();
-const httpServ
 // ── DRAFT CLEANUP: strip <!-- THREAD_ID:... --> from existing drafts ──
 app.post('/api/fix-thread-ids', requireAuth, async (req, res) => {
   try {
@@ -3374,7 +3408,7 @@ app.post('/api/fix-thread-ids', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-er = app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log(`Second Brain server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);
   if (!process.env.GOOGLE_REFRESH_TOKEN) {
