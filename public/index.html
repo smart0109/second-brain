@@ -878,7 +878,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
         <div>
           <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--text-primary)">&#129504; AI Memory Sync</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Review what the AI learned. Approve to add to memory, edit to refine, discard to reject.</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Things said on calls that aren't in the KB yet. Approve to add to memory, discard to skip. <em style="opacity:.7">Executive changes → Contact 360.</em></div>
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
           <select id="aisyncBrandFilter" onchange="loadAiSync()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
@@ -9612,7 +9612,8 @@ async function loadAiSync() {
   // Render pending
   const pEl = document.getElementById('aisyncPendingList');
   const pCount = document.getElementById('aisyncPendingCount');
-  const items = pendRes.status==='fulfilled' ? (pendRes.value.items||[]) : [];
+  // executive_change items belong in Contact 360, not AI Sync
+  const items = (pendRes.status==='fulfilled' ? (pendRes.value.items||[]) : []).filter(i=>i.category!=='executive_change');
   if (pCount) pCount.textContent = items.length;
   if (!items.length) {
     pEl.innerHTML = '<div class="empty-state">No items pending review</div>';
