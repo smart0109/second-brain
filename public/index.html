@@ -1469,6 +1469,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <div class="card"><div class="card-body scroll-panel" id="newsVorro" style="max-height:500px"><div class="loading"><div class="spinner"></div><br>Loading news...</div></div></div>
         </div>
       </div>
+      <div class="section-header" style="color:#818cf8">Arista Networks</div>
+      <div class="grid-2">
+        <div>
+          <div class="card"><div class="card-body scroll-panel" id="newsArista" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading Arista news...</div></div></div>
+        </div>
+        <div>
+          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Arista competitors</div>
+          <div class="card"><div class="card-body scroll-panel" id="newsCompArista" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+        </div>
+      </div>
       <div class="section-header" style="color:#06b6d4">Industry Trends &amp; Market Moves</div>
       <div class="card"><div class="card-body scroll-panel" id="newsIndustry" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
       <div class="section-header" style="color:#06b6d4">Competitor Watch &middot; latest brief each</div>
@@ -8252,8 +8262,14 @@ const NEWS_TOPICS={
     'enterprise software B2B SaaS market',
     'private equity portfolio company growth',
     'AI automation enterprise'
+  ],
+  arista:[
+    'Arista Networks EOS CloudVision',
+    'Arista AI fabric Etherlink Ultra Ethernet',
+    'Arista Networks earnings product launch 2025 2026'
   ]
 };
+const ARISTA_COMPETITORS=['Cisco Catalyst','Cisco Nexus','Juniper Networks','HPE Aruba','NVIDIA InfiniBand'];
 
 async function loadNewsFeed(forceRefresh){
   dbg('loadNewsFeed() started'+(forceRefresh?' (forced)':''));
@@ -8348,9 +8364,11 @@ async function loadNewsFeed(forceRefresh){
   await Promise.all([
     fetchNews('newsCadient',NEWS_TOPICS.cadient,'Cadient / HR Tech'),
     fetchNews('newsVorro',NEWS_TOPICS.vorro,'Vorro / Healthcare IT'),
+    fetchNews('newsArista',NEWS_TOPICS.arista,'Arista Networks'),
     fetchNews('newsIndustry',NEWS_TOPICS.industry,'Industry Trends'),
     fetchCompetitorBriefs('newsCompCadient',CADIENT_COMPETITORS,'hiring OR recruiting OR ATS OR HR'),
-    fetchCompetitorBriefs('newsCompVorro',VORRO_COMPETITORS,'healthcare OR integration OR interoperability OR EHR')
+    fetchCompetitorBriefs('newsCompVorro',VORRO_COMPETITORS,'healthcare OR integration OR interoperability OR EHR'),
+    fetchCompetitorBriefs('newsCompArista',ARISTA_COMPETITORS,'networking OR data center OR AI fabric OR switch')
   ]);
   dbg('News feed loaded','ok');
 }
