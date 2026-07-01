@@ -5298,6 +5298,9 @@ const INTEL_PANELS = {
 };
 
 const _intelFaqCache = {};
+window.clickIntelTopic = clickIntelTopic;
+window.toggleIntelFaq = toggleIntelFaq;
+window.renderIntelPanel = renderIntelPanel;
 
 function renderIntelPanel(co) {
   const panel = document.getElementById('intelMainPanel');
@@ -5313,8 +5316,9 @@ function renderIntelPanel(co) {
     '<span style="padding:3px 10px;border-radius:12px;background:' + p.color + '22;color:' + p.color + ';font-size:10px;font-weight:700;border:1px solid ' + p.color + '44">' + esc(m) + '</span>'
   ).join('');
 
+  window._intelTopics_cur = p.topics;
   const topicsHtml = p.topics.map((t,i) =>
-    '<div onclick="clickIntelTopic(' + JSON.stringify(t.q) + ')" style="cursor:pointer;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;transition:all 0.15s;display:flex;flex-direction:column;gap:6px" onmouseover="this.style.borderColor=\'' + t.color + '\';this.style.background=\'' + t.color + '11\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.background=\'var(--bg-card)\'">'
+    '<div onclick="clickIntelTopic(' + i + ')" style="cursor:pointer;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;transition:all 0.15s;display:flex;flex-direction:column;gap:6px" onmouseover="this.style.borderColor=\'' + t.color + '\';this.style.background=\'' + t.color + '11\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.background=\'var(--bg-card)\'">'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + '<span style="width:32px;height:32px;border-radius:8px;background:' + t.color + '22;color:' + t.color + ';font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + esc(t.icon) + '</span>'
       + '<span style="font-size:12px;font-weight:700;color:var(--text-primary)">' + esc(t.title) + '</span>'
@@ -5398,7 +5402,8 @@ function _renderIntelAllMode() {
     + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>';
 }
 
-function clickIntelTopic(q) {
+function clickIntelTopic(qOrIdx) {
+  const q = typeof qOrIdx === 'number' ? ((window._intelTopics_cur||[])[qOrIdx]||{}).q||'' : qOrIdx;
   const inp = document.getElementById('intelSearchInput');
   if (inp) { inp.value = q; }
   runIntelSearch();
@@ -5595,14 +5600,7 @@ function setIntelCompany(c){
   if(qb){
     qb.innerHTML=p.suggestions.map(s=>{const sq=s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<button class="prod-btn" style="padding:5px 12px;font-size:11px;background:var(--bg-elevated)" onclick="runIntelWithQuery('${sq}')">${s}</button>`;}).join('');
   }
-  // Update KB note
-  const kbNote=document.getElementById('intelKbNote');
-  if(kbNote){
-    const userKb=localStorage.getItem('sb_intel_notes_'+c)||'';
-    const allKb=[p.kb,userKb].filter(Boolean).join(' | ');
-    if(allKb){kbNote.textContent='KB: '+allKb.slice(0,120)+(allKb.length>120?'…':'');kbNote.style.display='block';}
-    else{kbNote.style.display='none';}
-  }
+  // KB note suppressed in new Intel panel design
 }
 
 function addIntelKbNote(){
