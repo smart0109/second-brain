@@ -2609,7 +2609,7 @@ function switchView(v){
   };
   if(v==='pipeline'&&!window._pipeLoaded)safeLoad(loadPipeline,'Pipeline');
   if(v==='team'&&!window._teamLoaded)safeLoad(loadTeam,'Team');
-  if(v==='meetings'&&!window._meetLoaded)safeLoad(loadMeetingsView,'Meetings');
+  if(v==='meetings'){const _td=new Date().toDateString();if(!window._meetLoaded||window._meetLoadedDay!==_td)safeLoad(loadMeetingsView,'Meetings');}
   if(v==='intelligence'&&!window._intelLoaded)safeLoad(loadIntelligence,'Intelligence');
   if(v==='aisync'&&!window._aisyncLoaded){window._aisyncLoaded=true;loadAiSync();}
   if(v==='copilot'&&!window._copilotLoaded)safeLoad(loadCopilot,'Copilot');
@@ -3264,9 +3264,9 @@ async function loadRecentContacts(){
     if(!allDeals.length){el.innerHTML='<div class="empty-state">No late-stage deals found. Active prospects in Proposal, Negotiation or S4+ stages will appear here.</div>';return;}
     const BRAND_DOT={cadient:'#c9a227',vorro:'#0ea5e9'};
     el.innerHTML=allDeals.slice(0,20).map(d=>{
-      const _cn=d.Contact_Name,_an=d.Account_Name;
-      const cname=(typeof _cn==='object'?(_cn?.name||''):(String(_cn||'')))||(typeof _an==='object'?(_an?.name||''):(String(_an||'')))||'Unknown';
-      const acct=(typeof _an==='object'?(_an?.name||''):(String(_an||'')))||'—';
+      const _getN=v=>v!=null&&typeof v==='object'?(v.name||v.Full_Name||''):(v&&typeof v==='string'?v:'');
+      const cname=_getN(d.Contact_Name)||_getN(d.Account_Name)||(d.Deal_Name||'Unknown');
+      const acct=_getN(d.Account_Name)||(d.Deal_Name||'—');
       const amt=d.Amount?fmtMoney(d.Amount):'';
       const dot=BRAND_DOT[d._brand]||'#888';
       return `<div class="item" onclick="loadContact('${escAttr(cname)}','')" style="cursor:pointer"><div class="item-row">
@@ -4732,12 +4732,13 @@ async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
 
 async function loadMeetingsView(){
   window._meetLoaded=true;
+  window._meetLoadedDay=new Date().toDateString();
   // Load calendar events AND Granola meetings in parallel
   const now=new Date();
   const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay());weekStart.setHours(0,0,0,0);
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+7);
   const [calR,wR,mR,prepDraftsR,prepDocsR]=await Promise.allSettled([
-    call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+    call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime',pageSize:250}),
     call(`${GRAN}__list_meetings`,{time_range:'this_week'}),
     call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}),
     call(`${GMAIL}__search_threads`,{query:'subject:(Prep:) newer_than:7d in:draft',pageSize:30}),
