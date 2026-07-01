@@ -6008,7 +6008,7 @@ function populateSpeakersFromAttendees(attendees){
 
 function getRecentTranscript(minutes){
   const cutoff=Date.now()-(minutes||10)*60000;
-  return copilotTranscriptLines.filter(l=>l.time.getTime()>cutoff).map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
+  return copilotTranscriptLines.filter(l=>l.time&&l.time.getTime&&l.time.getTime()>cutoff).map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
 }
 
 function getFullTranscript(){
