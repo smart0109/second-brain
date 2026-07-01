@@ -3264,8 +3264,9 @@ async function loadRecentContacts(){
     if(!allDeals.length){el.innerHTML='<div class="empty-state">No late-stage deals found. Active prospects in Proposal, Negotiation or S4+ stages will appear here.</div>';return;}
     const BRAND_DOT={cadient:'#c9a227',vorro:'#0ea5e9'};
     el.innerHTML=allDeals.slice(0,20).map(d=>{
-      const cname=String((d.Contact_Name&&(d.Contact_Name.name||d.Contact_Name))||d.Account_Name||'Unknown');
-      const acct=String((d.Account_Name&&(d.Account_Name.name||d.Account_Name))||'—');
+      const _cn=d.Contact_Name,_an=d.Account_Name;
+      const cname=(typeof _cn==='object'?(_cn?.name||''):(String(_cn||'')))||(typeof _an==='object'?(_an?.name||''):(String(_an||'')))||'Unknown';
+      const acct=(typeof _an==='object'?(_an?.name||''):(String(_an||'')))||'—';
       const amt=d.Amount?fmtMoney(d.Amount):'';
       const dot=BRAND_DOT[d._brand]||'#888';
       return `<div class="item" onclick="loadContact('${escAttr(cname)}','')" style="cursor:pointer"><div class="item-row">
@@ -3706,8 +3707,10 @@ function clearContact360(){
   document.getElementById('contactContent').style.display='none';
   document.getElementById('contactPlaceholder').style.display='';
   document.querySelectorAll('.vip-btn').forEach(b=>b.classList.remove('active'));
-  window._contact360AutoLoaded=false;
-  loadAllCRMContacts();
+  // Reload dashboard sections (not the flat CRM list)
+  loadMostMentioned();
+  loadRecentExecChanges();
+  loadRecentContacts();
 }
 
 // ══════════════════════════════════════
