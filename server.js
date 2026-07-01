@@ -3006,6 +3006,31 @@ app.post('/api/ai-sync/discard/:id', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// -- Prep Asset Store (in-memory) --
+const _prepAssets = {};
+
+app.post('/api/save-prep-asset', requireAuth, (req, res) => {
+  const { company, companyName, brand, date, html } = req.body || {};
+  if (!company || !html) return res.status(400).json({ error: 'company and html required' });
+  const slug = company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+  _prepAssets[slug] = { slug, companyName: companyName || company, brand: brand || 'vorro', date: date || new Date().toISOString().slice(0, 10), html, savedAt: Date.now() };
+  console.log('[prep-asset] Saved for ' + slug);
+  res.json({ ok: true, slug });
+});
+
+app.get('/api/prep-assets/:company', requireAuth, (req, res) => {
+  const q = (req.params.company || '').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+  let asset = _prepAssets[q];
+  if (!asset) { const k = Object.keys(_prepAssets).find(k => k.includes(q) || q.includes(k)); if (k) asset = _prepAssets[k]; }
+  if (!asset) return res.status(404).json({ error: 'no asset found' });
+  res.json(asset);
+});
+
+app.get('/api/prep-assets', requireAuth, (req, res) => {
+  const list = Object.values(_prepAssets).map(a => ({ slug: a.slug, companyName: a.companyName, brand: a.brand, date: a.date, savedAt: a.savedAt }));
+  res.json({ assets: list });
+});
+
 // GET memory
 app.get('/api/ai-memory', requireAuth, (req, res) => {
   const store = _readAiMemory();
