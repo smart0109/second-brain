@@ -1752,7 +1752,7 @@ const TEAM = [
 
 // ── Helpers ──
 function gmailUrl(id){return `https://mail.google.com/mail/u/0/#inbox/${id}`}
-function draftUrl(id){return `https://mail.google.com/mail/u/0/#drafts?compose=${id}`}
+function draftUrl(id){return `https://mail.google.com/mail/u/0/#drafts/${id}`}
 function driveUrl(id){return `https://drive.google.com/file/d/${id}/view`}
 function zohoUrl(mod,id){return `https://crm.zoho.com/crm/org20083390694/tab/${mod}/${id}`}
 function fmt(iso){if(!iso)return '';return new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true})}
@@ -3196,7 +3196,7 @@ function renderDrafts(drafts){
   el.innerHTML=drafts.slice(0,25).map(d=>{
     const subj=d.subject||d.message?.subject||'(no subject)';
     const to=[].concat(d.to||d.toRecipients||d.message?.to||d.message?.toRecipients||[]);
-    return `<a class="item" href="${draftUrl(d.id)}" target="_blank"><div class="item-row">
+    return `<a class="item" href="${draftUrl(d.message?.id||d.id)}" target="_blank"><div class="item-row">
       <div class="item-icon mail" style="background:rgba(251,146,60,0.15);color:#fb923c">&#9998;</div>
       <div class="item-content"><div class="item-title">${esc(truncate(subj,50))}</div>
       <div class="item-sub">To: ${esc(truncate(to.join(', '),40))}</div></div></div></a>`;
@@ -8672,6 +8672,7 @@ async function loadFollowups(){
       const snippet=(d.snippet||d.message?.snippet||'').toString();
       const body=(d.message?.plaintextBody||d.message?.body||snippet||'').toString();
       const id=d.id||'';
+      const msgId=d.message?.id||d.id||'';
       // Categorize
       let cat='other';
       let catLabel='Other';
@@ -8705,7 +8706,7 @@ async function loadFollowups(){
       let stageInfo='';
       const stageMatch=subj.match(/Stage (\d+)\s*V(\d+)/i);
       if(stageMatch)stageInfo='S'+stageMatch[1]+' V'+stageMatch[2];
-      return {id,subj,to,snippet:snippet.slice(0,200),body,cat,catLabel,catIcon,catBadge,brand,assignee,stageInfo};
+      return {id,msgId,subj,to,snippet:snippet.slice(0,200),body,cat,catLabel,catIcon,catBadge,brand,assignee,stageInfo};
     });
     renderFollowups();
   }catch(e){
@@ -8793,7 +8794,7 @@ function renderFuGroup(cat,items,meta){
     const brandBadge=d.brand?`<span class="fu-card-badge ${d.brand==='cadient'?'cadient':'vorro'}">${d.brand==='cadient'?'Cadient':'Vorro'}</span>`:'';
     const stageBadge=d.stageInfo?`<span style="font-size:9px;color:var(--text-muted);background:var(--bg-elevated);padding:1px 6px;border-radius:3px">${esc(d.stageInfo)}</span>`:'';
     const assigneeBadge=d.assignee?`<span style="font-size:9px;color:var(--text-muted)">&#8594; ${esc(d.assignee)}</span>`:'';
-    html+=`<div class="fu-card" id="fu-${esc(d.id)}" onclick="if(!event.target.closest('.fu-card-actions'))window.open('${draftUrl(d.id)}','_blank')">
+    html+=`<div class="fu-card" id="fu-${esc(d.id)}" onclick="if(!event.target.closest('.fu-card-actions'))window.open('${draftUrl(d.msgId||d.id)}','_blank')">
       <div class="fu-card-top">
         <span class="fu-card-badge ${d.catBadge}">${d.catLabel}</span>
         ${brandBadge}${stageBadge}${assigneeBadge}
@@ -8803,7 +8804,7 @@ function renderFuGroup(cat,items,meta){
         <span class="fu-card-to">To: ${toDisplay}</span>
       </div>
       <div class="fu-card-actions">
-        <a href="${draftUrl(d.id)}" target="_blank">Open in Gmail</a>
+        <a href="${draftUrl(d.msgId||d.id)}" target="_blank">Open in Gmail</a>
         <button onclick="event.stopPropagation();toggleFuPreview('${escAttr(d.id)}')">Preview</button>
         <button onclick="event.stopPropagation();markFuSent('${escAttr(d.id)}',this)" style="color:#34d399;border-color:rgba(52,211,153,0.3)">Mark Sent</button>
       </div>
