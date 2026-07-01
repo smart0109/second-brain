@@ -3371,7 +3371,7 @@ async function loadRecentExecChanges(){
       <div style="border:1px solid var(--border,rgba(15,23,42,0.08));border-radius:10px;padding:10px 12px;background:var(--bg-elevated,#fff)">
         <div style="font-size:12px;color:var(--text-primary,#0f172a);line-height:1.5">${esc(e.memory)}</div>
         <div style="font-size:10px;color:var(--text-muted,#334155);margin-top:4px">${esc(e.source||'')} · ${esc(e.date||'')}
-          <a href="#" onclick="switchView('aisync');return false" style="margin-left:8px;color:var(--accent-text,#1d4ed8)">Manage in AI Sync →</a>
+          <a href="#" onclick="switchView(\x27aisync\x27);return false" style="margin-left:8px;color:var(--accent-text,#1d4ed8)">Manage in AI Sync →</a>
         </div>
       </div>`).join('')+'</div>';
     return; // skip old Gmail parsing
@@ -5383,15 +5383,30 @@ async function runIntelSearch(){
     const _kbStr=_p.kb||getKnowledgeString();
     const _sys=_p.systemPrompt;
     try{
-      const _ans=await ask(
-        _sys+'\n\nAnswer the following question. Use the Company KB below as your primary source for technical details. For anything not in the KB (leadership, financials, history, general facts), use your own training knowledge — do NOT say the information is unavailable. Format with short paragraphs or bullet points. Never reference "the provided data" or "email threads".\n\nQuestion: "'+q+'"\n\nCompany KB:\n'+_kbStr,
-        []
-      );
+      // Fetch web news for the question in parallel with KB lookup
+      const _newsR=await fetch('/api/news?topic='+encodeURIComponent('Arista Networks '+q)+'&limit=6',{credentials:'same-origin'}).catch(()=>null);
+      const _newsData=_newsR&&_newsR.ok?await _newsR.json():{items:[]};
+      const _newsItems=(_newsData.items||[]);
+      const _newsStr=_newsItems.length
+        ?'RECENT WEB NEWS:\n'+_newsItems.map(n=>'- '+n.title+(n.source?' ('+n.source+')':'')).join('\n')
+        :'';
+      const _prompt=_sys+'\n\nAnswer the following question about Arista Networks. Use the Company KB as your primary technical source. Supplement with the Recent Web News and your own training knowledge for anything not in the KB (leadership, financials, history, product announcements). Never say information is unavailable. Be specific with names, numbers, and dates. Format with short paragraphs or bullet points.\n\nQuestion: "'+q+'"'+(_newsStr?'\n\n'+_newsStr:'');
+      const _ans=await ask(_prompt,[]);
+      // Push Q&A to AI Sync for user review/promotion to permanent memory
+      if(_ans&&_ans.length>50){
+        fetch('/api/ai-sync/pending',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+          body:JSON.stringify({category:'product_knowledge',source:'Intel tab — '+new Date().toLocaleDateString(),
+            content:'Q: '+q+'\n\nA: '+_ans.slice(0,1500),suggestedMemory:_ans.slice(0,400),brand:'arista',date:new Date().toISOString().slice(0,10)})
+        }).catch(()=>{});
+      }
+      const _srcBadges='<span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:2px 6px;border-radius:3px">KB</span>'
+        +(_newsItems.length?'<span style="background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 6px;border-radius:3px">Web ('+_newsItems.length+')</span>':'')
+        +'<span style="background:rgba(167,139,250,0.15);color:#a78bfa;padding:2px 6px;border-radius:3px">LLM</span>';
       el.innerHTML='<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">'+renderMarkdown(typeof _ans==='string'?_ans:JSON.stringify(_ans))+'</div>'
-        +'<div style="padding:6px 14px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border)">⚡ Answered from '+esc(_p.label||currentIntelCompany)+' Knowledge Base</div>';
-      srcEl.innerHTML='<div style="font-size:10px;color:#334155;display:flex;gap:8px"><span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:2px 6px;border-radius:3px">KB Only</span></div>';
+        +'<div style="padding:6px 14px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border)">⚡ Answer saved to AI Sync — check AI Sync tab to approve</div>';
+      srcEl.innerHTML='<div style="font-size:10px;color:#334155;display:flex;gap:8px">'+_srcBadges+'</div>';
     }catch(e){
-      el.innerHTML='<div class="empty-state">KB lookup failed: '+esc(e.message)+'</div>';
+      el.innerHTML='<div class="empty-state">Intel lookup failed: '+esc(e.message)+'</div>';
     }
     return;
   }
