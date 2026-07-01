@@ -969,6 +969,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         </div>
 
         <div>
+          <!-- Company selector for coaching context -->
+          <div id="coachCompanyBar" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+            <span style="font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-right:2px">Context:</span>
+            <button class="coach-co-btn active" data-co="auto" onclick="setCoachBrand('auto')" style="padding:3px 8px;border-radius:10px;border:1px solid var(--border);background:var(--accent);color:#0a0e17;font-size:9px;font-weight:700;cursor:pointer">Auto</button>
+            <button class="coach-co-btn" data-co="cadient" onclick="setCoachBrand('cadient')" style="padding:3px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:9px;font-weight:600;cursor:pointer">Cadient</button>
+            <button class="coach-co-btn" data-co="vorro" onclick="setCoachBrand('vorro')" style="padding:3px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:9px;font-weight:600;cursor:pointer">Vorro</button>
+            <button class="coach-co-btn" data-co="cv3" onclick="setCoachBrand('cv3')" style="padding:3px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:9px;font-weight:600;cursor:pointer">CV3</button>
+            <button class="coach-co-btn" data-co="revengineer" onclick="setCoachBrand('revengineer')" style="padding:3px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:9px;font-weight:600;cursor:pointer">RevEng</button>
+            <button class="coach-co-btn" data-co="arista" onclick="setCoachBrand('arista')" style="padding:3px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:9px;font-weight:600;cursor:pointer">Arista</button>
+          </div>
           <div class="copilot-actions-bar">
             <div class="copilot-action-btn explain" onclick="copilotAction('explain')">
               <div class="cab-icon">&#128161;</div>
@@ -4568,7 +4578,7 @@ function parseMeetings(raw){
 
 function renderGranolaMeetings(raw,targetId){
   const el=document.getElementById(targetId);const ms=parseMeetings(raw);
-  if(!ms.length){el.innerHTML='<div class="empty-state">No meetings</div>';return}
+  if(!ms.length){el.innerHTML='<div class="empty-state" style="font-size:11px;color:var(--text-muted);padding:12px">No Granola notes found. Open the <a href="https://granola.ai" target="_blank" style="color:var(--blue)">Granola app</a>, record a meeting, and refresh this tab.</div>';return}
   el.innerHTML=ms.map((m,i)=>{
     const ppl=m.parts.split(',').map(p=>p.trim().split(' from ')[0].split('<')[0].trim()).filter(Boolean).slice(0,4);
     const emails=(m.parts.match(/[\w.-]+@[\w.-]+\.\w+/g)||[]);
@@ -5537,19 +5547,83 @@ const KNOWLEDGE_BASE = {
     pricing: '$20K-$90K+/year plus per-connection fees',
     standards: 'FHIR, HL7, EDI X12, NCPDP, C-CDA',
     objectionHandlers: {
-      'too expensive': 'Our clients typically see 52% reduction in integration costs. One consolidated 47 tools into BridgeGate alone, saving $2.3M annually. At $20K-$90K/year, the payback period is typically 4-6 months.',
-      'already have integration': 'How many point-to-point integrations are you maintaining? Most health systems have 15-30 separate integration tools. BridgeGate consolidates them into one platform with unified monitoring, auto-healing, and compliance.',
-      'hipaa concerns': 'BridgeGate is fully HIPAA compliant with automated audit trails, encryption at rest and in transit, and SOC 2 Type II certification. We handle more sensitive healthcare data daily than most competitors handle in a year.',
-      'implementation time': 'Average implementation is 6 weeks for core integrations. We support self-managed, hybrid, and fully managed deployment options. Our team handles the heavy lifting.',
-      'competitor': 'Unlike generic iPaaS platforms (MuleSoft, Boomi), BridgeGate was built FROM DAY ONE for healthcare. Native FHIR/HL7/EDI support, healthcare-specific monitoring, and compliance are not add-ons, they are the foundation.'
+      'too expensive': 'Clients see 52% integration cost reduction. One client consolidated 47 tools into BridgeGate, saving $2.3M/year. At $20K-$90K/year payback is 4-6 months.',
+      'already have integration': 'How many point-to-point integrations are you maintaining? Most health systems have 15-30 separate tools. BridgeGate consolidates into one with unified monitoring, auto-healing, and compliance.',
+      'hipaa concerns': 'BridgeGate is fully HIPAA compliant with automated audit trails, encryption at rest/transit, SOC 2 Type II. We handle more sensitive healthcare data daily than most competitors in a year.',
+      'implementation time': 'Average 6 weeks for core integrations. Self-managed, hybrid, or fully managed options available.',
+      'competitor': 'Unlike MuleSoft/Boomi (generic iPaaS), BridgeGate was built from day one for healthcare. Native FHIR/HL7/EDI, healthcare monitoring, and compliance are the foundation — not add-ons.'
+    }
+  },
+  cv3: {
+    company: 'CommerceV3 (CV3)',
+    product: 'Headless B2B + DTC ecommerce platform — commercev3.com',
+    tools: [
+      'B2B catalog engine: customer-specific pricing, matrix SKUs, account hierarchy',
+      'DTC storefront: headless, fully custom frontend',
+      'ERP integrations: NetSuite, SAP, Epicor, Dynamics 365, Sage',
+      'PIM: Akeneo, Salsify connectors',
+      'Tax/shipping: Avalara, ShipBob, FedEx/UPS'
+    ],
+    metrics: 'B2B-native for 15+ years; implementation 60-90 days; ERP sync real-time',
+    pricing: 'Enterprise SaaS, contact for pricing',
+    industries: 'B2B manufacturers, distributors, DTC brands',
+    objectionHandlers: {
+      'shopify plus': 'Shopify Plus B2B lacks true matrix pricing (size×color×customer tier), no parent/child account hierarchy, and ERP sync needs expensive apps. CV3 handles complex B2B natively. If you have >3 customer price levels, Shopify Plus needs $50K+ in custom apps.',
+      'magento': 'Adobe Commerce requires $200-500K agency implementation, 6-12 months, and expensive cloud migration. CV3 is fully managed SaaS — 60-90 days, no infrastructure team.',
+      'bigcommerce': 'BigCommerce B2B Edition is an acquisition (BundleB2B) bolted on — limited matrix pricing. CV3 has deeper ERP integrations and was built B2B-first.',
+      'too expensive': 'Calculate TCO: Magento implementation ($300K+) vs CV3 managed SaaS. Factor in your team hours maintaining custom integrations.',
+      'competitor': 'CV3 is B2B-native for 15+ years — not a DTC platform with B2B features bolted on. One platform for both wholesale and direct-to-consumer.'
+    }
+  },
+  revengineer: {
+    company: 'RevEngineer',
+    product: 'B2B revenue intelligence and GTM engine — RevEngineer.ai (NOT ecommerce)',
+    tools: [
+      'Signal intelligence: website deanonymization, G2/Capterra spikes, job posting signals',
+      'ICP scoring: account intent score, buying stage classification',
+      'GTM automation: signal-to-CRM routing, personalized sequences',
+      'Analytics: pipeline acceleration, SDR efficiency metrics'
+    ],
+    metrics: '40-60% MQL-to-SQL conversion lift; 25-35% shorter sales cycle; 30-50% less SDR outreach needed',
+    pricing: '60-70% cheaper than 6sense; deploys in 2-3 weeks',
+    industries: 'B2B SaaS, tech vendors, $20M-$200M ARR',
+    objectionHandlers: {
+      '6sense': '6sense takes 3-6 months to implement, costs $150K+ ARR, needs dedicated ops. RevEngineer deploys in 2-3 weeks, costs 60% less, UI your SDRs will actually use. For mid-market, 6sense is over-engineered.',
+      'demandbase': 'Demandbase is advertising + ABM — requires paid media budget. RevEngineer is sales-first: signals route to CRM and SDR sequences, no ad spend required. Demandbase TCO is 2-3x when you include media.',
+      'zoominfo': 'ZoomInfo Intent is Bombora data relabeled — 3rd-party content consumption only. RevEngineer has 12+ signal types including 1st-party website deanonymization and technographic changes. They complement, not compete.',
+      'too expensive': 'If RevEngineer triples SDR conversion rate, you need 1/3 the outreach volume. That is headcount ROI. Typical payback: 3-6 months.',
+      'competitor': 'RevEngineer has 12+ signal types vs competitors who track 2-3. Website deanonymization (1st party) + job posting signals are uniquely predictive of near-term buying intent.'
+    }
+  },
+  arista: {
+    company: 'Arista Networks',
+    product: 'EOS (Extensible OS), CloudVision (AI NetOps), Etherlink AI networking',
+    tools: [
+      'EOS: single-binary network OS, Sysdb state architecture, ISSU hot-restart',
+      'CloudVision: AI-driven NetOps, intent-based, per-second telemetry',
+      'Etherlink: AI fabric for GPU clusters, Ultra Ethernet, 800GbE',
+      'AVD: Ansible Validated Design for full fabric automation',
+      'ANTA: automated network testing framework'
+    ],
+    metrics: '8 of top 10 hyperscalers; zero planned downtime via ISSU; per-second vs 5-min telemetry polling',
+    pricing: 'Enterprise/hyperscale pricing, contact Arista',
+    industries: 'Data centers, AI/ML clusters, enterprise networking',
+    objectionHandlers: {
+      'cisco': 'EOS single binary = zero planned downtime (ISSU). Cisco IOS XE needs maintenance windows. CloudVision gives per-second telemetry vs Cisco 5-min polling. Arista is in production at 8 of top 10 hyperscalers.',
+      'juniper': 'EOS has better open telemetry (gRPC/gNMI out-of-box), AVD gives full automation faster than Juniper Apstra. Stronger hyperscaler endorsements. Juniper has better SP/WAN story; Arista wins data center head-to-head.',
+      'nvidia infiniband': 'Etherlink uses standard Ethernet (Ultra Ethernet) — no proprietary HCA/switch lock-in, lower cost, IT teams already know Ethernet ops. InfiniBand requires specialized admins.',
+      'too expensive': 'Calculate the cost of planned maintenance windows. One outage at a hyperscaler is worth millions. ISSU eliminates that risk entirely. CloudVision per-second telemetry catches issues before they become outages.',
+      'competitor': 'Arista EOS is a single binary — one OS for all hardware. Competitors use modular OS with multiple processes and inter-process communication failures. Simpler = more reliable at scale.'
     }
   }
 };
 
 function getKnowledgeString(){
-  return `CADIENT TALENT: ${KNOWLEDGE_BASE.cadient.product}. Key metrics: ${KNOWLEDGE_BASE.cadient.metrics}. Industries: ${KNOWLEDGE_BASE.cadient.industries}. Tools: ${KNOWLEDGE_BASE.cadient.tools.join('; ')}.
-
-VORRO HEALTHCARE: ${KNOWLEDGE_BASE.vorro.product}. Key metrics: ${KNOWLEDGE_BASE.vorro.metrics}. Standards: ${KNOWLEDGE_BASE.vorro.standards}. Pricing: ${KNOWLEDGE_BASE.vorro.pricing}. Tools: ${KNOWLEDGE_BASE.vorro.tools.join('; ')}.`;
+  const brand=detectBrandFromContext();
+  const kb=KNOWLEDGE_BASE[brand];
+  if(!kb)return 'No company knowledge base found.';
+  const objections=Object.entries(kb.objectionHandlers||{}).map(([k,v])=>`- "${k}" objection: ${v}`).join('\n');
+  return `COMPANY: ${kb.company}\nPRODUCT: ${kb.product}\nMETRICS: ${kb.metrics||''}\nTOOLS: ${(kb.tools||[]).join('; ')}\nPRICING: ${kb.pricing||''}\nINDUSTRIES: ${kb.industries||kb.standards||''}\n\nKEY OBJECTION HANDLERS:\n${objections}`;
 }
 
 // ── Live Transcription (Deepgram streaming, browser-speech fallback) ──
@@ -6003,10 +6077,24 @@ async function generateAutoRebuttal(text,objType,brand){
   }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
 
+let _coachBrand='auto'; // 'auto' | 'cadient' | 'vorro' | 'cv3' | 'revengineer' | 'arista'
+function setCoachBrand(brand){
+  _coachBrand=brand;
+  document.querySelectorAll('.coach-co-btn').forEach(b=>{
+    const isActive=b.dataset.co===brand;
+    b.style.background=isActive?'var(--accent)':'transparent';
+    b.style.color=isActive?'#0a0e17':'var(--text-muted)';
+    b.style.border=isActive?'1px solid var(--accent)':'1px solid var(--border)';
+  });
+}
 function detectBrandFromContext(){
+  if(_coachBrand&&_coachBrand!=='auto')return _coachBrand;
   const allText=(copilotMeetingContext+' '+getFullTranscript()).toLowerCase();
-  if(/fhir|hl7|ehr|epic|cerner|integration|healthcare|hipaa|claims|medicaid|interop/.test(allText))return 'vorro';
-  return 'cadient';
+  if(/fhir|hl7|ehr|epic|cerner|healthcare|hipaa|claims|medicaid|interop|bridgegate|vorro/.test(allText))return 'vorro';
+  if(/ecommerce|shopify|magento|bigcommerce|b2b|dtc|catalog|sku|commercev3|cv3/.test(allText))return 'cv3';
+  if(/revenue intelligence|intent data|6sense|demandbase|gtm engine|revengine|buying signal/.test(allText))return 'revengineer';
+  if(/arista|cloudvision|eos|etherlink|evpn|vxlan|datacenter|networking|cisco|juniper|spine.leaf/.test(allText))return 'arista';
+  return 'cadient'; // default for HR/ATS/hiring context
 }
 
 // ── Action Buttons ──
@@ -6150,13 +6238,19 @@ function renderCopilotResponse(type,text){
   const body=document.getElementById('copilotResponseBody');
 
   if(type==='tone'){
-    // Parse tone and show pills
-    const toneMatch=text.match(/(interested|skeptical|hostile|engaged|confused|excited|neutral|positive|negative|curious|cautious|warm|defensive)/gi);
-    const tones=(toneMatch||['neutral']).slice(0,3);
-    const toneClasses={interested:'positive',engaged:'positive',excited:'positive',warm:'positive',positive:'positive',
-      skeptical:'neutral',confused:'neutral',cautious:'neutral',neutral:'neutral',
-      hostile:'negative',defensive:'negative',negative:'negative',curious:'curious'};
-    body.innerHTML=`<div class="copilot-tone-bar">${tones.map(t=>`<span class="copilot-tone-pill tone-${toneClasses[t.toLowerCase()]||'neutral'}">${esc(t)}</span>`).join('')}</div>`+_cleanBullets(text);
+    // Parse tone: extract words from first bullet (AI always leads with "Tone: X, Y")
+    const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+    const firstBullet=(lines[0]||'').replace(/^[-*•]\s*/,'');
+    const toneRegex=/(interested|skeptical|hostile|engaged|confused|excited|neutral|positive|negative|curious|cautious|warm|defensive|chaotic|distracted|frustrated|anxious|urgent|tense|relaxed|enthusiastic|disengaged|rushed|hectic|calm|focused|agitated|impatient|uncertain|dismissive|receptive|professional|casual|formal|informal|nervous|confident|friendly|cold|supportive|resistant|evasive|direct|guarded)/gi;
+    const firstMatch=firstBullet.match(toneRegex)||text.match(toneRegex);
+    const tones=(firstMatch||['neutral']).filter((v,i,a)=>a.findIndex(x=>x.toLowerCase()===v.toLowerCase())===i).slice(0,3);
+    const toneClasses={
+      interested:'positive',engaged:'positive',excited:'positive',warm:'positive',positive:'positive',enthusiastic:'positive',receptive:'positive',focused:'positive',calm:'positive',confident:'positive',friendly:'positive',supportive:'positive',professional:'positive',direct:'positive',
+      skeptical:'neutral',confused:'neutral',cautious:'neutral',neutral:'neutral',uncertain:'neutral',relaxed:'neutral',casual:'neutral',formal:'neutral',informal:'neutral',
+      hostile:'negative',defensive:'negative',negative:'negative',chaotic:'negative',distracted:'negative',frustrated:'negative',agitated:'negative',anxious:'negative',tense:'negative',hectic:'negative',rushed:'negative',impatient:'negative',dismissive:'negative',disengaged:'negative',cold:'negative',resistant:'negative',evasive:'negative',guarded:'negative',nervous:'negative',
+      curious:'curious'
+    };
+    body.innerHTML=`<div class="copilot-tone-bar">${tones.map(t=>`<span class="copilot-tone-pill tone-${toneClasses[t.toLowerCase()]||'neutral'}">${esc(t.charAt(0).toUpperCase()+t.slice(1).toLowerCase())}</span>`).join('')}</div>`+_cleanBullets(text);
   } else {
     body.innerHTML=_cleanBullets(text);
   }
@@ -6763,7 +6857,8 @@ async function ask(p,d,opts){
   }
   // Fallback to server API
   try{
-    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[],fast:true})});
+    const _brand=typeof detectBrandFromContext==='function'?detectBrandFromContext():'cadient';
+    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[],fast:true,company:_brand})});
     if(!res.ok){
       const errText=await res.text().catch(()=>'');
       throw new Error('HTTP '+res.status+(errText?' '+errText:''));
@@ -9570,6 +9665,8 @@ window.setIntelCompany = setIntelCompany;
 window.showIntelKb = showIntelKb;
 window.addIntelKbNote = addIntelKbNote;
 window.runIntelSearch = runIntelSearch;
+window.runCompanyProspect = runCompanyProspect;
+window.setCoachBrand = setCoachBrand;
 
 </script>
 </body>

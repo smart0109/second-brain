@@ -1564,18 +1564,28 @@ async function askGemini(systemPrompt, userContent, maxTokens) {
 async function askGroq(systemPrompt, userContent, maxTokens) {
   const key = process.env.GROQ_API_KEY;
   if (!key) return null;
-  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
-      max_tokens: maxTokens, temperature: 0.3
-    }),
-  });
-  if (!resp.ok) { const t = await resp.text(); throw new Error(`Groq ${resp.status}: ${t.slice(0,200)}`); }
-  const r = await resp.json();
-  return r.choices?.[0]?.message?.content || '';
+  // Try models in order: 70b first (best), then 8b (fastest), then qwen3
+  const models = ['llama-3.3-70b-versatile','llama-3.1-8b-instant','qwen/qwen3-32b'];
+  let lastErr = null;
+  for (const model of models) {
+    try {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
+          max_tokens: maxTokens, temperature: 0.3
+        }),
+      });
+      if (!resp.ok) { const t = await resp.text(); lastErr = new Error(`Groq/${model} ${resp.status}: ${t.slice(0,160)}`); continue; }
+      const r = await resp.json();
+      const txt = r.choices?.[0]?.message?.content || '';
+      if (txt) { console.log(`Groq served by model: ${model}`); return txt; }
+    } catch(e) { lastErr = e; }
+  }
+  if (lastErr) throw lastErr;
+  return '';
 }
 
 async function askAnthropic(systemPrompt, userContent, maxTokens) {
@@ -1610,13 +1620,22 @@ app.post('/api/ask', requireAuth, async (req, res) => {
   }
 
   const maxTokens = 512;
-  const systemPrompt = 'You are a real-time sales meeting intelligence assistant for a CRO named Manish. He manages two companies: Cadient (AI-powered talent/HR platform with SmartSuite) and Vorro (healthcare integration platform with BridgeGate EiPaaS). Be direct, data-driven, and actionable. Never generic. Always reference specifics from the conversation. Keep responses concise and immediately usable in a live meeting context.';
+  const { company } = req.body;
+  const companyContext = {
+    cadient: 'FOCUS: Cadient Talent — SmartSuite ATS platform. Products: SmartSource (sourcing), SmartMatch (AI matching), SmartScreen (screening), SmartHire (AI optimization). Key metrics: 60% faster hiring, 45% lower cost-per-hire, 80% recruiter productivity lift. Main competitors: Greenhouse, iCIMS, Workday Recruiting, Lever.',
+    vorro: 'FOCUS: Vorro — BridgeGate EiPaaS for healthcare integration. Standards: FHIR R4, HL7 v2/v3, EDI X12, TPL, prior auth. Key metrics: 52% integration cost reduction, 100+ enterprises, 10M daily transactions. Main competitors: Rhapsody/Lyniate, Mirth Connect, MuleSoft, Azure Health.',
+    cv3: 'FOCUS: CommerceV3 (CV3) — headless B2B+DTC ecommerce platform at commercev3.com. Key features: customer-specific pricing, complex B2B catalogs, ERP integrations (NetSuite, SAP, Epicor). Main competitors: Shopify Plus, Magento/Adobe Commerce, BigCommerce.',
+    revengineer: 'FOCUS: RevEngineer.ai — B2B revenue intelligence and GTM engine (NOT ecommerce). Features: buying signal aggregation, intent data, ICP scoring, pipeline acceleration. Main competitors: 6sense, Demandbase, ZoomInfo Intent.',
+    arista: 'FOCUS: Arista Networks — EOS (Extensible OS), CloudVision (AI NetOps), Etherlink AI networking. Key: single-binary EOS, Sysdb architecture, ISSU (zero planned downtime), per-second telemetry. Main competitors: Cisco, Juniper, NVIDIA InfiniBand.'
+  };
+  const companyFocus = companyContext[company] || 'Manish manages 5 companies: Cadient (HR/ATS), Vorro (healthcare integration), CV3 (ecommerce), RevEngineer (GTM intelligence), Arista (networking).';
+  const systemPrompt = `You are Manish's real-time meeting intelligence assistant. Manish is CRO at Basis Vectors Capital. ${companyFocus} Be direct, data-driven, cite specific metrics. Never generic. Concise — immediately usable in a live meeting. 3-5 bullets max.`;
 
-  // Try providers in order: Gemini (free) → Groq (free) → Anthropic (paid)
+  // Provider order: Groq (free, fast, confirmed working) → Anthropic (paid, reliable) → Gemini (free but credits may be depleted)
   const providers = [
-    { name: 'Gemini', fn: () => askGemini(systemPrompt, userContent, maxTokens) },
     { name: 'Groq', fn: () => askGroq(systemPrompt, userContent, maxTokens) },
     { name: 'Anthropic', fn: () => askAnthropic(systemPrompt, userContent, maxTokens) },
+    { name: 'Gemini', fn: () => askGemini(systemPrompt, userContent, maxTokens) },
   ];
 
   for (const p of providers) {
