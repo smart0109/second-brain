@@ -821,55 +821,37 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     </div>
 
     <!-- INTELLIGENCE -->
-    <div id="view-intelligence" class="view">
+        <div id="view-intelligence" class="view">
 
-      <!-- Company Prospecting Section -->
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-header">
-          <h3 style="display:flex;align-items:center;gap:8px"><span style="font-size:15px">&#x1F50D;</span> Company Prospecting</h3>
-        </div>
-        <div class="card-body" id="prospectBody" style="padding:14px">
-          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-            <input id="prospectCompany" type="text" placeholder="Company name (e.g. Geisinger Health)" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key==='Enter')runCompanyProspect()">
-            <input id="prospectDomain" type="text" placeholder="Website / domain (optional)" style="flex:0.6;min-width:140px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key==='Enter')runCompanyProspect()">
-            <button onclick="runCompanyProspect()" style="padding:10px 18px;background:var(--accent);color:#0a0e17;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s" onmouseover="this.style.background='var(--accent-text)'" onmouseout="this.style.background='var(--accent)'">Find Decision Makers</button>
-          </div>
-          <div id="prospectResults" style="min-height:40px"><div style="font-size:12px;color:var(--text-muted);padding:8px 0">Enter a company name to find decision makers in your CRM and generate prospecting suggestions.</div></div>
-        </div>
-      </div>
-
-            <!-- Company selector -->
-      <div id="intelCompanyBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
+      <!-- Company selector bar -->
+      <div id="intelCompanyBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
         <span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-right:4px">Company</span>
-        <button class="intel-company-btn" data-co="all" onclick="setIntelCompany('all')">All</button>
-        <button class="intel-company-btn" data-co="arista" onclick="setIntelCompany('arista')">Arista</button>
+        <button class="intel-company-btn active" data-co="arista" onclick="setIntelCompany('arista')">Arista</button>
         <button class="intel-company-btn" data-co="cadient" onclick="setIntelCompany('cadient')">Cadient</button>
         <button class="intel-company-btn" data-co="vorro" onclick="setIntelCompany('vorro')">Vorro</button>
         <button class="intel-company-btn" data-co="cv3" onclick="setIntelCompany('cv3')">CV3</button>
         <button class="intel-company-btn" data-co="revengineer" onclick="setIntelCompany('revengineer')">RevEngineer</button>
+        <button class="intel-company-btn" data-co="all" onclick="setIntelCompany('all')">All</button>
         <button onclick="showIntelKb(currentIntelCompany)" style="margin-left:auto;padding:4px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:10px;cursor:pointer">Edit KB</button>
       </div>
-      <div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>
-      <div id="intelModeRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
 
-      <!-- Existing Intelligence Search -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-        <input id="intelSearchInput" type="text" placeholder="Ask anything across email, CRM, meetings, and deals..." style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;outline:none" onkeydown="if(event.key==='Enter')runIntelSearch()">
-        <button onclick="runIntelSearch()" style="padding:10px 18px;background:#c9a227;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Search</button>
-      </div>
-      <div id="intelQuickBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-        <button class="prod-btn" onclick="document.getElementById('intelSearchInput').value='What are the open action items from this week?';runIntelSearch()">Action Items</button>
-        <button class="prod-btn" onclick="document.getElementById('intelSearchInput').value='What key decisions were made in meetings this week?';runIntelSearch()">Decisions</button>
-        <button class="prod-btn" onclick="document.getElementById('intelSearchInput').value='Weekly summary of all meetings and themes';runIntelSearch()">Weekly Summary</button>
-        <button class="prod-btn" onclick="document.getElementById('intelSearchInput').value='What deals need follow-up this week?';runIntelSearch()">Deal Follow-ups</button>
-        <button class="prod-btn" onclick="document.getElementById('intelSearchInput').value='Who have I not responded to in the last 5 days?';runIntelSearch()">Unanswered</button>
-      </div>
-      <div class="card"><div class="card-body" id="intelResults" style="min-height:200px"><div class="empty-state">Ask a question to search across all your data sources — emails, CRM, meetings, deals, and files.</div></div></div>
-      <div id="intelSources" style="margin-top:8px"></div>
-      <div id="intelKbAdd" style="display:none;margin-top:8px;display:flex;gap:6px">
-        <input id="intelKbInput" type="text" placeholder="Add a note to this company's KB..." style="flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
-        <button onclick="addIntelKbNote()" style="padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">Add</button>
-      </div>
+      <!-- Dynamic panel rendered by renderIntelPanel() -->
+      <div id="intelMainPanel"></div>
+
+      <!-- Company Prospecting (collapsible, at bottom) -->
+      <details style="margin-top:16px">
+        <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;padding:8px 0;user-select:none">Find Decision Makers</summary>
+        <div class="card" style="margin-top:8px">
+          <div class="card-body" id="prospectBody" style="padding:14px">
+            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+              <input id="prospectCompany" type="text" placeholder="Company name (e.g. Geisinger Health)" style="flex:1;min-width:180px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key==='Enter')runCompanyProspect()">
+              <input id="prospectDomain" type="text" placeholder="Website / domain (optional)" style="flex:0.6;min-width:140px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key==='Enter')runCompanyProspect()">
+              <button onclick="runCompanyProspect()" style="padding:10px 18px;background:var(--accent);color:#0a0e17;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Find Decision Makers</button>
+            </div>
+            <div id="prospectResults" style="min-height:40px"><div style="font-size:12px;color:var(--text-muted);padding:8px 0">Enter a company name to find decision makers.</div></div>
+          </div>
+        </div>
+      </details>
     </div>
 
     
@@ -5151,6 +5133,319 @@ CRITICAL: Use ALL the context data provided below. Reference specific names, dat
 }
 
 // ══════════════════════════════════════
+
+// ── Intelligence Panel Data ──────────────────────────────────────────────────
+const INTEL_PANELS = {
+  arista: {
+    color: '#818cf8',
+    tagline: 'Data-center networking, AI fabric & CloudVision NetOps',
+    metrics: ['$7.7B Revenue (2024)', '35%+ YoY Growth', 'Gartner MQ Leader', '10K+ Customers'],
+    topics: [
+      {icon:'EOS', title:'EOS Architecture', color:'#818cf8', q:'How does Arista EOS single-binary architecture work? What is Sysdb?'},
+      {icon:'CV', title:'CloudVision', color:'#60a5fa', q:'What is CloudVision and how does it differ from traditional network management systems like Cisco DNA?'},
+      {icon:'AI', title:'AI Networking', color:'#a78bfa', q:'What is Arista Etherlink and Ultra Ethernet Consortium for AI/ML workloads?'},
+      {icon:'0↓', title:'Zero Downtime ISSU', color:'#34d399', q:'How does Arista ISSU achieve zero planned downtime upgrades?'},
+      {icon:'AVD', title:'Automation & AVD', color:'#fbbf24', q:'What is Arista Validated Design (AVD) and ANTA network testing framework?'},
+      {icon:'vs', title:'vs Cisco Nexus', color:'#f87171', q:'How does Arista beat Cisco Nexus and Catalyst in the data center? Key differentiators and TCO?'},
+      {icon:'$', title:'Pricing & TCO', color:'#fb923c', q:'How is Arista priced vs Cisco? What is the typical TCO advantage?'},
+      {icon:'🔒', title:'Security & Compliance', color:'#22d3ee', q:'What are Arista security features — Macro-Segmentation, CloudVision Compliance?'},
+    ],
+    faqs: [
+      'Who is the CEO and key leadership of Arista Networks?',
+      'What were Arista latest quarterly earnings and revenue growth?',
+      'What is the difference between EOS and NX-OS or IOS-XE?',
+      'How does Arista CloudVision compare to Cisco DNA Center?',
+      'What is Arista market share in the 400G data center switch market?',
+      'Does Arista support VXLAN, BGP EVPN, and segment routing?',
+      'What are the main reasons customers switch from Cisco to Arista?',
+    ],
+    battlecards: [
+      {name:'Cisco', color:'#ef4444',
+       wins:['Single-binary EOS vs fragmented IOS-XE/NX-OS','40% lower TCO (Gartner)','True ISSU zero downtime — Cisco requires maintenance windows','CloudVision AI NetOps vs manual CLI','Open APIs standard on every port'],
+       losses:['Cisco brand dominance in enterprise','Full-stack SD-WAN + SASE suite','Stronger campus/branch presence','Larger reseller channel']},
+      {name:'Juniper', color:'#f97316',
+       wins:['Stronger hyperscaler/cloud footprint','CloudVision DC-specific vs Juniper Mist AI (campus-focused)','Larger data center installed base','More mature EVPN-VXLAN implementations'],
+       losses:['Juniper AI-driven Mist campus story','Branch and WAN networking','SASE integration']},
+      {name:'NVIDIA InfiniBand', color:'#22c55e',
+       wins:['Ethernet-native — no protocol conversion needed','Lower cost for AI fabric (30-50% cheaper)','Interoperability with standard NICs and servers','CloudVision monitoring included'],
+       losses:['Raw AI latency (IB ~0.6μs vs UEC ~1μs)','GPU-direct RDMA optimization','Dominant in HPC and AI training clusters today']},
+    ]
+  },
+  cadient: {
+    color: '#f472b6',
+    tagline: 'AI-powered talent acquisition & ATS optimization',
+    metrics: ['60% Faster Hiring', '45% Lower Cost-per-Hire', '80% Recruiter Productivity', 'High-Volume Specialist'],
+    topics: [
+      {icon:'SS', title:'SmartSuite Platform', color:'#f472b6', q:'What is Cadient SmartSuite and how does the end-to-end ATS work?'},
+      {icon:'SH', title:'SmartHire AI', color:'#e879f9', q:'How does SmartHire AI optimization work for high-volume hiring?'},
+      {icon:'src', title:'SmartSource', color:'#a78bfa', q:'What is SmartSource and how does candidate sourcing work in Cadient?'},
+      {icon:'sc', title:'SmartScreen', color:'#60a5fa', q:'How does SmartScreen AI screening and bias-free scoring work?'},
+      {icon:'vs', title:'vs iCIMS', color:'#f87171', q:'How does Cadient SmartSuite beat iCIMS? Key differentiators for high-volume hiring?'},
+      {icon:'vs', title:'vs Greenhouse', color:'#fb923c', q:'Cadient vs Greenhouse — why do high-volume employers choose Cadient?'},
+      {icon:'ROI', title:'ROI Calculator', color:'#34d399', q:'What is the typical ROI and payback period for Cadient SmartSuite implementation?'},
+      {icon:'⚡', title:'Open Positions', color:'#fbbf24', q:'What are the top open positions at our Cadient prospects this week?'},
+    ],
+    faqs: [
+      'What is the implementation timeline for Cadient SmartSuite?',
+      'How does Cadient handle high-volume hourly hiring vs professional hiring?',
+      'What ATS integrations does Cadient support (HRIS, payroll, background)?',
+      'What is the pricing model for Cadient SmartSuite?',
+      'How does Cadient AI screening reduce bias vs legacy ATS?',
+      'What are the top win stories and customer case studies for Cadient?',
+    ],
+    battlecards: [
+      {name:'iCIMS', color:'#ef4444',
+       wins:['Purpose-built for high-volume/hourly hiring','AI scoring without bias risk','60% faster time-to-fill (proven)','Lower per-hire cost at scale'],
+       losses:['iCIMS has 4,000+ integrations marketplace','Stronger professional hiring workflow','Larger enterprise brand recognition']},
+      {name:'Greenhouse', color:'#f97316',
+       wins:['High-volume at a fraction of Greenhouse cost','AI-powered screening included standard','Better hourly worker workflows','Faster implementation (6-8 weeks vs 3-6 months)'],
+       losses:['Greenhouse UX rated higher by recruiters','500+ native integrations','Strong structured interview tooling']},
+      {name:'Workday Recruiting', color:'#a78bfa',
+       wins:['Specialized ATS beats bolt-on module','10x faster for hourly/frontline roles','No HCM lock-in required','Lower total cost'],
+       losses:['Workday full HCM suite creates stickiness','IT prefers single vendor','Deep finance/payroll integration']},
+    ]
+  },
+  vorro: {
+    color: '#22d3ee',
+    tagline: 'Healthcare data integration — BridgeGate EiPaaS',
+    metrics: ['FHIR R4 + HL7 v2/v3', '100+ Enterprises', '10M Daily Transactions', '$20K-$90K+/yr'],
+    topics: [
+      {icon:'BG', title:'BridgeGate Platform', color:'#22d3ee', q:'What is Vorro BridgeGate EiPaaS and key integration capabilities?'},
+      {icon:'⚕', title:'FHIR & HL7', color:'#60a5fa', q:'How does Vorro handle FHIR R4, HL7 v2/v3, and EDI X12 interoperability?'},
+      {icon:'TPL', title:'TPL & Claims', color:'#34d399', q:'How does Vorro handle Third Party Liability and claims integration?'},
+      {icon:'PA', title:'Prior Auth', color:'#a78bfa', q:'What is Vorro prior authorization automation and how does it reduce denials?'},
+      {icon:'vs', title:'vs Rhapsody', color:'#f87171', q:'Vorro BridgeGate vs Rhapsody/Lyniate — key differentiators for health systems?'},
+      {icon:'vs', title:'vs MuleSoft', color:'#fb923c', q:'Vorro vs MuleSoft for healthcare integration — cost and compliance advantages?'},
+      {icon:'ROI', title:'ROI & Cost', color:'#fbbf24', q:'What is the typical ROI and cost savings from Vorro BridgeGate implementation?'},
+      {icon:'HIT', title:'Open Deals', color:'#f472b6', q:'What are the top Vorro deals and healthcare IT opportunities this week?'},
+    ],
+    faqs: [
+      'What EHR systems does Vorro integrate with (Epic, Cerner, Meditech)?',
+      'How is Vorro priced compared to MuleSoft and Rhapsody?',
+      'What is the implementation timeline for BridgeGate?',
+      'How does Vorro handle HIPAA compliance and PHI security?',
+      'What is the difference between BridgeGate and a traditional ESB?',
+      'What Medicaid and payer integrations does Vorro support?',
+    ],
+    battlecards: [
+      {name:'Rhapsody/Lyniate', color:'#ef4444',
+       wins:['52% lower integration cost','Cloud-native vs legacy on-prem','Faster deployment (weeks vs months)','Modern REST/FHIR APIs standard'],
+       losses:['Rhapsody has 20+ years installed base','Larger community and connector library','More HL7 routing logic templates']},
+      {name:'MuleSoft', color:'#f97316',
+       wins:['Healthcare-specific — HIPAA built-in','70% lower licensing cost','No Salesforce dependency','Faster time-to-value for clinical data'],
+       losses:['MuleSoft has broader enterprise integration','Anypoint Platform is more feature-rich','Larger SI partner ecosystem']},
+      {name:'Azure Health Data Services', color:'#60a5fa',
+       wins:['Vendor-agnostic — not tied to Azure','TPL/claims expertise MSFT lacks','Deeper HL7 v2 legacy support','On-prem deployment option'],
+       losses:['Azure cloud ecosystem integration','SMART on FHIR reference implementation','Microsoft enterprise relationships']},
+    ]
+  },
+  cv3: {
+    color: '#fb923c',
+    tagline: 'B2B + DTC headless ecommerce platform',
+    metrics: ['CommerceV3 (CV3)', 'B2B Pricing Rules', 'NetSuite/SAP ERP Integration', 'Custom Catalogs'],
+    topics: [
+      {icon:'CV3', title:'Platform Overview', color:'#fb923c', q:'What is CommerceV3 (CV3) and key headless ecommerce capabilities?'},
+      {icon:'B2B', title:'B2B Features', color:'#f97316', q:'What B2B ecommerce features does CV3 have — customer pricing, catalogs, account hierarchy?'},
+      {icon:'ERP', title:'ERP Integration', color:'#fbbf24', q:'How does CV3 integrate with NetSuite, SAP, and Epicor ERP systems?'},
+      {icon:'vs', title:'vs Shopify Plus', color:'#f87171', q:'CommerceV3 vs Shopify Plus for B2B ecommerce — key differentiators?'},
+      {icon:'vs', title:'vs Magento', color:'#a78bfa', q:'CV3 vs Magento/Adobe Commerce — cost and flexibility comparison?'},
+      {icon:'ROI', title:'TCO & Pricing', color:'#34d399', q:'What is the typical total cost of ownership for CV3 vs Shopify Plus or Magento?'},
+    ],
+    faqs: [
+      'What industries does CV3 specialize in for B2B ecommerce?',
+      'How does CV3 handle complex B2B pricing rules and customer-specific catalogs?',
+      'What is the implementation timeline and onboarding process?',
+      'Does CV3 support headless/composable architecture?',
+      'What payment and tax integrations does CV3 support?',
+    ],
+    battlecards: [
+      {name:'Shopify Plus', color:'#ef4444',
+       wins:['Purpose-built B2B pricing rules','Complex catalog management','ERP-native integration (NetSuite/SAP)','Better for manufacturers and distributors'],
+       losses:['Shopify Plus massive app ecosystem','DTC brand familiarity','Lower upfront cost for simple stores']},
+      {name:'Magento/Adobe Commerce', color:'#f97316',
+       wins:['Lower total cost (no licensing fees)','Faster implementation','Managed hosting included','Less developer dependency'],
+       losses:['Adobe Commerce has more extensions','Larger developer community','Better for complex customizations']},
+    ]
+  },
+  revengineer: {
+    color: '#a3e635',
+    tagline: 'B2B revenue intelligence & GTM engine — RevEngineer.ai',
+    metrics: ['Signal-based Prospecting', 'Intent Data', 'ICP Scoring', 'Pipeline Acceleration'],
+    topics: [
+      {icon:'RE', title:'Platform Overview', color:'#a3e635', q:'What is RevEngineer.ai and key B2B revenue intelligence capabilities?'},
+      {icon:'sig', title:'Signal Intelligence', color:'#84cc16', q:'How does RevEngineer use buying signals, intent data, and G2/Capterra spikes?'},
+      {icon:'ICP', title:'ICP Scoring', color:'#60a5fa', q:'How does RevEngineer ICP scoring and account prioritization work?'},
+      {icon:'GTM', title:'GTM Playbooks', color:'#fbbf24', q:'What GTM playbooks and outbound automation does RevEngineer support?'},
+      {icon:'vs', title:'vs 6sense', color:'#f87171', q:'RevEngineer vs 6sense for B2B intent data and pipeline acceleration?'},
+      {icon:'vs', title:'vs ZoomInfo', color:'#fb923c', q:'RevEngineer vs ZoomInfo Intent — accuracy and pricing comparison?'},
+    ],
+    faqs: [
+      'What is the difference between RevEngineer and CommerceV3?',
+      'How does RevEngineer signal intelligence work technically?',
+      'What CRM integrations does RevEngineer support?',
+      'What is the typical time-to-value for RevEngineer?',
+      'How does RevEngineer compare to Demandbase on account-based marketing?',
+    ],
+    battlecards: [
+      {name:'6sense', color:'#ef4444',
+       wins:['Lower price point','Faster implementation','Direct signal aggregation without ABM complexity','Better for SMB/mid-market'],
+       losses:['6sense has more predictive AI maturity','Larger customer base','Better ad targeting integration']},
+      {name:'ZoomInfo Intent', color:'#f97316',
+       wins:['Real-time signal freshness','No ZoomInfo data lock-in','Better GTM workflow automation','More flexible ICP configuration'],
+       losses:['ZoomInfo has larger contact database','More established brand','Better SMB contact coverage']},
+    ]
+  }
+};
+
+const _intelFaqCache = {};
+
+function renderIntelPanel(co) {
+  const panel = document.getElementById('intelMainPanel');
+  if (!panel) return;
+  const p = INTEL_PANELS[co];
+  if (!p) {
+    // "All" mode — show generic search
+    panel.innerHTML = _renderIntelAllMode();
+    return;
+  }
+
+  const metricsHtml = p.metrics.map(m =>
+    '<span style="padding:3px 10px;border-radius:12px;background:' + p.color + '22;color:' + p.color + ';font-size:10px;font-weight:700;border:1px solid ' + p.color + '44">' + esc(m) + '</span>'
+  ).join('');
+
+  const topicsHtml = p.topics.map((t,i) =>
+    '<div onclick="clickIntelTopic(' + JSON.stringify(t.q) + ')" style="cursor:pointer;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;transition:all 0.15s;display:flex;flex-direction:column;gap:6px" onmouseover="this.style.borderColor=\'' + t.color + '\';this.style.background=\'' + t.color + '11\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.background=\'var(--bg-card)\'">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="width:32px;height:32px;border-radius:8px;background:' + t.color + '22;color:' + t.color + ';font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + esc(t.icon) + '</span>'
+      + '<span style="font-size:12px;font-weight:700;color:var(--text-primary)">' + esc(t.title) + '</span>'
+      + '</div>'
+      + '<div style="font-size:10px;color:var(--text-muted);line-height:1.4">' + esc(t.q.length > 70 ? t.q.slice(0,70)+'...' : t.q) + '</div>'
+      + '</div>'
+  ).join('');
+
+  const faqsHtml = p.faqs.map((q,i) => {
+    const key = co + '_' + i;
+    const cached = _intelFaqCache[key];
+    return '<div id="faq_' + co + '_' + i + '" style="border-bottom:1px solid var(--border)">'
+      + '<div onclick="toggleIntelFaq(\'' + co + '\',' + i + ')" style="padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-primary);font-weight:500" onmouseover="this.style.background=\'rgba(255,255,255,0.03)\'" onmouseout="this.style.background=\'none\'">'
+      + '<span>' + esc(q) + '</span>'
+      + '<span id="faqarrow_' + co + '_' + i + '" style="color:var(--text-muted);font-size:10px;transition:transform 0.2s">&#9660;</span>'
+      + '</div>'
+      + '<div id="faqbody_' + co + '_' + i + '" style="display:none;padding:0 14px 12px 14px">'
+      + (cached ? '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(cached) + '</div>'
+                : '<div style="font-size:11px;color:var(--text-muted);font-style:italic">Click to load answer...</div>')
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  const battlecardsHtml = p.battlecards.map(bc =>
+    '<div style="padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+      + '<span style="width:8px;height:8px;border-radius:50%;background:' + bc.color + ';display:inline-block"></span>'
+      + '<span style="font-size:12px;font-weight:700;color:var(--text-primary)">vs ' + esc(bc.name) + '</span>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + '<div><div style="font-size:9px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">We Win When</div>'
+      + bc.wins.map(w => '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;padding-left:10px;border-left:2px solid #22c55e44">'+esc(w)+'</div>').join('')
+      + '</div>'
+      + '<div><div style="font-size:9px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Watch Out For</div>'
+      + bc.losses.map(l => '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;padding-left:10px;border-left:2px solid #f8717144">'+esc(l)+'</div>').join('')
+      + '</div>'
+      + '</div>'
+      + '</div>'
+  ).join('');
+
+  panel.innerHTML =
+    // Hero
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
+    + '<div style="width:40px;height:40px;border-radius:10px;background:' + p.color + '22;border:1px solid ' + p.color + '55;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:' + p.color + '">' + co.slice(0,2).toUpperCase() + '</div>'
+    + '<div><div style="font-size:16px;font-weight:800;color:var(--text-primary);font-family:var(--font-display)">' + esc(co === 'cv3' ? 'CommerceV3' : co.charAt(0).toUpperCase() + co.slice(1)) + '</div>'
+    + '<div style="font-size:11px;color:var(--text-muted)">' + esc(p.tagline) + '</div></div>'
+    + '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' + metricsHtml + '</div>'
+    + '</div>'
+
+    // Search bar
+    + '<div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">'
+    + '<input id="intelSearchInput" type="text" placeholder="Ask anything about ' + esc(co) + '..." style="flex:1;padding:10px 14px;border:1px solid ' + p.color + '55;border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key===\'Enter\')runIntelSearch()">'
+    + '<button onclick="runIntelSearch()" style="padding:10px 18px;background:' + p.color + ';color:#0a0e17;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Search</button>'
+    + '</div>'
+    + '<div class="card"><div class="card-body" id="intelResults" style="min-height:80px;display:none"><div class="empty-state">Ask a question above.</div></div></div>'
+    + '<div id="intelSources" style="margin-top:6px;margin-bottom:8px"></div>'
+    + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>'
+    + '<div id="intelModeRow" style="display:none"></div>'
+
+    // Topic cards
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;margin-top:16px">Quick Topics</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:20px">' + topicsHtml + '</div>'
+
+    // FAQ
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Frequently Asked</div>'
+    + '<div class="card" style="margin-bottom:20px"><div style="border-radius:10px;overflow:hidden">' + faqsHtml + '</div></div>'
+
+    // Battlecards
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Competitive Battlecards</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">' + battlecardsHtml + '</div>';
+}
+
+function _renderIntelAllMode() {
+  return '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">'
+    + '<input id="intelSearchInput" type="text" placeholder="Ask anything across email, CRM, meetings, and deals..." style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key===\'Enter\')runIntelSearch()">'
+    + '<button onclick="runIntelSearch()" style="padding:10px 18px;background:#c9a227;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Search</button>'
+    + '</div>'
+    + '<div id="intelModeRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>'
+    + '<div class="card"><div class="card-body" id="intelResults" style="min-height:200px"><div class="empty-state">Ask a question to search across all your data sources.</div></div></div>'
+    + '<div id="intelSources" style="margin-top:8px"></div>'
+    + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>';
+}
+
+function clickIntelTopic(q) {
+  const inp = document.getElementById('intelSearchInput');
+  if (inp) { inp.value = q; }
+  runIntelSearch();
+  // Scroll results into view
+  setTimeout(() => {
+    const el = document.getElementById('intelResults');
+    if (el) { el.style.display = 'block'; el.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+  }, 100);
+}
+
+async function toggleIntelFaq(co, i) {
+  const body = document.getElementById('faqbody_' + co + '_' + i);
+  const arrow = document.getElementById('faqarrow_' + co + '_' + i);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+  if (!isOpen) {
+    const key = co + '_' + i;
+    if (_intelFaqCache[key]) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(_intelFaqCache[key]) + '</div>';
+      return;
+    }
+    const q = (INTEL_PANELS[co]||{faqs:[]}).faqs[i];
+    if (!q) return;
+    body.innerHTML = '<div style="font-size:11px;color:var(--text-muted)"><div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div>Loading answer...</div>';
+    try {
+      const p = COMPANY_PROFILES[co] || COMPANY_PROFILES.all;
+      const kbStr = p.kb || getKnowledgeString();
+      const sys = p.systemPrompt || '';
+      const ans = await ask(sys + '\n\nAnswer this question directly and specifically. Use the Company KB and your own knowledge. Format with short paragraphs or bullet points. Be specific with names, numbers, dates. Never say information is unavailable.\n\nQuestion: "' + q + '"\n\nCompany KB:\n' + kbStr, []);
+      _intelFaqCache[key] = typeof ans === 'string' ? ans : JSON.stringify(ans);
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(_intelFaqCache[key]) + '</div>';
+      // Push to AI Sync
+      if (_intelFaqCache[key] && _intelFaqCache[key].length > 50) {
+        fetch('/api/ai-sync/pending',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+          body:JSON.stringify({category:'product_knowledge',source:'Intel FAQ — '+new Date().toLocaleDateString(),
+            content:'Q: '+q+'\n\nA: '+_intelFaqCache[key].slice(0,1500),suggestedMemory:_intelFaqCache[key].slice(0,400),brand:co,date:new Date().toISOString().slice(0,10)})
+        }).catch(()=>{});
+      }
+    } catch(e) {
+      body.innerHTML = '<div style="font-size:11px;color:#f87171">Failed to load: ' + esc(e.message) + '</div>';
+    }
+  }
+}
+// End Intelligence Panel
+
 let currentIntelCompany='all';
 const COMPANY_PROFILES={
   all:{label:'All Companies',color:'#2563eb',
@@ -5277,6 +5572,7 @@ function runIntelWithQuery(q){
 
 function setIntelCompany(c){
   currentIntelCompany=c;
+  renderIntelPanel(c);
   localStorage.setItem('sb_intel_company',c);
   const p=COMPANY_PROFILES[c]||COMPANY_PROFILES.all;
   // Update button styles
@@ -5329,6 +5625,8 @@ function showIntelKb(c){
 // ── INTELLIGENCE ──
 // ══════════════════════════════════════
 async function loadIntelligence(){
+  // Render panel for default company on first load
+  if(!window._intelPanelRendered){window._intelPanelRendered=true;renderIntelPanel(currentIntelCompany);}
   window._intelLoaded=true;
   const saved=localStorage.getItem('sb_intel_company')||'all';
   setIntelCompany(saved);
@@ -5402,7 +5700,7 @@ async function runIntelSearch(){
       const _srcBadges='<span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:2px 6px;border-radius:3px">KB</span>'
         +(_newsItems.length?'<span style="background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 6px;border-radius:3px">Web ('+_newsItems.length+')</span>':'')
         +'<span style="background:rgba(167,139,250,0.15);color:#a78bfa;padding:2px 6px;border-radius:3px">LLM</span>';
-      el.innerHTML='<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">'+renderMarkdown(typeof _ans==='string'?_ans:JSON.stringify(_ans))+'</div>'
+      if(el)el.style.display='block'; el.innerHTML='<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">'+renderMarkdown(typeof _ans==='string'?_ans:JSON.stringify(_ans))+'</div>'
         +'<div style="padding:6px 14px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border)">⚡ Answer saved to AI Sync — check AI Sync tab to approve</div>';
       srcEl.innerHTML='<div style="font-size:10px;color:#334155;display:flex;gap:8px">'+_srcBadges+'</div>';
     }catch(e){
