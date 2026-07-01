@@ -1647,6 +1647,7 @@ const GMAIL='mcp__9561144e-87f0-4ebc-b6ce-79cb22df9c27';
 const CAL='mcp__3df8d99f-29e6-4b72-aff5-d20c243cd8cc';
 const GRAN='mcp__71e0cfca-ad84-47ab-9d34-6b8b20c1f749';
 const ZOHO='mcp__ebef5225-9c03-4cba-9a7a-d6093b72e70d';
+const VORRO_ZOHO=null; // Set to Vorro Zoho MCP prefix once connected
 const DRIVE='mcp__30527659-94cd-40e2-94f3-2d183a4d50bb';
 
 // ── Competitor Lists for C-Suite Monitor ──
@@ -3272,7 +3273,7 @@ async function loadRecentContacts(){
     // Show contacts from active late-stage deals (S4+ Vorro, Proposal/Negotiation/Contract Cadient)
     const [cadR, vorR] = await Promise.allSettled([
       call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}),
-      call(`${VORRO_ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}).catch(()=>null)
+      VORRO_ZOHO ? call(`${VORRO_ZOHO}__executeCOQLQuery`,{body:{select_query:"select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 100"}}).catch(()=>null) : Promise.resolve(null)
     ]);
     const cadDeals=(cadR.status==='fulfilled'?cadR.value?.data||[]:[] ).filter(d=>/Proposal|Negotiat|Contract|In Progress|Deliver/i.test(String(d.Stage||'')));
     const vorDeals=(vorR.status==='fulfilled'&&vorR.value?vorR.value?.data||[]:[] ).filter(d=>/^S[4-6]/i.test(String(d.Stage||'')));
