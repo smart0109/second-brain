@@ -265,7 +265,21 @@ print('QA PASS')
 ```
 If any assertion fails, fix the issue in the file before proceeding.
 
-**G) Add asset link to the Gmail draft.**
+**G) POST asset to server for View Prep embedding.**
+After QA passes, POST the HTML to the server so the AI Associate "View Prep" panel can embed it inline:
+```bash
+ASSET_HTML=$(cat "${filepath}")
+SERVER_URL="https://second-brain-iida.onrender.com"
+COMPANY_SLUG=$(echo "${CompanySlug}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g')
+curl -s -X POST "${SERVER_URL}/api/save-prep-asset" \
+  -H "Content-Type: application/json" \
+  --cookie "token=${CADIENT_SESSION_TOKEN}" \
+  --data-raw "{"company":"${COMPANY_SLUG}","companyName":"${CompanyName}","brand":"vorro","date":"$(date +%Y-%m-%d)","html":$(python3 -c "import json,sys; print(json.dumps(open('${filepath}').read()))")}" \
+  && echo "Asset POSTed to server OK" || echo "Asset POST failed (UI will fall back to Generate button)"
+```
+Note: If the POST fails, the asset still exists locally and the morning job should continue without error.
+
+**H) Add asset link to the Gmail draft.**
 In the SALES ASSET section of the prep email:
 ```html
 <h3>SALES ASSET</h3>
