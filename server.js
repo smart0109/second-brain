@@ -3382,6 +3382,59 @@ app.use((err, _req, res, _next) => {
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
+
+// Auto-cleanup: strip THREAD_ID from draft bodies (startup + hourly)
+async function _autoCleanThreadIds() {
+  try {
+    const auth = getAuthedClient();
+    if (!auth) return;
+    const gmail = google.gmail({ version: 'v1', auth });
+    const THREAD_RE = /<!--\s*THREAD_ID:[^\s>-]+\s*-->\s*/gi;
+    let allDrafts = [], pageToken = null;
+    do {
+      const p = { userId: 'me', maxResults: 50 };
+      if (pageToken) p.pageToken = pageToken;
+      const resp = await gmail.users.drafts.list(p);
+      allDrafts = allDrafts.concat(resp.data.drafts || []);
+      pageToken = resp.data.nextPageToken || null;
+    } while (pageToken);
+    let fixed = 0;
+    for (const stub of allDrafts) {
+      try {
+        const full = await gmail.users.drafts.get({ userId: 'me', id: stub.id, format: 'full' });
+        const payload = full.data.message?.payload || {};
+        const hdrs = payload.headers || [];
+        const hdr = n => (hdrs.find(h => h.name.toLowerCase() === n) || {}).value || '';
+        let rawData = payload.body?.data || null;
+        if (!rawData && payload.parts) {
+          const pt = payload.parts.find(p => p.mimeType === 'text/plain');
+          if (pt && pt.body && pt.body.data) rawData = pt.body.data;
+        }
+        if (!rawData) continue;
+        const bodyText = Buffer.from(rawData, 'base64').toString('utf-8');
+        THREAD_RE.lastIndex = 0;
+        if (!THREAD_RE.test(bodyText)) continue;
+        THREAD_RE.lastIndex = 0;
+        const cleaned = bodyText.replace(THREAD_RE, '').trim();
+        const to = hdr('to'), subject = hdr('subject'), cc = hdr('cc');
+        const mimeLines = ['To: ' + to, 'Subject: ' + subject];
+        if (cc) mimeLines.push('Cc: ' + cc);
+        mimeLines.push('Content-Type: text/plain; charset=utf-8', '', cleaned);
+        const raw = Buffer.from(mimeLines.join('\r\n')).toString('base64')
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const body = { message: { raw } };
+        if (full.data.message.threadId) body.message.threadId = full.data.message.threadId;
+        await gmail.users.drafts.update({ userId: 'me', id: stub.id, requestBody: body });
+        fixed++;
+        console.log('[thread-id-cleanup] Fixed:', subject.slice(0,60));
+      } catch(e) { /* skip individual draft errors */ }
+    }
+    if (fixed) console.log('[thread-id-cleanup] Fixed ' + fixed + ' drafts');
+  } catch(e) { console.warn('[thread-id-cleanup]', e.message); }
+}
+setTimeout(() => _autoCleanThreadIds(), 10000);
+setInterval(() => _autoCleanThreadIds(), 60 * 60 * 1000);
+
 _kvInit();
 // ── DRAFT CLEANUP: strip <!-- THREAD_ID:... --> from existing drafts ──
 app.post('/api/fix-thread-ids', requireAuth, async (req, res) => {
