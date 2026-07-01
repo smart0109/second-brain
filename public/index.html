@@ -7967,7 +7967,7 @@ function pickLegalClient(name,email,company,title){
   updateLegalFields();
 }
 
-function generateLegalDoc(format){
+async function generateLegalDoc(format){
   if(!legalSelectedType){alert('Select a document type first');return}
   const tmpl=LEGAL_TEMPLATES[legalSelectedType];
   const brand=document.getElementById('legalBrand').value;
@@ -8003,7 +8003,36 @@ Requirements:
 5. Save the final file(s) to the workspace folder
 6. If format is "both", generate both .docx and .pdf versions`;
 
-  alert('Legal document generation requires the Cowork desktop app. Open Manish\'s HQ in Cowork and use the Generate button there.');
+  if(window.sendPrompt){
+    window.sendPrompt(prompt);
+  } else if(window.cowork&&window.cowork.sendPrompt){
+    window.cowork.sendPrompt(prompt);
+  } else {
+    const outEl=document.getElementById('legalDocOutput');
+    if(outEl){outEl.style.display='block';outEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Generating document...</div>';}
+    try{
+      const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+        body:JSON.stringify({system:'You are a professional legal document drafter. Generate a complete properly formatted legal document with all sections filled in using the exact field values provided. Include proper legal boilerplate numbered sections and signature blocks.',prompt:prompt,data:[]})});
+      const data=await res.json();
+      const text=data.answer||data.content||data.text||'(no response)';
+      if(outEl){
+        const safe=text.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
+        window._legalDocText=text;
+        window._legalDocFilename=(tmpl.label+'-'+new Date().toISOString().slice(0,10)).replace(/[^a-z0-9-]/gi,'-').toLowerCase();
+        outEl.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
+          +'<span style="font-weight:700;font-size:14px;color:#f472b6">Generated: '+esc(tmpl.label)+'</span>'
+          +'<button onclick="navigator.clipboard.writeText(window._legalDocText)" style="padding:4px 12px;background:rgba(244,114,182,0.15);border:1px solid rgba(244,114,182,0.3);border-radius:5px;color:#f472b6;cursor:pointer;font-size:11px">Copy</button>'
+          +'<button onclick="legalDownloadDoc()" style="padding:4px 12px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);border-radius:5px;color:#34d399;cursor:pointer;font-size:11px">Download .txt</button>'
+          +'</div><pre id="legalDocText" style="white-space:pre-wrap;font-size:11px;line-height:1.7;max-height:600px;overflow-y:auto;background:#0f172a;padding:16px;border-radius:6px;border:1px solid rgba(255,255,255,0.08)">'+safe+'</pre>';
+      }
+    }catch(e){if(outEl)outEl.innerHTML='<div style="color:#f87171;padding:12px">Generation failed: '+esc(e.message)+'</div>';}
+  }
+}
+
+function legalDownloadDoc(){
+  const blob=new Blob([window._legalDocText||''],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=(window._legalDocFilename||'legal-document')+'.txt';a.click();
 }
 
 async function legalSearchExamples(){
