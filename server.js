@@ -2848,30 +2848,7 @@ function _readAiPending() {
         brand: 'cadient',
         createdAt: '2026-06-20T11:00:00Z',
       },
-      {
-        id: 'sample_exec_001',
-        category: 'executive_change',
-        source: 'C-Suite Monitor / LinkedIn (Jun 30, 2026)',
-        date: '2026-06-30',
-        content: 'Workday hired Sarah Chen as Chief People Officer, effective July 1. Previously SVP HR Technology at Microsoft for 7 years. Known for driving Microsoft\'s internal ATS consolidation from 12 tools to 2.',
-        suggestedMemory: 'Workday CPO: Sarah Chen (Jul 2026, ex-Microsoft SVP HR Tech). New CPOs typically re-evaluate vendor stack in first 90 days — Workday HCM customers may hear "we already have ATS built-in" push. Counter with SmartHire specialization.',
-        risk: null,
-        riskReason: null,
-        brand: 'cadient',
-        createdAt: '2026-06-30T08:00:00Z',
-      },
-      {
-        id: 'sample_exec_002',
-        category: 'executive_change',
-        source: 'C-Suite Monitor / Rhapsody blog (Jun 2026)',
-        date: '2026-06-10',
-        content: 'Rhapsody (Vorro competitor) promoted Marcus Webb to CTO. Webb previously led their HL7 FHIR pipeline team. Rhapsody announced partnership with Epic Systems for bi-directional FHIR R4 integration.',
-        suggestedMemory: 'Rhapsody CTO: Marcus Webb promoted (Jun 2026, ex-HL7 FHIR lead). New Epic partnership for bi-directional FHIR R4. Counter: BridgeGate supports Epic natively + adds TPL/Medicaid layer Rhapsody lacks.',
-        risk: null,
-        riskReason: null,
-        brand: 'vorro',
-        createdAt: '2026-06-10T10:00:00Z',
-      },
+
     ];
     _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
   }
@@ -2904,6 +2881,8 @@ app.get('/api/ai-sync/pending', requireAuth, (req, res) => {
   const { brand } = req.query;
   let items = store.items || [];
   if (brand && brand !== 'all') items = items.filter(i => i.brand === brand || !i.brand);
+  // Executive changes belong in Contact 360 (loaded via Gmail), not AI Sync
+  items = items.filter(i => i.category !== 'executive_change');
   res.json({ items });
 });
 
