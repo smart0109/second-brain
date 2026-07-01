@@ -5159,7 +5159,7 @@ const COMPANY_PROFILES={
     suggestions:['Open action items this week','What key decisions were made?','Who have I not responded to?'],
     kb:''},
   arista:{label:'Arista Networks',color:'#0369a1',
-    systemPrompt:'You are an expert Arista Networks technical sales engineer. Answer questions with SPECIFIC product details, architecture facts, and competitive data. Never say you lack information about Arista — use the Company KB below which contains comprehensive facts. Be direct and confident.',
+    systemPrompt:'You are an expert Arista Networks technical sales engineer with deep knowledge of all Arista products, history, leadership, financials, and technology. Answer questions directly and confidently. Use the Company KB for technical details, and your own knowledge for anything else (leadership, financials, history, competitors). Never say you lack information or that data is unavailable — just answer.',
     modes:[
       {l:'EOS Architecture',q:'Explain Arista EOS architecture: Sysdb, agents, ISSU, and why it beats Cisco IOS XE'},
       {l:'vs Cisco Catalyst AI',q:'Compare Arista vs Cisco Catalyst for AI fabric: EOS vs IOS XE, CloudVision vs Catalyst Center, Etherlink vs Cisco 400G'},
@@ -5384,8 +5384,8 @@ async function runIntelSearch(){
     const _sys=_p.systemPrompt;
     try{
       const _ans=await ask(
-        _sys+'\n\nAnswer the following question using ONLY the Company KB below. Be specific, technical, and direct. Do NOT say you lack information — everything you need is in the KB. Format with short paragraphs or bullet points.\n\nQuestion: "'+q+'"',
-        [{label:'Company Knowledge Base',value:_kbStr}]
+        _sys+'\n\nAnswer the following question. Use the Company KB below as your primary source for technical details. For anything not in the KB (leadership, financials, history, general facts), use your own training knowledge — do NOT say the information is unavailable. Format with short paragraphs or bullet points. Never reference "the provided data" or "email threads".\n\nQuestion: "'+q+'"\n\nCompany KB:\n'+_kbStr,
+        []
       );
       el.innerHTML='<div style="padding:14px;font-size:12px;color:var(--text-primary);line-height:1.7">'+renderMarkdown(typeof _ans==='string'?_ans:JSON.stringify(_ans))+'</div>'
         +'<div style="padding:6px 14px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border)">⚡ Answered from '+esc(_p.label||currentIntelCompany)+' Knowledge Base</div>';
