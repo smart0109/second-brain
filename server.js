@@ -3323,7 +3323,58 @@ app.use((err, _req, res, _next) => {
 // Start
 // ---------------------------------------------------------------------------
 _kvInit();
-const httpServer = app.listen(PORT, () => {
+const httpServ
+// ── DRAFT CLEANUP: strip <!-- THREAD_ID:... --> from existing drafts ──
+app.post('/api/fix-thread-ids', requireAuth, async (req, res) => {
+  try {
+    const auth = getAuthedClient();
+    if (!auth) return res.status(401).json({ error: 'Google not authenticated' });
+    const gmail = google.gmail({ version: 'v1', auth });
+    const THREAD_RE = /<!--\s*THREAD_ID:[^\s>-]+\s*-->\s*/gi;
+    let allDrafts = [], pageToken = null;
+    do {
+      const p = { userId: 'me', maxResults: 50 };
+      if (pageToken) p.pageToken = pageToken;
+      const resp = await gmail.users.drafts.list(p);
+      allDrafts = allDrafts.concat(resp.data.drafts || []);
+      pageToken = resp.data.nextPageToken || null;
+    } while (pageToken);
+    let fixed = 0, skipped = 0, errors = 0, fixedList = [];
+    for (const stub of allDrafts) {
+      try {
+        const full = await gmail.users.drafts.get({ userId: 'me', id: stub.id, format: 'full' });
+        const msg = full.data.message;
+        const payload = msg.payload || {};
+        const hdrs = payload.headers || [];
+        const hdr = (n) => (hdrs.find(hh => hh.name.toLowerCase() === n.toLowerCase()) || {}).value || '';
+        let rawData = (payload.body && payload.body.data) ? payload.body.data : null;
+        if (!rawData && payload.parts) {
+          const pt = payload.parts.find(pp => pp.mimeType === 'text/plain');
+          if (pt && pt.body && pt.body.data) rawData = pt.body.data;
+        }
+        if (!rawData) { skipped++; continue; }
+        const bodyText = Buffer.from(rawData, 'base64').toString('utf-8');
+        THREAD_RE.lastIndex = 0;
+        if (!THREAD_RE.test(bodyText)) { skipped++; continue; }
+        THREAD_RE.lastIndex = 0;
+        const cleaned = bodyText.replace(THREAD_RE, '').trim();
+        const to = hdr('To'), subject = hdr('Subject'), cc = hdr('Cc');
+        const mimeLines = ['To: ' + to, 'Subject: ' + subject];
+        if (cc) mimeLines.push('Cc: ' + cc);
+        mimeLines.push('Content-Type: text/plain; charset=utf-8', '', cleaned);
+        const raw = Buffer.from(mimeLines.join('\r\n'))
+          .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const body = { message: { raw } };
+        if (msg.threadId) body.message.threadId = msg.threadId;
+        await gmail.users.drafts.update({ userId: 'me', id: stub.id, requestBody: body });
+        fixed++; fixedList.push(subject.slice(0, 60));
+      } catch (e) { errors++; console.error('fix-thread-ids:', stub.id, e.message); }
+    }
+    res.json({ ok: true, total: allDrafts.length, fixed, skipped, errors, fixedList });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+er = app.listen(PORT, () => {
   console.log(`Second Brain server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/health`);
   if (!process.env.GOOGLE_REFRESH_TOKEN) {
