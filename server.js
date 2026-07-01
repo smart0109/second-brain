@@ -2857,7 +2857,7 @@ function _readAiPending() {
 
 function _readAiMemory() {
   const store = _readJsonSafe(AI_MEMORY_PATH, { entries: [] });
-  // Seed one approved entry so memory isn't empty on first load
+  // Seed entries so memory isn't empty on first load / after redeploy
   if (!store.entries || !store.entries.length) {
     store.entries = [
       {
@@ -2868,6 +2868,33 @@ function _readAiMemory() {
         source: 'Competitive research',
         date: '2026-06-01',
         approvedAt: '2026-06-01T12:00:00Z',
+      },
+      {
+        id: 'mem_exec_001',
+        category: 'executive_change',
+        brand: 'cadient',
+        memory: 'Paychex+Paycor merged (Apr 2025, $4.1B). Ryan Bergstrom (ex-Paycor CPTO) now CPO at Paychex. New CPOs re-evaluate vendor stack in first 90 days. Counter: SmartHire specialization beats HCM bolt-on ATS in high-volume hiring.',
+        source: 'C-Suite Monitor / SEC 8-K + Press Release',
+        date: '2026-04-14',
+        approvedAt: '2026-04-14T12:00:00Z',
+      },
+      {
+        id: 'mem_exec_002',
+        category: 'executive_change',
+        brand: 'cadient',
+        memory: 'Dayforce/Ceridian acquired by Thoma Bravo ($12.3B, Feb 2026). PE ownership = likely cost cuts + ATS spend scrutiny. Opportunity: Dayforce customers uncertain about roadmap may be open to best-of-breed ATS like SmartHire.',
+        source: 'C-Suite Monitor / Dayforce SEC 8-K Feb 2026',
+        date: '2026-02-04',
+        approvedAt: '2026-02-04T12:00:00Z',
+      },
+      {
+        id: 'mem_exec_003',
+        category: 'executive_change',
+        brand: 'cadient',
+        memory: "iCIMS CEO: Jason Edelboim (promoted from President/COO; Steve Lucas now at Boomi). New CEO = potential strategy shift. iCIMS doubling down on AI screening — counter with SmartHire's bias-free scoring + high-volume expertise.",
+        source: 'C-Suite Monitor / iCIMS newsroom',
+        date: '2026-01-15',
+        approvedAt: '2026-01-15T12:00:00Z',
       },
     ];
     _writeJsonSocial(AI_MEMORY_PATH, store);
