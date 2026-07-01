@@ -5312,7 +5312,7 @@ async function runIntelSearch(){
       const _errKbStr=getKnowledgeString();
       try{
         const _kbOnly=await ask(
-          'You are '+(_errKb.company||'a company')+''s product expert. Answer from the product knowledge only — no external data available. Be direct and concise, 2-4 sentences max. If you cannot answer from the KB, say so plainly.',
+          'You are '+(_errKb.company||'a company')+"'s product expert. Answer from the product knowledge only — no external data available. Be direct and concise, 2-4 sentences max. If you cannot answer from the KB, say so plainly.",
           [{label:'Product Knowledge Base',value:_errKbStr}]
         );
         const _prevKbHtml=el.innerHTML.includes('From Memory')?el.innerHTML.split('<div class="loading"')[0]:'';
