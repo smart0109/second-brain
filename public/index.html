@@ -8026,10 +8026,10 @@ Requirements:
     const outEl=document.getElementById('legalDocOutput');
     if(outEl){outEl.style.display='block';outEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Generating document...</div>';}
     try{
-      const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
-        body:JSON.stringify({system:'You are a professional legal document drafter. Generate a complete properly formatted legal document with all sections filled in using the exact field values provided. Include proper legal boilerplate numbered sections and signature blocks.',prompt:prompt,data:[]})});
+      const res=await fetch('/api/ask/deep',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+        body:JSON.stringify({prompt:'You are a professional legal document drafter.\n\n'+prompt,inject_context:false,max_tokens:3000})});
       const data=await res.json();
-      const text=data.answer||data.content||data.text||'(no response)';
+      const text=typeof data==='string'?data:(data.answer||data.content||data.text||JSON.stringify(data));
       if(outEl){
         const safe=text.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');
         window._legalDocText=text;
