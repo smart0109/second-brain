@@ -56,6 +56,14 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .tab.active { color: var(--accent-text); border-bottom-color: var(--accent); font-weight: 700; }
 .intel-company-btn { padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#64748b;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit }
 .intel-company-btn:hover { background:rgba(255,255,255,0.08);color:#94a3b8 }
+.intel-sec { margin-bottom:14px }
+.intel-sec summary { cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:12px 2px;min-height:44px;box-sizing:border-box;user-select:none }
+.intel-sec summary::-webkit-details-marker { display:none }
+.intel-sec-arrow { transition:transform 0.2s;color:#64748b;font-size:9px }
+.intel-sec[open] summary .intel-sec-arrow { transform:rotate(180deg) }
+.intel-card { padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px }
+.intel-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px }
+@media (max-width:480px) { .intel-grid { grid-template-columns:1fr } }
 .tab .badge { background: var(--red); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 6px; margin-left: 4px; animation: badgePulse 2s ease-in-out infinite; }
 @keyframes badgePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
 .tab .badge { background: var(--red); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 6px; margin-left: 4px; }
@@ -5171,11 +5179,28 @@ CRITICAL: Use ALL the context data provided below. Reference specific names, dat
 // ══════════════════════════════════════
 
 // ── Intelligence Panel Data ──────────────────────────────────────────────────
+// ══ INTELLIGENCE KB PANELS — rich per-company knowledge base ══
 const INTEL_PANELS = {
   arista: {
     color: '#818cf8',
+    name: 'Arista Networks',
     tagline: 'Data-center networking, AI fabric & CloudVision NetOps',
-    metrics: ['$7.7B Revenue (2024)', '35%+ YoY Growth', 'Gartner MQ Leader', '10K+ Customers'],
+    overview: "Arista builds high-performance data-center and AI networking on a single EOS software image. CloudVision delivers AI-driven NetOps with 1-second streaming telemetry, and Etherlink provides open Ultra Ethernet fabrics for GPU clusters. 8 of the top 10 hyperscalers — including Meta, Microsoft Azure and Google — run Arista.",
+    metrics: [
+      {v:'$7B+', l:'FY2025 Revenue'},
+      {v:'+26%', l:'YoY Growth'},
+      {v:'8/10', l:'Top Hyperscalers'},
+      {v:'1-sec', l:'Streaming Telemetry'},
+      {v:'Zero', l:'Planned Downtime (ISSU)'},
+      {v:'800GbE', l:'Etherlink AI Fabric'}
+    ],
+    products: [
+      {name:'EOS', desc:'Single-binary network OS with Sysdb pub/sub state architecture and EosSdk for custom agents. One image across the entire portfolio.', stat:'ISSU zero-downtime upgrades'},
+      {name:'CloudVision', desc:'AI-driven NetOps platform: intent-based provisioning, automated compliance, drift detection and AI anomaly detection. Available as SaaS.', stat:'1-sec telemetry vs 5-min SNMP'},
+      {name:'Etherlink', desc:'AI fabric for GPU clusters built on open Ultra Ethernet — 800GbE, RoCEv2, standard NICs, no proprietary HCAs.', stat:'Purpose-built for AI/ML training'},
+      {name:'AVD', desc:'Ansible Validated Design deploys a full EVPN/VXLAN fabric from YAML. Fully open-source.', stat:'Full fabric in under 1 hour'},
+      {name:'ANTA', desc:'Automated network testing framework — pre/post change validation wired into CI/CD.', stat:'Open-source test harness'}
+    ],
     topics: [
       {icon:'EOS', title:'EOS Architecture', color:'#818cf8', q:'How does Arista EOS single-binary architecture work? What is Sysdb?'},
       {icon:'CV', title:'CloudVision', color:'#60a5fa', q:'What is CloudVision and how does it differ from traditional network management systems like Cisco DNA?'},
@@ -5184,33 +5209,62 @@ const INTEL_PANELS = {
       {icon:'AVD', title:'Automation & AVD', color:'#fbbf24', q:'What is Arista Validated Design (AVD) and ANTA network testing framework?'},
       {icon:'vs', title:'vs Cisco Nexus', color:'#f87171', q:'How does Arista beat Cisco Nexus and Catalyst in the data center? Key differentiators and TCO?'},
       {icon:'$', title:'Pricing & TCO', color:'#fb923c', q:'How is Arista priced vs Cisco? What is the typical TCO advantage?'},
-      {icon:'🔒', title:'Security & Compliance', color:'#22d3ee', q:'What are Arista security features — Macro-Segmentation, CloudVision Compliance?'},
+      {icon:'🔒', title:'Security & Compliance', color:'#22d3ee', q:'What are Arista security features — Macro-Segmentation, CloudVision Compliance?'}
     ],
     faqs: [
-      'Who is the CEO and key leadership of Arista Networks?',
-      'What were Arista latest quarterly earnings and revenue growth?',
-      'What is the difference between EOS and NX-OS or IOS-XE?',
-      'How does Arista CloudVision compare to Cisco DNA Center?',
-      'What is Arista market share in the 400G data center switch market?',
-      'Does Arista support VXLAN, BGP EVPN, and segment routing?',
-      'What are the main reasons customers switch from Cisco to Arista?',
+      {q:'What is the difference between EOS and Cisco NX-OS or IOS-XE?', a:'EOS is one binary image across the whole portfolio, built on the Sysdb pub/sub state database. Cisco ships fragmented OS trains (IOS-XE, NX-OS, ACI) with separate upgrade paths. EOS supports true ISSU, so software upgrades need no maintenance window.'},
+      {q:'How does CloudVision compare to Cisco Catalyst Center?', a:'CloudVision streams device state every second; Catalyst Center polls SNMP roughly every 5 minutes — about 300x slower anomaly detection. CloudVision runs as SaaS with no dedicated hardware controller, and because it knows the desired state it detects and can remediate configuration drift.'},
+      {q:'Why Ethernet instead of InfiniBand for AI clusters?', a:'Etherlink uses the open Ultra Ethernet standard: standard NICs, no proprietary InfiniBand HCAs (which add $2,000+ per GPU) and no specialist IB admins. Microsoft Azure HPC runs AI workloads on Arista Ethernet. Ops teams already know Ethernet, which is why the industry is standardizing on it for AI.'},
+      {q:'Who are the flagship Arista customers?', a:'8 of the top 10 hyperscalers, including Meta, Microsoft Azure and Google, plus large financial services firms and AI/ML platform companies. FY2025 revenue passed $7B, growing 26% YoY.'},
+      {q:'Does Arista support EVPN, VXLAN and segment routing?', a:'Yes. The Arista EVPN/VXLAN implementation is among the most production-proven at hyperscaler scale, and AVD automates deploying it. Segment routing is supported for WAN and DC-interconnect designs.'},
+      {q:'What does Arista offer for network automation?', a:'AVD (open-source Ansible collection) builds a full EVPN/VXLAN fabric from YAML in under an hour; ANTA handles automated pre/post change testing; and every EOS device speaks gNMI/OpenConfig natively — no plugins needed.'},
+      {q:'How is Arista priced versus Cisco?', a:'List pricing is comparable per port, but TCO runs roughly 40% lower: no separate controller appliances, less per-feature licensing sprawl, and ISSU removes the operational cost of maintenance windows. One prevented outage typically pays for the difference.'}
+    ],
+    objections: [
+      {o:'We are a Cisco shop end to end.', r:'That is exactly where the pain is: fragmented IOS trains, maintenance windows for every upgrade, 5-minute polling. Start with one pod or one fabric — EOS interoperates cleanly with Cisco, and CloudVision will surface issues Catalyst Center cannot see.'},
+      {o:'Arista is too expensive.', r:'Price one planned maintenance window. At scale, a 2-hour outage costs $1M+. ISSU eliminates planned outages for upgrades, and 1-second telemetry catches issues 300x faster than 5-minute polling. TCO runs about 40% below Cisco.'},
+      {o:'InfiniBand is faster for AI training.', r:'Raw latency is close (IB ~0.6us vs UEC ~1us) and shrinking, while Ethernet costs 30-50% less, uses standard NICs and needs no specialized IB admins. Azure HPC already made this call — on Arista Ethernet.'},
+      {o:'We can automate this ourselves with open source.', r:'Arista is the most open vendor in the space: gNMI and OpenConfig are native, AVD and ANTA are open-source. You get the open tooling AND a supported platform — not a science project.'},
+      {o:'Juniper Apstra already gives us intent-based networking.', r:'AVD deploys a full fabric faster than Apstra and is fully open-source, and EOS exposes cleaner gRPC/gNMI telemetry out of the box. Juniper is strong in SP WAN; head-to-head in the data center, Arista wins on installed base and EVPN maturity.'}
     ],
     battlecards: [
       {name:'Cisco', color:'#ef4444',
+       strength:'Brand dominance in enterprise, full-stack SD-WAN + SASE suite, and the largest reseller channel in networking.',
+       counter:'Single-binary EOS + CloudVision against fragmented IOS trains: zero-downtime ISSU, 1-second telemetry and roughly 40% lower TCO.',
        wins:['Single-binary EOS vs fragmented IOS-XE/NX-OS','40% lower TCO (Gartner)','True ISSU zero downtime — Cisco requires maintenance windows','CloudVision AI NetOps vs manual CLI','Open APIs standard on every port'],
        losses:['Cisco brand dominance in enterprise','Full-stack SD-WAN + SASE suite','Stronger campus/branch presence','Larger reseller channel']},
       {name:'Juniper', color:'#f97316',
+       strength:'Mist AI is a strong campus story and Juniper has deep service-provider WAN heritage.',
+       counter:'Arista owns the data center head-to-head: larger installed base, more mature EVPN-VXLAN and DC-specific CloudVision vs campus-focused Mist.',
        wins:['Stronger hyperscaler/cloud footprint','CloudVision DC-specific vs Juniper Mist AI (campus-focused)','Larger data center installed base','More mature EVPN-VXLAN implementations'],
        losses:['Juniper AI-driven Mist campus story','Branch and WAN networking','SASE integration']},
       {name:'NVIDIA InfiniBand', color:'#22c55e',
+       strength:'Dominant in HPC and AI training clusters today, with a raw latency edge and GPU-direct RDMA optimization.',
+       counter:'Open Ultra Ethernet at 30-50% lower cost with standard NICs and no InfiniBand admins — the direction Azure HPC has already taken.',
        wins:['Ethernet-native — no protocol conversion needed','Lower cost for AI fabric (30-50% cheaper)','Interoperability with standard NICs and servers','CloudVision monitoring included'],
-       losses:['Raw AI latency (IB ~0.6μs vs UEC ~1μs)','GPU-direct RDMA optimization','Dominant in HPC and AI training clusters today']},
+       losses:['Raw AI latency (IB ~0.6μs vs UEC ~1μs)','GPU-direct RDMA optimization','Dominant in HPC and AI training clusters today']}
     ]
   },
   cadient: {
     color: '#f472b6',
-    tagline: 'AI-powered talent acquisition & ATS optimization',
-    metrics: ['60% Faster Hiring', '45% Lower Cost-per-Hire', '80% Recruiter Productivity', 'High-Volume Specialist'],
+    name: 'Cadient Talent',
+    tagline: 'AI-powered talent acquisition & high-volume hiring — SmartSuite',
+    overview: "Cadient Talent is an AI talent-acquisition platform built for high-volume hourly hiring. SmartSuite covers the full talent journey — SmartSource sourcing, SmartMatch AI matching, SmartScreen automated screening and SmartHire optimization — augmenting or replacing a legacy ATS. Retail, healthcare, logistics and hospitality employers use it to cut time-to-fill and cost-per-hire dramatically.",
+    metrics: [
+      {v:'60%', l:'Faster Hiring'},
+      {v:'45%', l:'Lower Cost-per-Hire'},
+      {v:'80%', l:'Recruiter Productivity Lift'},
+      {v:'30%', l:'Better Hire Quality'},
+      {v:'2-3 wks', l:'Implementation'}
+    ],
+    products: [
+      {name:'SmartSource', desc:'AI candidate sourcing that builds substantially bigger qualified pools from job boards, referrals and past applicants.', stat:'5x bigger candidate pools'},
+      {name:'SmartMatch', desc:'AI skills matching that ranks candidates against role requirements with consistent, structured criteria.', stat:'15% matching accuracy lift'},
+      {name:'SmartScreen', desc:'Automated screening — phone screens, knockout questions and scheduling handled without recruiter touch.', stat:'30% faster hiring'},
+      {name:'SmartHire', desc:'Hiring-process optimization: bottleneck analytics, requisition health and time-to-fill acceleration across locations.', stat:'60% faster time-to-fill'},
+      {name:'SmartTenure', desc:'Predictive retention scoring that flags likely early attrition before the offer goes out.', stat:'20% retention lift'},
+      {name:'SmartFeedback', desc:'Post-hire engagement insights that close the loop between hiring decisions and 90-day outcomes.', stat:'30% engagement improvement'}
+    ],
     topics: [
       {icon:'SS', title:'SmartSuite Platform', color:'#f472b6', q:'What is Cadient SmartSuite and how does the end-to-end ATS work?'},
       {icon:'SH', title:'SmartHire AI', color:'#e879f9', q:'How does SmartHire AI optimization work for high-volume hiring?'},
@@ -5219,32 +5273,72 @@ const INTEL_PANELS = {
       {icon:'vs', title:'vs iCIMS', color:'#f87171', q:'How does Cadient SmartSuite beat iCIMS? Key differentiators for high-volume hiring?'},
       {icon:'vs', title:'vs Greenhouse', color:'#fb923c', q:'Cadient vs Greenhouse — why do high-volume employers choose Cadient?'},
       {icon:'ROI', title:'ROI Calculator', color:'#34d399', q:'What is the typical ROI and payback period for Cadient SmartSuite implementation?'},
-      {icon:'⚡', title:'Open Positions', color:'#fbbf24', q:'What are the top open positions at our Cadient prospects this week?'},
+      {icon:'⚡', title:'Open Positions', color:'#fbbf24', q:'What are the top open positions at our Cadient prospects this week?'}
     ],
     faqs: [
-      'What is the implementation timeline for Cadient SmartSuite?',
-      'How does Cadient handle high-volume hourly hiring vs professional hiring?',
-      'What ATS integrations does Cadient support (HRIS, payroll, background)?',
-      'What is the pricing model for Cadient SmartSuite?',
-      'How does Cadient AI screening reduce bias vs legacy ATS?',
-      'What are the top win stories and customer case studies for Cadient?',
+      {q:'What is the implementation timeline for SmartSuite?', a:'2-3 weeks, not months. Cadient handles data migration and training, and most clients see ROI within their first hiring cycle.'},
+      {q:'How does Cadient handle high-volume hourly hiring vs professional hiring?', a:'SmartSuite is purpose-built for hourly and frontline roles: high-application-volume screening, location-based workflows and speed-to-offer measured in days. Professional-hiring ATSs like Greenhouse or Lever optimize for salaried pipelines, which is a different problem.'},
+      {q:'Does Cadient replace our existing ATS?', a:'It can, but it does not have to. SmartSuite augments major ATS platforms with AI sourcing, screening and retention prediction, integrating with existing HRIS, payroll and background-check systems.'},
+      {q:'What is the pricing model?', a:'Enterprise SaaS subscription sized to hiring volume. Benchmark the alternative: industry average is roughly $3,200 cost per hire with 45-day fill times — clients typically cut cost-per-hire by 45%.'},
+      {q:'How does AI screening reduce bias?', a:'SmartScreen and SmartMatch score every candidate against the same structured, role-based criteria, removing the inconsistency of manual resume review. Scoring is auditable rather than a black box.'},
+      {q:'What results do customers actually see?', a:'60% faster hiring, 45% lower cost-per-hire, 80% recruiter productivity lift and 30% better hire quality. One client saved over $1M annually on hiring costs.'},
+      {q:'Which industries does Cadient serve?', a:'Retail, healthcare, logistics, hospitality, manufacturing and finance — anywhere high-volume hourly hiring is the bottleneck.'}
+    ],
+    objections: [
+      {o:'It is too expensive.', r:'Industry benchmark is about $3,200 average cost per hire with 45-day fill time. Clients see 45% lower cost-per-hire; one saved $1M+ annually. The question is not cost, it is ROI.'},
+      {o:'We already have an ATS.', r:'SmartSuite is not necessarily an ATS replacement. It augments your existing ATS with AI-powered sourcing, screening and retention prediction, and integrates with all major platforms.'},
+      {o:'We are not ready for a project right now.', r:'Implementation takes 2-3 weeks, not months. Cadient handles data migration and training, and most clients see ROI within the first hiring cycle.'},
+      {o:'We need to think about it.', r:'Understandable — many clients started with SmartSource alone and had measurable results within 30 days. What specific concern can we address?'},
+      {o:'We are looking at a point solution instead.', r:'Point solutions cover one slice of the journey. SmartSuite covers sourcing through retention in one platform — otherwise you are signing multiple vendor contracts and living with data silos.'}
     ],
     battlecards: [
+      {name:'Greenhouse', color:'#f97316',
+       strength:'Beloved recruiter UX, 500+ native integrations and best-in-class structured interviewing for professional hiring.',
+       counter:'Greenhouse is built for salaried pipelines. For hourly high-volume, Cadient delivers AI screening standard, better frontline workflows and a fraction of the cost.',
+       wins:['High-volume at a fraction of Greenhouse cost','AI-powered screening included standard','Better hourly worker workflows','Faster implementation (weeks vs 3-6 months)'],
+       losses:['Greenhouse UX rated higher by recruiters','500+ native integrations','Strong structured interview tooling']},
       {name:'iCIMS', color:'#ef4444',
+       strength:'Enterprise brand recognition and a 4,000+ integration marketplace.',
+       counter:'Cadient is purpose-built for hourly hiring: 60% faster time-to-fill, AI scoring without bias risk and lower per-hire cost at scale.',
        wins:['Purpose-built for high-volume/hourly hiring','AI scoring without bias risk','60% faster time-to-fill (proven)','Lower per-hire cost at scale'],
        losses:['iCIMS has 4,000+ integrations marketplace','Stronger professional hiring workflow','Larger enterprise brand recognition']},
-      {name:'Greenhouse', color:'#f97316',
-       wins:['High-volume at a fraction of Greenhouse cost','AI-powered screening included standard','Better hourly worker workflows','Faster implementation (6-8 weeks vs 3-6 months)'],
-       losses:['Greenhouse UX rated higher by recruiters','500+ native integrations','Strong structured interview tooling']},
       {name:'Workday Recruiting', color:'#a78bfa',
+       strength:'Full HCM suite stickiness — IT often prefers a single vendor with deep finance and payroll integration.',
+       counter:'A bolt-on HCM module vs a specialized platform: Cadient is dramatically faster for hourly and frontline roles, with no HCM lock-in required.',
        wins:['Specialized ATS beats bolt-on module','10x faster for hourly/frontline roles','No HCM lock-in required','Lower total cost'],
        losses:['Workday full HCM suite creates stickiness','IT prefers single vendor','Deep finance/payroll integration']},
+      {name:'Lever', color:'#60a5fa',
+       strength:'Modern CRM-plus-ATS combo with strong sourcing automation for tech and professional recruiting.',
+       counter:'Lever targets salaried tech hiring. It has no high-volume hourly workflows, kiosk/text-apply or shift-based screening — the core of what Cadient does.',
+       wins:['Purpose-built hourly workflows Lever lacks','Text/kiosk apply for frontline workers','AI screening at application volume','Lower cost per hire at scale'],
+       losses:['Lever CRM-first nurture for professional roles','Modern UX loved by tech recruiters','Strong sourcing automation for salaried roles']},
+      {name:'Paradox', color:'#34d399',
+       strength:'Olivia is the category-leading conversational AI for chat-apply, with strong momentum in high-volume screening.',
+       counter:'Paradox is a screening layer that still needs an ATS underneath. SmartSuite covers sourcing to retention in one platform — no second contract.',
+       wins:['Full-suite platform vs a conversational layer','Sourcing through retention in one product','No separate ATS contract needed','Predictive retention (SmartTenure)'],
+       losses:['Olivia is the category-leading chat-apply experience','Strong brand momentum in hourly screening','Slick SMS-first candidate UX']}
     ]
   },
   vorro: {
     color: '#22d3ee',
+    name: 'Vorro',
     tagline: 'Healthcare data integration — BridgeGate EiPaaS',
-    metrics: ['FHIR R4 + HL7 v2/v3', '100+ Enterprises', '10M Daily Transactions', '$20K-$90K+/yr'],
+    overview: "Vorro's BridgeGate is a healthcare-native enterprise integration platform (EiPaaS) that connects EHRs, payers, claims and state systems. It speaks FHIR R4, HL7 v2/v3, EDI X12, NCPDP and C-CDA natively, with particular strength in claims, TPL and Medicaid MCO integration. 100+ enterprises push 10M+ transactions a day through it.",
+    metrics: [
+      {v:'100+', l:'Enterprises'},
+      {v:'10M+', l:'Daily Transactions'},
+      {v:'5,000+', l:'Apps Connected'},
+      {v:'52%', l:'Integration Cost Reduction'},
+      {v:'6 wks', l:'Avg Core Implementation'}
+    ],
+    products: [
+      {name:'BridgeGate Integration', desc:'Connect EHRs, billing, HIEs and payer systems on one platform — FHIR R4, HL7 v2/v3, EDI X12, NCPDP and C-CDA native.', stat:'All healthcare standards built in'},
+      {name:'TPL & Claims', desc:'Third-party liability and claims integration workflows — eligibility, coordination of benefits and claims EDI at scale.', stat:'Payer-grade claims pipelines'},
+      {name:'Medicaid MCO Integration', desc:'Purpose-built connectivity for Medicaid managed-care organizations and state systems.', stat:'State + MCO ready'},
+      {name:'Workflow Automation', desc:'AI-driven automation of clinical and administrative data flows, including prior-authorization handling.', stat:'Fewer manual touches, fewer denials'},
+      {name:'AI Data Hub', desc:'Unified patient data aggregated from every connected source into a single usable layer.', stat:'One view of the patient'},
+      {name:'Monitoring', desc:'Real-time dashboards with auto-healing interfaces and automated audit trails.', stat:'Auto-healing + HIPAA audit trails'}
+    ],
     topics: [
       {icon:'BG', title:'BridgeGate Platform', color:'#22d3ee', q:'What is Vorro BridgeGate EiPaaS and key integration capabilities?'},
       {icon:'⚕', title:'FHIR & HL7', color:'#60a5fa', q:'How does Vorro handle FHIR R4, HL7 v2/v3, and EDI X12 interoperability?'},
@@ -5253,82 +5347,167 @@ const INTEL_PANELS = {
       {icon:'vs', title:'vs Rhapsody', color:'#f87171', q:'Vorro BridgeGate vs Rhapsody/Lyniate — key differentiators for health systems?'},
       {icon:'vs', title:'vs MuleSoft', color:'#fb923c', q:'Vorro vs MuleSoft for healthcare integration — cost and compliance advantages?'},
       {icon:'ROI', title:'ROI & Cost', color:'#fbbf24', q:'What is the typical ROI and cost savings from Vorro BridgeGate implementation?'},
-      {icon:'HIT', title:'Open Deals', color:'#f472b6', q:'What are the top Vorro deals and healthcare IT opportunities this week?'},
+      {icon:'HIT', title:'Open Deals', color:'#f472b6', q:'What are the top Vorro deals and healthcare IT opportunities this week?'}
     ],
     faqs: [
-      'What EHR systems does Vorro integrate with (Epic, Cerner, Meditech)?',
-      'How is Vorro priced compared to MuleSoft and Rhapsody?',
-      'What is the implementation timeline for BridgeGate?',
-      'How does Vorro handle HIPAA compliance and PHI security?',
-      'What is the difference between BridgeGate and a traditional ESB?',
-      'What Medicaid and payer integrations does Vorro support?',
+      {q:'Which EHR systems does Vorro integrate with?', a:'Epic, Cerner (Oracle Health), Meditech and other major EHRs, plus billing systems, HIEs and payer platforms. Legacy HL7 v2 interfaces and modern FHIR R4 APIs are both first-class.'},
+      {q:'How is BridgeGate priced?', a:'Roughly $20K-$90K+ per year plus per-connection fees depending on footprint — typically about 70% lower licensing cost than MuleSoft, with payback in 4-6 months from consolidation savings.'},
+      {q:'What is the implementation timeline?', a:'Around 6 weeks for core integrations. Deployment can be self-managed, hybrid or fully managed by Vorro.'},
+      {q:'How does Vorro handle HIPAA and PHI security?', a:'Fully HIPAA compliant: SOC 2 Type II, encryption at rest and in transit, and automated audit trails on every interface. Compliance is the platform foundation, not an add-on.'},
+      {q:'How is BridgeGate different from a traditional interface engine or ESB?', a:'It is a cloud-native EiPaaS with unified monitoring, auto-healing interfaces and healthcare standards native to the platform — versus a self-hosted engine your team must patch, monitor and staff.'},
+      {q:'What Medicaid and payer integrations does Vorro support?', a:'Medicaid MCO integration, TPL workflows, eligibility, coordination of benefits and claims EDI (X12), plus NCPDP for pharmacy flows.'},
+      {q:'How many tools can BridgeGate consolidate?', a:'Most health systems maintain 15-30 separate integration tools. One client consolidated 47 tools into BridgeGate, saving $2.3M per year.'}
+    ],
+    objections: [
+      {o:'It is too expensive.', r:'Clients see a 52% integration cost reduction. One consolidated 47 tools into BridgeGate and saves $2.3M a year. At $20K-$90K annually, payback is 4-6 months.'},
+      {o:'We already have an integration engine.', r:'How many point-to-point integrations are you maintaining? Most health systems run 15-30 separate tools. BridgeGate consolidates them behind unified monitoring, auto-healing and compliance.'},
+      {o:'We have HIPAA concerns about a new platform.', r:'BridgeGate is SOC 2 Type II with encryption at rest and in transit and automated audit trails. It moves more sensitive healthcare data daily than most competitors handle in a year.'},
+      {o:'Integration projects always take too long.', r:'Core integrations average 6 weeks. Choose self-managed, hybrid or fully managed — Vorro can carry the whole lift.'},
+      {o:'We are looking at a general-purpose iPaaS.', r:'MuleSoft and Boomi are generic platforms where FHIR, HL7 and HIPAA are add-ons. BridgeGate was built for healthcare from day one — standards, monitoring and compliance are the foundation.'}
     ],
     battlecards: [
-      {name:'Rhapsody/Lyniate', color:'#ef4444',
+      {name:'Rhapsody (Lyniate)', color:'#ef4444',
+       strength:'20+ years of installed base in health systems and a deep library of HL7 routing logic and templates.',
+       counter:'Cloud-native BridgeGate deploys in weeks not months, at 52% lower integration cost, with modern REST/FHIR APIs standard instead of legacy on-prem tooling.',
        wins:['52% lower integration cost','Cloud-native vs legacy on-prem','Faster deployment (weeks vs months)','Modern REST/FHIR APIs standard'],
        losses:['Rhapsody has 20+ years installed base','Larger community and connector library','More HL7 routing logic templates']},
+      {name:'Mirth / NextGen Connect', color:'#a78bfa',
+       strength:'Free open-source core with a huge community — the de facto default interface engine.',
+       counter:'Free until you staff it: no managed monitoring, no auto-healing, no vendor SLA. BridgeGate is fully managed with compliance built in — total cost usually favors it once engineering time is counted.',
+       wins:['Managed platform with SLA vs self-supported open source','Auto-healing and monitoring included','FHIR/EDI/NCPDP beyond core HL7','No in-house engine engineers required'],
+       losses:['Free to start','Huge community and familiarity','Ubiquitous installed base']},
+      {name:'Redox', color:'#34d399',
+       strength:'Slick API-first integration network that is very fast for digital-health vendors to adopt.',
+       counter:'Per-connection network pricing scales badly, and Redox does not touch payer-side TPL, claims or Medicaid MCO workflows. BridgeGate is your own platform with predictable pricing.',
+       wins:['Own-platform control vs per-connection network fees','TPL/claims/Medicaid MCO workflows','On-prem and hybrid deployment options','Predictable pricing at scale'],
+       losses:['Fastest onramp for digital-health startups','Pre-built EHR network connections','Developer-friendly API model']},
+      {name:'InterSystems', color:'#fb923c',
+       strength:'HealthShare/IRIS power a huge health-system and HIE footprint with database and engine in one stack.',
+       counter:'Heavyweight platform, heavyweight cost, plus a Cache/IRIS specialist dependency. BridgeGate delivers the integration layer in weeks at a fraction of the TCO.',
+       wins:['Fraction of the TCO','No Cache/IRIS specialist dependency','Deployment in weeks','Purpose-built claims/TPL flows'],
+       losses:['HealthShare footprint in large health systems','Database + engine in one stack','Deep national HIE deployments']},
       {name:'MuleSoft', color:'#f97316',
+       strength:'Broad enterprise iPaaS with the Anypoint Platform feature set and a large SI partner ecosystem.',
+       counter:'Generic iPaaS — HIPAA, FHIR, HL7 and EDI are add-ons. BridgeGate is healthcare from day one at roughly 70% lower licensing cost, with no Salesforce dependency.',
        wins:['Healthcare-specific — HIPAA built-in','70% lower licensing cost','No Salesforce dependency','Faster time-to-value for clinical data'],
-       losses:['MuleSoft has broader enterprise integration','Anypoint Platform is more feature-rich','Larger SI partner ecosystem']},
-      {name:'Azure Health Data Services', color:'#60a5fa',
-       wins:['Vendor-agnostic — not tied to Azure','TPL/claims expertise MSFT lacks','Deeper HL7 v2 legacy support','On-prem deployment option'],
-       losses:['Azure cloud ecosystem integration','SMART on FHIR reference implementation','Microsoft enterprise relationships']},
+       losses:['MuleSoft has broader enterprise integration','Anypoint Platform is more feature-rich','Larger SI partner ecosystem']}
     ]
   },
   cv3: {
     color: '#fb923c',
-    tagline: 'B2B + DTC headless ecommerce platform',
-    metrics: ['CommerceV3 (CV3)', 'B2B Pricing Rules', 'NetSuite/SAP ERP Integration', 'Custom Catalogs'],
+    name: 'CommerceV3',
+    tagline: 'DTC + B2B ecommerce platform — commercev3.com',
+    overview: "CommerceV3 (CV3) is a DTC and B2B ecommerce platform that has been B2B-native for 15+ years. It handles customer-specific pricing, matrix SKUs and account hierarchies with real-time ERP sync to NetSuite, SAP, Epicor, Dynamics 365 and Sage — one fully managed platform for both wholesale and direct-to-consumer. CV3 is a separate company from RevEngineer.",
+    metrics: [
+      {v:'15+ yrs', l:'B2B-Native'},
+      {v:'60-90', l:'Days to Launch'},
+      {v:'Real-time', l:'ERP Sync'},
+      {v:'1', l:'Platform: DTC + B2B'}
+    ],
+    products: [
+      {name:'DTC Storefront', desc:'Headless, fully custom frontend for direct-to-consumer brands — design freedom without platform templates.', stat:'Headless / composable'},
+      {name:'B2B Catalog Engine', desc:'Customer-specific pricing, matrix SKUs (size x color x tier) and parent/child account hierarchies handled natively.', stat:'True matrix pricing'},
+      {name:'ERP Integrations', desc:'Real-time sync with NetSuite, SAP, Epicor, Dynamics 365 and Sage — inventory, orders, pricing and customers.', stat:'5 major ERPs, real-time'},
+      {name:'PIM Connectors', desc:'Product-information pipelines via Akeneo and Salsify connectors.', stat:'Akeneo + Salsify'},
+      {name:'Tax & Shipping', desc:'Avalara tax automation plus ShipBob, FedEx and UPS fulfillment integrations.', stat:'Avalara / ShipBob / FedEx / UPS'}
+    ],
     topics: [
       {icon:'CV3', title:'Platform Overview', color:'#fb923c', q:'What is CommerceV3 (CV3) and key headless ecommerce capabilities?'},
       {icon:'B2B', title:'B2B Features', color:'#f97316', q:'What B2B ecommerce features does CV3 have — customer pricing, catalogs, account hierarchy?'},
       {icon:'ERP', title:'ERP Integration', color:'#fbbf24', q:'How does CV3 integrate with NetSuite, SAP, and Epicor ERP systems?'},
       {icon:'vs', title:'vs Shopify Plus', color:'#f87171', q:'CommerceV3 vs Shopify Plus for B2B ecommerce — key differentiators?'},
-      {icon:'vs', title:'vs Magento', color:'#a78bfa', q:'CV3 vs Magento/Adobe Commerce — cost and flexibility comparison?'},
-      {icon:'ROI', title:'TCO & Pricing', color:'#34d399', q:'What is the typical total cost of ownership for CV3 vs Shopify Plus or Magento?'},
+      {icon:'vs', title:'vs BigCommerce', color:'#a78bfa', q:'CV3 vs BigCommerce B2B Edition — depth of B2B features and ERP integration?'},
+      {icon:'ROI', title:'TCO & Pricing', color:'#34d399', q:'What is the typical total cost of ownership for CV3 vs Shopify Plus or Magento?'}
     ],
     faqs: [
-      'What industries does CV3 specialize in for B2B ecommerce?',
-      'How does CV3 handle complex B2B pricing rules and customer-specific catalogs?',
-      'What is the implementation timeline and onboarding process?',
-      'Does CV3 support headless/composable architecture?',
-      'What payment and tax integrations does CV3 support?',
+      {q:'What industries does CV3 specialize in?', a:'B2B manufacturers, distributors and DTC brands — especially companies that sell wholesale and direct from the same catalog and need ERP-driven pricing and inventory.'},
+      {q:'How does CV3 handle complex B2B pricing?', a:'Natively: matrix SKUs (size x color x customer tier), customer-specific catalogs and price lists, and parent/child account hierarchies. No app stack required.'},
+      {q:'What is the implementation timeline?', a:'60-90 days for a fully managed launch, including ERP integration — versus 6-12 months for a typical Adobe Commerce agency build.'},
+      {q:'Does CV3 support headless / composable architecture?', a:'Yes. The storefront is headless with a fully custom frontend, so design and UX are not constrained by platform templates.'},
+      {q:'What payment, tax and shipping integrations exist?', a:'Avalara for tax, ShipBob, FedEx and UPS for fulfillment, plus standard payment gateways. ERP sync keeps orders and inventory real-time across NetSuite, SAP, Epicor, Dynamics 365 and Sage.'},
+      {q:'Can we run DTC and wholesale on one platform?', a:'That is the core design: one catalog, one admin, two motions. DTC storefront and B2B ordering share the same ERP-synced data so there is no dual-platform overhead.'}
+    ],
+    objections: [
+      {o:'Shopify Plus is cheaper.', r:'Until you need B2B. Shopify Plus lacks true matrix pricing and parent/child account hierarchy, and ERP sync needs paid apps. More than 3 customer price levels typically means $50K+ in custom apps — CV3 does it natively.'},
+      {o:'We are considering Magento / Adobe Commerce.', r:'Adobe Commerce means a $200-500K agency implementation over 6-12 months plus infrastructure to run. CV3 is fully managed SaaS, live in 60-90 days, no infrastructure team.'},
+      {o:'BigCommerce has a B2B Edition.', r:'B2B Edition is the acquired BundleB2B product bolted on, with limited matrix pricing. CV3 was built B2B-first with deeper ERP integrations.'},
+      {o:'It seems expensive.', r:'Compare total cost of ownership: a Magento build starts around $300K before you count team hours maintaining custom integrations. CV3 is managed SaaS with ERP sync included.'}
     ],
     battlecards: [
       {name:'Shopify Plus', color:'#ef4444',
+       strength:'Massive app ecosystem, DTC brand familiarity and low upfront cost for simple stores.',
+       counter:'No true matrix pricing or account hierarchy — complex B2B needs $50K+ in apps. CV3 handles wholesale complexity natively with ERP-grade sync.',
        wins:['Purpose-built B2B pricing rules','Complex catalog management','ERP-native integration (NetSuite/SAP)','Better for manufacturers and distributors'],
        losses:['Shopify Plus massive app ecosystem','DTC brand familiarity','Lower upfront cost for simple stores']},
-      {name:'Magento/Adobe Commerce', color:'#f97316',
+      {name:'BigCommerce', color:'#a78bfa',
+       strength:'Open SaaS positioning with solid mid-market pricing and a growing partner directory.',
+       counter:'B2B Edition is acquired BundleB2B bolted on — limited matrix pricing and shallower ERP integrations than a platform that has been B2B-first for 15+ years.',
+       wins:['True matrix pricing + account hierarchy','Deeper ERP integrations (NetSuite/SAP/Epicor)','B2B-first architecture, not an acquisition bolt-on','One platform for DTC + wholesale'],
+       losses:['Lower entry price','Open SaaS API positioning','Bigger partner directory']},
+      {name:'Magento / Adobe Commerce', color:'#f97316',
+       strength:'Ultimate customization flexibility and the largest extension marketplace.',
+       counter:'That flexibility costs $200-500K in agency implementation and 6-12 months. CV3 is managed SaaS in 60-90 days with far less developer dependency.',
        wins:['Lower total cost (no licensing fees)','Faster implementation','Managed hosting included','Less developer dependency'],
-       losses:['Adobe Commerce has more extensions','Larger developer community','Better for complex customizations']},
+       losses:['Adobe Commerce has more extensions','Larger developer community','Better for extreme customizations']}
     ]
   },
   revengineer: {
     color: '#a3e635',
+    name: 'RevEngineer',
     tagline: 'B2B revenue intelligence & GTM engine — RevEngineer.ai',
-    metrics: ['Signal-based Prospecting', 'Intent Data', 'ICP Scoring', 'Pipeline Acceleration'],
+    overview: "RevEngineer.ai is a B2B revenue intelligence and GTM engine — a completely separate company from CommerceV3, with no ecommerce component. It aggregates 12+ buying signals (first-party website deanonymization, G2/Capterra spikes, job postings, technographic changes), scores accounts against your ICP and routes them straight into CRM and SDR sequences. Built for $20M-$200M ARR B2B vendors that find 6sense over-engineered.",
+    metrics: [
+      {v:'12+', l:'Signal Types'},
+      {v:'40-60%', l:'MQL-to-SQL Lift'},
+      {v:'25-35%', l:'Shorter Sales Cycle'},
+      {v:'2-3 wks', l:'Deployment'},
+      {v:'60-70%', l:'Cheaper than 6sense'}
+    ],
+    products: [
+      {name:'Signal Intelligence', desc:'Aggregates 12+ buying signals: website visitor deanonymization, G2/Capterra activity spikes, job-posting signals and technographic changes.', stat:'1st-party + 3rd-party signals'},
+      {name:'ICP Scoring', desc:'Account intent scoring and buying-stage classification against your ideal customer profile.', stat:'Prioritized account queue'},
+      {name:'GTM Automation', desc:'Signal-to-CRM routing with personalized outbound sequences triggered by intent — sales-first, no ad spend required.', stat:'Signals become SDR tasks'},
+      {name:'Pipeline Analytics', desc:'Pipeline acceleration and SDR efficiency metrics: conversion lift, cycle time and outreach economics.', stat:'30-50% less outreach needed'}
+    ],
     topics: [
       {icon:'RE', title:'Platform Overview', color:'#a3e635', q:'What is RevEngineer.ai and key B2B revenue intelligence capabilities?'},
       {icon:'sig', title:'Signal Intelligence', color:'#84cc16', q:'How does RevEngineer use buying signals, intent data, and G2/Capterra spikes?'},
       {icon:'ICP', title:'ICP Scoring', color:'#60a5fa', q:'How does RevEngineer ICP scoring and account prioritization work?'},
       {icon:'GTM', title:'GTM Playbooks', color:'#fbbf24', q:'What GTM playbooks and outbound automation does RevEngineer support?'},
       {icon:'vs', title:'vs 6sense', color:'#f87171', q:'RevEngineer vs 6sense for B2B intent data and pipeline acceleration?'},
-      {icon:'vs', title:'vs ZoomInfo', color:'#fb923c', q:'RevEngineer vs ZoomInfo Intent — accuracy and pricing comparison?'},
+      {icon:'vs', title:'vs ZoomInfo', color:'#fb923c', q:'RevEngineer vs ZoomInfo Intent — accuracy and pricing comparison?'}
     ],
     faqs: [
-      'What is the difference between RevEngineer and CommerceV3?',
-      'How does RevEngineer signal intelligence work technically?',
-      'What CRM integrations does RevEngineer support?',
-      'What is the typical time-to-value for RevEngineer?',
-      'How does RevEngineer compare to Demandbase on account-based marketing?',
+      {q:'Is RevEngineer related to CommerceV3?', a:'No. They are separate portfolio companies. CommerceV3 is a DTC and B2B ecommerce platform; RevEngineer.ai is B2B revenue intelligence and GTM. Nothing about RevEngineer is ecommerce.'},
+      {q:'How does the signal intelligence actually work?', a:'RevEngineer tracks 12+ signal types — first-party website deanonymization, G2/Capterra research spikes, job postings that imply initiatives, and technographic changes — then fuses them into an account-level intent score with buying-stage classification.'},
+      {q:'What CRM integrations are supported?', a:'Scored accounts and signals route directly into your CRM and SDR sequencing tools, so reps work from a prioritized queue instead of raw lists. Salesforce and HubSpot workflows are the standard paths.'},
+      {q:'What is the time-to-value?', a:'Deployment takes 2-3 weeks and typical payback is 3-6 months — versus 3-6 months just to implement 6sense.'},
+      {q:'How does it compare to Demandbase?', a:'Demandbase is ABM: advertising plus marketing orchestration that assumes paid-media budget. RevEngineer is sales-first — signals route to CRM and SDR sequences with no ad spend, at roughly half to a third of the all-in cost.'},
+      {q:'What does it cost?', a:'60-70% cheaper than 6sense. If tripling SDR conversion means a third of the outreach volume, the ROI is headcount, not just software.'},
+      {q:'Who is the ideal customer?', a:'B2B SaaS and tech vendors between roughly $20M and $200M ARR — big enough to need signal-driven GTM, too pragmatic for an enterprise ABM suite.'}
+    ],
+    objections: [
+      {o:'We are evaluating 6sense.', r:'6sense takes 3-6 months to implement, costs $150K+ ARR and needs dedicated ops. RevEngineer deploys in 2-3 weeks at 60% less, with a UI your SDRs will actually use. For mid-market, 6sense is over-engineered.'},
+      {o:'Demandbase covers this with ABM.', r:'Demandbase is advertising plus ABM — it requires paid-media budget. RevEngineer is sales-first: signals route to CRM and SDR sequences with no ad spend. All-in Demandbase TCO runs 2-3x higher once media is counted.'},
+      {o:'We already get intent data from ZoomInfo.', r:'ZoomInfo Intent is Bombora third-party topic data relabeled. RevEngineer adds first-party website deanonymization, job-posting and technographic signals — 12+ types. They complement rather than compete.'},
+      {o:'It is not in the budget.', r:'If RevEngineer triples SDR conversion, you need a third of the outreach volume. That is headcount ROI, with typical payback in 3-6 months.'}
     ],
     battlecards: [
       {name:'6sense', color:'#ef4444',
+       strength:'The most mature predictive AI in the category, a large enterprise customer base and strong ad-targeting integration.',
+       counter:'Over-engineered for mid-market: 3-6 month implementation, $150K+ ARR and dedicated ops headcount vs 2-3 weeks and 60% lower cost with RevEngineer.',
        wins:['Lower price point','Faster implementation','Direct signal aggregation without ABM complexity','Better for SMB/mid-market'],
        losses:['6sense has more predictive AI maturity','Larger customer base','Better ad targeting integration']},
+      {name:'Demandbase', color:'#a78bfa',
+       strength:'Full ABM suite with advertising orchestration and an established enterprise marketing brand.',
+       counter:'ABM means paid-media budget. RevEngineer is sales-first — signals route straight to CRM and SDR sequences, no ad spend, at 2-3x lower all-in TCO.',
+       wins:['No paid-media budget required','Sales-first signal routing to CRM/SDR sequences','2-3 week deployment','2-3x lower all-in TCO'],
+       losses:['Full ABM advertising suite','B2B DSP for targeted ads','Enterprise marketing brand recognition']},
       {name:'ZoomInfo Intent', color:'#f97316',
+       strength:'The largest B2B contact database and an established brand with strong SMB coverage.',
+       counter:'Their intent is relabeled Bombora third-party topics. RevEngineer adds first-party deanonymization plus job-posting and technographic signals — complementary, and more predictive of near-term buying.',
        wins:['Real-time signal freshness','No ZoomInfo data lock-in','Better GTM workflow automation','More flexible ICP configuration'],
-       losses:['ZoomInfo has larger contact database','More established brand','Better SMB contact coverage']},
+       losses:['ZoomInfo has larger contact database','More established brand','Better SMB contact coverage']}
     ]
   }
 };
@@ -5337,105 +5516,171 @@ const _intelFaqCache = {};
 window.clickIntelTopic = clickIntelTopic;
 window.toggleIntelFaq = toggleIntelFaq;
 window.renderIntelPanel = renderIntelPanel;
+window.intelFaqAskLive = intelFaqAskLive;
+
+function _intelSection(title, count, inner, open) {
+  return '<details class="intel-sec"' + (open ? ' open' : '') + '>'
+    + '<summary>'
+    + '<span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px">' + title + '</span>'
+    + (count ? '<span style="font-size:9px;font-weight:700;color:var(--text-muted);background:rgba(255,255,255,0.06);border-radius:10px;padding:2px 8px">' + count + '</span>' : '')
+    + '<span style="flex:1;height:1px;background:var(--border)"></span>'
+    + '<span class="intel-sec-arrow">&#9660;</span>'
+    + '</summary>'
+    + '<div style="padding-top:4px">' + inner + '</div>'
+    + '</details>';
+}
 
 function renderIntelPanel(co) {
   const panel = document.getElementById('intelMainPanel');
   if (!panel) return;
   const p = INTEL_PANELS[co];
   if (!p) {
-    // "All" mode — show generic search
+    // "All" mode — search + compact company summary grid
     panel.innerHTML = _renderIntelAllMode();
     return;
   }
 
-  const metricsHtml = p.metrics.map(m =>
-    '<span style="padding:3px 10px;border-radius:12px;background:' + p.color + '22;color:' + p.color + ';font-size:10px;font-weight:700;border:1px solid ' + p.color + '44">' + esc(m) + '</span>'
-  ).join('');
+  // Hero: identity + positioning overview
+  const heroHtml =
+    '<div class="intel-card" style="margin-bottom:14px;border-color:' + p.color + '44">'
+    + '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<div style="width:44px;height:44px;border-radius:10px;background:' + p.color + '22;border:1px solid ' + p.color + '55;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:' + p.color + ';flex-shrink:0">' + esc(co.slice(0,2).toUpperCase()) + '</div>'
+    + '<div style="flex:1;min-width:200px">'
+    + '<div style="font-size:17px;font-weight:800;color:var(--text-primary);font-family:var(--font-display)">' + esc(p.name) + '</div>'
+    + '<div style="font-size:11px;color:' + p.color + ';font-weight:600">' + esc(p.tagline) + '</div>'
+    + '</div></div>'
+    + '<div style="font-size:12px;color:var(--text-secondary);line-height:1.65">' + esc(p.overview) + '</div>'
+    + '</div>';
 
-  window._intelTopics_cur = p.topics;
-  const topicsHtml = p.topics.map((t,i) =>
-    '<div onclick="clickIntelTopic(' + i + ')" style="cursor:pointer;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;transition:all 0.15s;display:flex;flex-direction:column;gap:6px" onmouseover="this.style.borderColor=\'' + t.color + '\';this.style.background=\'' + t.color + '11\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.background=\'var(--bg-card)\'">'
+  // Key metrics grid
+  const metricsHtml =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">'
+    + (p.metrics || []).map(m =>
+      '<div style="background:' + p.color + '11;border:1px solid ' + p.color + '33;border-radius:10px;padding:10px 8px;text-align:center;min-height:44px">'
+      + '<div style="font-size:16px;font-weight:800;color:' + p.color + '">' + esc(m.v) + '</div>'
+      + '<div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">' + esc(m.l) + '</div>'
+      + '</div>').join('')
+    + '</div>';
+
+  // Live search (keeps runIntelSearch / intelResults / intelSources wiring)
+  const searchHtml =
+    '<div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">'
+    + '<input id="intelSearchInput" type="text" placeholder="Ask anything about ' + esc(p.name) + '..." style="flex:1;min-width:0;padding:12px 14px;border:1px solid ' + p.color + '55;border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key===\'Enter\')runIntelSearch()">'
+    + '<button onclick="runIntelSearch()" style="padding:12px 18px;min-height:44px;background:' + p.color + ';color:#0a0e17;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Search</button>'
+    + '</div>'
+    + '<div class="card"><div class="card-body" id="intelResults" style="min-height:80px;display:none"><div class="empty-state">Ask a question above.</div></div></div>'
+    + '<div id="intelSources" style="margin-top:6px;margin-bottom:8px"></div>'
+    + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>'
+    + '<div id="intelModeRow" style="display:none"></div>';
+
+  // Product cards
+  const productsHtml = '<div class="intel-grid">'
+    + (p.products || []).map(pr =>
+      '<div class="intel-card" style="display:flex;flex-direction:column;gap:6px">'
+      + '<div style="font-size:12px;font-weight:800;color:' + p.color + '">' + esc(pr.name) + '</div>'
+      + '<div style="font-size:11px;color:var(--text-secondary);line-height:1.5;flex:1">' + esc(pr.desc) + '</div>'
+      + '<div style="font-size:10px;font-weight:700;color:var(--text-primary);background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;padding:4px 8px;align-self:flex-start">' + esc(pr.stat) + '</div>'
+      + '</div>').join('')
+    + '</div>';
+
+  // Quick topics — clicking runs a live search
+  window._intelTopics_cur = p.topics || [];
+  const topicsHtml = '<div class="intel-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">'
+    + (p.topics || []).map((t,i) =>
+      '<div onclick="clickIntelTopic(' + i + ')" style="cursor:pointer;padding:14px;min-height:44px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;transition:all 0.15s;display:flex;flex-direction:column;gap:6px" onmouseover="this.style.borderColor=\'' + t.color + '\';this.style.background=\'' + t.color + '11\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.background=\'var(--bg-card)\'">'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + '<span style="width:32px;height:32px;border-radius:8px;background:' + t.color + '22;color:' + t.color + ';font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + esc(t.icon) + '</span>'
       + '<span style="font-size:12px;font-weight:700;color:var(--text-primary)">' + esc(t.title) + '</span>'
       + '</div>'
       + '<div style="font-size:10px;color:var(--text-muted);line-height:1.4">' + esc(t.q.length > 70 ? t.q.slice(0,70)+'...' : t.q) + '</div>'
-      + '</div>'
-  ).join('');
+      + '</div>').join('')
+    + '</div>';
 
-  const faqsHtml = p.faqs.map((q,i) => {
-    const key = co + '_' + i;
-    const cached = _intelFaqCache[key];
+  // FAQ accordion — static crisp answers, expandable, with ask-live escalation
+  const faqsHtml = (p.faqs || []).map((f,i) => {
+    const q = typeof f === 'string' ? f : f.q;
     return '<div id="faq_' + co + '_' + i + '" style="border-bottom:1px solid var(--border)">'
-      + '<div onclick="toggleIntelFaq(\'' + co + '\',' + i + ')" style="padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-primary);font-weight:500" onmouseover="this.style.background=\'rgba(255,255,255,0.03)\'" onmouseout="this.style.background=\'none\'">'
+      + '<div onclick="toggleIntelFaq(\'' + co + '\',' + i + ')" style="padding:13px 14px;min-height:44px;box-sizing:border-box;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--text-primary);font-weight:500" onmouseover="this.style.background=\'rgba(255,255,255,0.03)\'" onmouseout="this.style.background=\'none\'">'
       + '<span>' + esc(q) + '</span>'
-      + '<span id="faqarrow_' + co + '_' + i + '" style="color:var(--text-muted);font-size:10px;transition:transform 0.2s">&#9660;</span>'
+      + '<span id="faqarrow_' + co + '_' + i + '" style="color:var(--text-muted);font-size:10px;transition:transform 0.2s;flex-shrink:0">&#9660;</span>'
       + '</div>'
-      + '<div id="faqbody_' + co + '_' + i + '" style="display:none;padding:0 14px 12px 14px">'
-      + (cached ? '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(cached) + '</div>'
-                : '<div style="font-size:11px;color:var(--text-muted);font-style:italic">Click to load answer...</div>')
-      + '</div>'
+      + '<div id="faqbody_' + co + '_' + i + '" style="display:none;padding:0 14px 12px 14px"></div>'
       + '</div>';
   }).join('');
+  const faqCard = '<div class="card"><div style="border-radius:10px;overflow:hidden">' + faqsHtml + '</div></div>';
 
-  const battlecardsHtml = p.battlecards.map(bc =>
-    '<div style="padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px">'
+  // Objection -> rebuttal cards
+  const objectionsHtml = '<div class="intel-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">'
+    + (p.objections || []).map(ob =>
+      '<div class="intel-card">'
+      + '<div style="font-size:9px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">They say</div>'
+      + '<div style="font-size:12px;color:var(--text-primary);font-style:italic;margin-bottom:8px">&ldquo;' + esc(ob.o) + '&rdquo;</div>'
+      + '<div style="font-size:9px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">You say</div>'
+      + '<div style="font-size:11px;color:var(--text-secondary);line-height:1.55">' + esc(ob.r) + '</div>'
+      + '</div>').join('')
+    + '</div>';
+
+  // Competitor battlecards: their strength / our counter + wins/losses
+  const battlecardsHtml = '<div class="intel-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">'
+    + (p.battlecards || []).map(bc =>
+      '<div class="intel-card">'
       + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
-      + '<span style="width:8px;height:8px;border-radius:50%;background:' + bc.color + ';display:inline-block"></span>'
+      + '<span style="width:8px;height:8px;border-radius:50%;background:' + bc.color + ';display:inline-block;flex-shrink:0"></span>'
       + '<span style="font-size:12px;font-weight:700;color:var(--text-primary)">vs ' + esc(bc.name) + '</span>'
       + '</div>'
+      + (bc.strength ? '<div style="font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Their edge</div>'
+        + '<div style="font-size:11px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px">' + esc(bc.strength) + '</div>' : '')
+      + (bc.counter ? '<div style="font-size:9px;font-weight:700;color:' + bc.color + ';text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Our counter</div>'
+        + '<div style="font-size:11px;color:var(--text-primary);line-height:1.5;margin-bottom:10px">' + esc(bc.counter) + '</div>' : '')
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
       + '<div><div style="font-size:9px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">We Win When</div>'
-      + bc.wins.map(w => '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;padding-left:10px;border-left:2px solid #22c55e44">'+esc(w)+'</div>').join('')
+      + (bc.wins || []).map(w => '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;padding-left:10px;border-left:2px solid #22c55e44">' + esc(w) + '</div>').join('')
       + '</div>'
       + '<div><div style="font-size:9px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Watch Out For</div>'
-      + bc.losses.map(l => '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;padding-left:10px;border-left:2px solid #f8717144">'+esc(l)+'</div>').join('')
+      + (bc.losses || []).map(l => '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:3px;padding-left:10px;border-left:2px solid #f8717144">' + esc(l) + '</div>').join('')
       + '</div>'
       + '</div>'
-      + '</div>'
-  ).join('');
+      + '</div>').join('')
+    + '</div>';
 
-  panel.innerHTML =
-    // Hero
-    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">'
-    + '<div style="width:40px;height:40px;border-radius:10px;background:' + p.color + '22;border:1px solid ' + p.color + '55;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:' + p.color + '">' + co.slice(0,2).toUpperCase() + '</div>'
-    + '<div><div style="font-size:16px;font-weight:800;color:var(--text-primary);font-family:var(--font-display)">' + esc(co === 'cv3' ? 'CommerceV3' : co.charAt(0).toUpperCase() + co.slice(1)) + '</div>'
-    + '<div style="font-size:11px;color:var(--text-muted)">' + esc(p.tagline) + '</div></div>'
-    + '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' + metricsHtml + '</div>'
-    + '</div>'
-
-    // Search bar
-    + '<div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">'
-    + '<input id="intelSearchInput" type="text" placeholder="Ask anything about ' + esc(co) + '..." style="flex:1;padding:10px 14px;border:1px solid ' + p.color + '55;border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key===\'Enter\')runIntelSearch()">'
-    + '<button onclick="runIntelSearch()" style="padding:10px 18px;background:' + p.color + ';color:#0a0e17;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Search</button>'
-    + '</div>'
-    + '<div class="card"><div class="card-body" id="intelResults" style="min-height:80px;display:none"><div class="empty-state">Ask a question above.</div></div></div>'
-    + '<div id="intelSources" style="margin-top:6px;margin-bottom:8px"></div>'
-    + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>'
-    + '<div id="intelModeRow" style="display:none"></div>'
-
-    // Topic cards
-    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;margin-top:16px">Quick Topics</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:20px">' + topicsHtml + '</div>'
-
-    // FAQ
-    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Frequently Asked</div>'
-    + '<div class="card" style="margin-bottom:20px"><div style="border-radius:10px;overflow:hidden">' + faqsHtml + '</div></div>'
-
-    // Battlecards
-    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Competitive Battlecards</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">' + battlecardsHtml + '</div>';
+  panel.innerHTML = heroHtml + metricsHtml + searchHtml
+    + _intelSection('Products &amp; Platform', (p.products || []).length, productsHtml, true)
+    + _intelSection('Quick Topics &mdash; Ask Live', (p.topics || []).length, topicsHtml, false)
+    + _intelSection('Frequently Asked', (p.faqs || []).length, faqCard, true)
+    + _intelSection('Objection Handling', (p.objections || []).length, objectionsHtml, true)
+    + _intelSection('Competitive Battlecards', (p.battlecards || []).length, battlecardsHtml, true);
 }
 
 function _renderIntelAllMode() {
+  const cos = ['arista','cadient','vorro','cv3','revengineer'];
+  const cardsHtml = cos.map(c => {
+    const p = INTEL_PANELS[c];
+    if (!p) return '';
+    const pills = (p.metrics || []).slice(0,3).map(m =>
+      '<span style="padding:3px 8px;border-radius:10px;background:' + p.color + '18;color:' + p.color + ';font-size:9px;font-weight:700;border:1px solid ' + p.color + '33;white-space:nowrap">' + esc(m.v + ' ' + m.l) + '</span>'
+    ).join('');
+    const counts = (p.products || []).length + ' products &middot; ' + (p.faqs || []).length + ' FAQs &middot; ' + (p.battlecards || []).length + ' battlecards';
+    return '<div onclick="setIntelCompany(\'' + c + '\')" class="intel-card" style="cursor:pointer;display:flex;flex-direction:column;gap:8px;min-height:44px;transition:all 0.15s" onmouseover="this.style.borderColor=\'' + p.color + '\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+      + '<div style="display:flex;align-items:center;gap:10px">'
+      + '<div style="width:36px;height:36px;border-radius:9px;background:' + p.color + '22;border:1px solid ' + p.color + '55;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:' + p.color + ';flex-shrink:0">' + esc(c.slice(0,2).toUpperCase()) + '</div>'
+      + '<div style="min-width:0"><div style="font-size:13px;font-weight:800;color:var(--text-primary)">' + esc(p.name) + '</div>'
+      + '<div style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(p.tagline) + '</div></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:5px;flex-wrap:wrap">' + pills + '</div>'
+      + '<div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:auto">' + counts + ' &rarr;</div>'
+      + '</div>';
+  }).join('');
+
   return '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">'
-    + '<input id="intelSearchInput" type="text" placeholder="Ask anything across email, CRM, meetings, and deals..." style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key===\'Enter\')runIntelSearch()">'
-    + '<button onclick="runIntelSearch()" style="padding:10px 18px;background:#c9a227;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Search</button>'
+    + '<input id="intelSearchInput" type="text" placeholder="Ask anything across email, CRM, meetings, and deals..." style="flex:1;min-width:0;padding:12px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;outline:none;background:var(--bg-elevated);color:var(--text-primary)" onkeydown="if(event.key===\'Enter\')runIntelSearch()">'
+    + '<button onclick="runIntelSearch()" style="padding:12px 18px;min-height:44px;background:#c9a227;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Search</button>'
     + '</div>'
     + '<div id="intelModeRow" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>'
-    + '<div class="card"><div class="card-body" id="intelResults" style="min-height:200px"><div class="empty-state">Ask a question to search across all your data sources.</div></div></div>'
+    + '<div class="card"><div class="card-body" id="intelResults" style="min-height:120px"><div class="empty-state">Ask a question to search across all your data sources.</div></div></div>'
     + '<div id="intelSources" style="margin-top:8px"></div>'
-    + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>';
+    + '<div id="intelKbNote" style="display:none;margin-bottom:8px;padding:6px 10px;background:var(--accent-dim);border-radius:6px;font-size:11px;color:var(--accent-text)"></div>'
+    + '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin:16px 0 10px">Company Knowledge Bases</div>'
+    + '<div class="intel-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">' + cardsHtml + '</div>';
 }
 
 function clickIntelTopic(qOrIdx) {
@@ -5450,6 +5695,12 @@ function clickIntelTopic(qOrIdx) {
   }, 100);
 }
 
+function intelFaqAskLive(co, i) {
+  const f = ((INTEL_PANELS[co]||{}).faqs||[])[i];
+  if (!f) return;
+  clickIntelTopic(typeof f === 'string' ? f : f.q);
+}
+
 async function toggleIntelFaq(co, i) {
   const body = document.getElementById('faqbody_' + co + '_' + i);
   const arrow = document.getElementById('faqarrow_' + co + '_' + i);
@@ -5457,32 +5708,44 @@ async function toggleIntelFaq(co, i) {
   const isOpen = body.style.display !== 'none';
   body.style.display = isOpen ? 'none' : 'block';
   if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
-  if (!isOpen) {
-    const key = co + '_' + i;
-    if (_intelFaqCache[key]) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(_intelFaqCache[key]) + '</div>';
-      return;
+  if (isOpen) return;
+
+  const f = ((INTEL_PANELS[co]||{}).faqs||[])[i];
+  if (!f) return;
+  const q = typeof f === 'string' ? f : f.q;
+  const staticA = typeof f === 'object' && f.a ? f.a : null;
+  const key = co + '_' + i;
+
+  if (_intelFaqCache[key]) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(_intelFaqCache[key]) + '</div>';
+    return;
+  }
+
+  // Static crisp answer from the KB — instant, no LLM call
+  if (staticA) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + esc(staticA) + '</div>'
+      + '<div style="margin-top:8px"><button onclick="intelFaqAskLive(\'' + co + '\',' + i + ')" style="padding:6px 12px;min-height:32px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:10px;font-weight:600;cursor:pointer">Ask live for latest detail &rarr;</button></div>';
+    return;
+  }
+
+  // No static answer — fall back to LLM
+  body.innerHTML = '<div style="font-size:11px;color:var(--text-muted)"><div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div>Loading answer...</div>';
+  try {
+    const p = COMPANY_PROFILES[co] || COMPANY_PROFILES.all;
+    const kbStr = p.kb || getKnowledgeString();
+    const sys = p.systemPrompt || '';
+    const ans = await ask(sys + '\n\nAnswer this question directly and specifically. Use the Company KB and your own knowledge. Format with short paragraphs or bullet points. Be specific with names, numbers, dates. Never say information is unavailable.\n\nQuestion: "' + q + '"\n\nCompany KB:\n' + kbStr, []);
+    _intelFaqCache[key] = typeof ans === 'string' ? ans : JSON.stringify(ans);
+    body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(_intelFaqCache[key]) + '</div>';
+    // Push to AI Sync
+    if (_intelFaqCache[key] && _intelFaqCache[key].length > 50) {
+      fetch('/api/ai-sync/pending',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+        body:JSON.stringify({category:'product_knowledge',source:'Intel FAQ — '+new Date().toLocaleDateString(),
+          content:'Q: '+q+'\n\nA: '+_intelFaqCache[key].slice(0,1500),suggestedMemory:_intelFaqCache[key].slice(0,400),brand:co,date:new Date().toISOString().slice(0,10)})
+      }).catch(()=>{});
     }
-    const q = (INTEL_PANELS[co]||{faqs:[]}).faqs[i];
-    if (!q) return;
-    body.innerHTML = '<div style="font-size:11px;color:var(--text-muted)"><div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div>Loading answer...</div>';
-    try {
-      const p = COMPANY_PROFILES[co] || COMPANY_PROFILES.all;
-      const kbStr = p.kb || getKnowledgeString();
-      const sys = p.systemPrompt || '';
-      const ans = await ask(sys + '\n\nAnswer this question directly and specifically. Use the Company KB and your own knowledge. Format with short paragraphs or bullet points. Be specific with names, numbers, dates. Never say information is unavailable.\n\nQuestion: "' + q + '"\n\nCompany KB:\n' + kbStr, []);
-      _intelFaqCache[key] = typeof ans === 'string' ? ans : JSON.stringify(ans);
-      body.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' + renderMarkdown(_intelFaqCache[key]) + '</div>';
-      // Push to AI Sync
-      if (_intelFaqCache[key] && _intelFaqCache[key].length > 50) {
-        fetch('/api/ai-sync/pending',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
-          body:JSON.stringify({category:'product_knowledge',source:'Intel FAQ — '+new Date().toLocaleDateString(),
-            content:'Q: '+q+'\n\nA: '+_intelFaqCache[key].slice(0,1500),suggestedMemory:_intelFaqCache[key].slice(0,400),brand:co,date:new Date().toISOString().slice(0,10)})
-        }).catch(()=>{});
-      }
-    } catch(e) {
-      body.innerHTML = '<div style="font-size:11px;color:#f87171">Failed to load: ' + esc(e.message) + '</div>';
-    }
+  } catch(e) {
+    body.innerHTML = '<div style="font-size:11px;color:#f87171">Failed to load: ' + esc(e.message) + '</div>';
   }
 }
 // End Intelligence Panel

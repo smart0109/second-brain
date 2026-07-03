@@ -10,26 +10,27 @@ const { google } = require('googleapis');
 
 const app = express();
 
-// === Error Telemetry Storage ===
-const ERROR_LOG_PATH = path.join(__dirname, 'data', 'errors.json');
+// Durable KV storage adapter (Postgres when MEMORY_DATABASE_URL/DATABASE_URL is
+// set, data/*.json file fallback otherwise). Hydrated at boot via kvStore.init()
+// at the bottom of this file; get/set are synchronous against its memory cache.
+const kvStore = require('./store');
+
+// === Error Telemetry Storage === (durable via kvStore, key 'errors')
+const ERROR_LOG_KEY = 'errors';
 let errorLog = [];
 let errorCounts = {};
 const CIRCUIT_BREAK_THRESHOLD = 2;
 
-try {
-  if (fs.existsSync(ERROR_LOG_PATH)) {
-    const data = JSON.parse(fs.readFileSync(ERROR_LOG_PATH, 'utf8'));
-    errorLog = data.log || [];
-    errorCounts = data.counts || {};
-  }
-} catch(e) { console.warn('Could not load error log:', e.message); }
+function loadErrorLog() {
+  const data = kvStore.get(ERROR_LOG_KEY, { log: [], counts: {} }) || {};
+  // Merge (not replace) so errors reported before hydration finished are kept.
+  errorLog = (data.log || []).concat(errorLog);
+  errorCounts = Object.assign({}, data.counts || {}, errorCounts);
+}
 
 function saveErrorLog() {
-  try {
-    const dir = path.dirname(ERROR_LOG_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(ERROR_LOG_PATH, JSON.stringify({ log: errorLog, counts: errorCounts }, null, 2));
-  } catch(e) { console.warn('Could not save error log:', e.message); }
+  try { kvStore.set(ERROR_LOG_KEY, { log: errorLog, counts: errorCounts }); }
+  catch (e) { console.warn('Could not save error log:', e.message); }
 }
 
 
@@ -1577,9 +1578,9 @@ async function askGemini(systemPrompt, userContent, maxTokens) {
   let lastErr = null;
   for (const key of keys) {
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: systemPrompt }] },
           contents: [{ role: 'user', parts: [{ text: userContent }] }],
@@ -1697,167 +1698,19 @@ app.post('/api/ask', requireAuth, async (req, res) => {
 // ── In-Process Memory Store (lightweight Mem0 alternative) ──────────────────
 const _memoryStore = new Map(); // userId → [{memory, metadata, created_at}]
 
-// ─── Two-Tier Memory System ────────────────────────────────────────────────
-// namespace=company  → admin-protected shared knowledge (read freely, write needs approval)
-// namespace=personal → per-user private notes (write freely, admin-readable)
-// ?user=firstname    → whose personal store to read/write (defaults to current user)
-// ADMINS: manish, prateek, scott  (only they may approve company writes)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const COMPANY_MEMORY_KEY = '__company__';
-const ADMINS = ['manish', 'manish696@gmail.com'];
-
-function _getUserId(req) {
-  return (req.session?.email || process.env.ALLOWED_EMAIL || 'manish').toLowerCase().split('@')[0];
+// Persist brief/deep-ask auto-memories across restarts (hydrated by kvStore.init()).
+const BRIEF_MEMORY_KEY = 'brief-memory';
+function _persistBriefMemory() { kvStore.set(BRIEF_MEMORY_KEY, Object.fromEntries(_memoryStore)); }
+function _hydrateBriefMemory() {
+  const saved = kvStore.get(BRIEF_MEMORY_KEY, null);
+  if (!saved) return;
+  for (const [k, v] of Object.entries(saved)) { if (!_memoryStore.has(k)) _memoryStore.set(k, v); }
 }
 
-function _isAdmin(userId) {
-  return ADMINS.some(a => userId.includes(a.split('@')[0]));
-}
-
-// GET /api/memory?q=query&namespace=personal|company&user=firstname
-app.get('/api/memory', requireAuth, async (req, res) => {
-  const currentUser = _getUserId(req);
-  const ns = req.query.namespace || 'personal';
-  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.query.user || currentUser);
-  const query = (req.query.q || '').toLowerCase();
-  const mem0Key = process.env.MEM0_API_KEY;
-
-  // Personal notes: enforce privacy (only self or admin can read)
-  if (ns === 'personal' && targetUser !== currentUser && !_isAdmin(currentUser)) {
-    return res.status(403).json({ error: "Cannot read another user's personal notes" });
-  }
-
-  if (mem0Key) {
-    try {
-      const resp = await fetch('https://api.mem0.ai/v1/memories/search/', {
-        method: 'POST',
-        headers: { 'Authorization': `Token ${mem0Key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query || 'recent context', user_id: targetUser, limit: 20 })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        return res.json({ ...data, namespace: ns, user: targetUser });
-      }
-    } catch (e) { console.error('Mem0 search error:', e.message); }
-  }
-
-  const memories = _memoryStore.get(targetUser) || [];
-  const filtered = query
-    ? memories.filter(m => m.memory?.toLowerCase().includes(query))
-    : memories;
-  res.json({ results: filtered.slice(-50), namespace: ns, user: targetUser });
-});
-
-// POST /api/memory  — write a memory
-// namespace=personal: writes immediately
-// namespace=company:  queues for admin approval (returns pending status)
-app.post('/api/memory', requireAuth, async (req, res) => {
-  const currentUser = _getUserId(req);
-  const ns = req.body.namespace || 'personal';
-  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.body.user || currentUser);
-  const { messages, metadata } = req.body;
-  if (!messages) return res.status(400).json({ error: 'messages required' });
-
-  // Personal notes: only self or admin may write
-  if (ns === 'personal' && targetUser !== currentUser && !_isAdmin(currentUser)) {
-    return res.status(403).json({ error: "Cannot write to another user's personal notes" });
-  }
-
-  // Company memory: non-admins get a pending queue entry, not a direct write
-  if (ns === 'company' && !_isAdmin(currentUser)) {
-    const pending = _memoryStore.get('__company_pending__') || [];
-    const entry = {
-      proposed_by: currentUser,
-      proposed_at: new Date().toISOString(),
-      messages,
-      metadata,
-      status: 'PENDING'
-    };
-    _memoryStore.set('__company_pending__', [...pending, entry]);
-    return res.json({
-      status: 'pending_approval',
-      message: 'Company memory change queued for admin approval.',
-      entry
-    });
-  }
-
-  const mem0Key = process.env.MEM0_API_KEY;
-  if (mem0Key) {
-    try {
-      const resp = await fetch('https://api.mem0.ai/v1/memories/', {
-        method: 'POST',
-        headers: { 'Authorization': `Token ${mem0Key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, user_id: targetUser, metadata })
-      });
-      if (resp.ok) return res.json({ ...(await resp.json()), namespace: ns });
-    } catch (e) { console.error('Mem0 add error:', e.message); }
-  }
-
-  const existing = _memoryStore.get(targetUser) || [];
-  const newMems = messages.map(m => ({
-    memory: m.content,
-    namespace: ns,
-    metadata: { ...metadata, written_by: currentUser },
-    created_at: new Date().toISOString()
-  }));
-  _memoryStore.set(targetUser, [...existing, ...newMems].slice(-300));
-  res.json({ results: newMems, namespace: ns, source: 'in-process' });
-});
-
-// DELETE /api/memory  — clear memories
-// namespace=company: admin only; namespace=personal: self or admin
-app.delete('/api/memory', requireAuth, (req, res) => {
-  const currentUser = _getUserId(req);
-  const ns = req.query.namespace || 'personal';
-  const targetUser = ns === 'company' ? COMPANY_MEMORY_KEY : (req.query.user || currentUser);
-
-  if (ns === 'company' && !_isAdmin(currentUser)) {
-    return res.status(403).json({ error: 'Only admins can clear company memory' });
-  }
-  if (ns === 'personal' && targetUser !== currentUser && !_isAdmin(currentUser)) {
-    return res.status(403).json({ error: "Cannot clear another user's personal notes" });
-  }
-
-  _memoryStore.delete(targetUser);
-  res.json({ success: true, namespace: ns, user: targetUser });
-});
-
-// GET /api/memory/pending  — admin: review pending company memory proposals
-app.get('/api/memory/pending', requireAuth, (req, res) => {
-  const currentUser = _getUserId(req);
-  if (!_isAdmin(currentUser)) return res.status(403).json({ error: 'Admin only' });
-  res.json({ pending: _memoryStore.get('__company_pending__') || [] });
-});
-
-// POST /api/memory/pending/:index/approve  — admin approves a pending change
-app.post('/api/memory/pending/:index/approve', requireAuth, async (req, res) => {
-  const currentUser = _getUserId(req);
-  if (!_isAdmin(currentUser)) return res.status(403).json({ error: 'Admin only' });
-
-  const pending = _memoryStore.get('__company_pending__') || [];
-  const idx = parseInt(req.params.index, 10);
-  if (!pending[idx]) return res.status(404).json({ error: 'Pending entry not found' });
-
-  const entry = pending[idx];
-  entry.status = 'APPROVED';
-  entry.approved_by = currentUser;
-  entry.approved_at = new Date().toISOString();
-
-  // Commit it to company memory
-  const existing = _memoryStore.get(COMPANY_MEMORY_KEY) || [];
-  const newMems = entry.messages.map(m => ({
-    memory: m.content,
-    namespace: 'company',
-    metadata: { ...entry.metadata, proposed_by: entry.proposed_by, approved_by: currentUser },
-    created_at: new Date().toISOString()
-  }));
-  _memoryStore.set(COMPANY_MEMORY_KEY, [...existing, ...newMems].slice(-500));
-  pending[idx] = entry;
-  _memoryStore.set('__company_pending__', pending);
-
-  res.json({ success: true, approved: entry, stored: newMems });
-});
+// NOTE: the old v6 /api/memory route family (GET/POST/DELETE /api/memory,
+// GET /api/memory/pending, POST /api/memory/pending/:index/approve) that lived
+// here was removed 2026-07-03. Express first-match routing meant it shadowed the
+// newer org-aware two-tier memory system further down, which is now live.
 
 // ── Meeting Brief Generator ──────────────────────────────────────────────────
 app.post('/api/brief', requireAuth, async (req, res) => {
@@ -1933,6 +1786,7 @@ Under 200 words total. Manish reads this in under 60 seconds.`
       metadata: { type: 'meeting_brief', title, attendees },
       created_at: new Date().toISOString()
     }].slice(-300));
+    _persistBriefMemory();
 
     res.json({ brief, title, attendees, generated_at: new Date().toISOString() });
   } catch (err) {
@@ -2024,6 +1878,7 @@ Be direct, specific, and data-driven. Reference exact numbers when relevant. Giv
       metadata: { type: 'deep_query' },
       created_at: new Date().toISOString()
     }].slice(-300));
+    _persistBriefMemory();
 
     return res.json(text);
   } catch (err) {
@@ -2227,6 +2082,32 @@ function _isOrgAdmin(uid, orgId) {
 }
 function _mkey(orgId, ns, user) { return ns === 'company' ? `${orgId}:company` : `${orgId}:user:${user}`; }
 
+// Durable persistence of the whole two-tier memory state (orgs, stores, pending
+// queues, backups, audit log) via kvStore, so LLM memory survives restarts.
+// _saveMemState() is hooked into _audit(), which every mutating path calls.
+const MEMORY_STATE_KEY = 'memory-two-tier';
+function _saveMemState() {
+  kvStore.set(MEMORY_STATE_KEY, {
+    orgs: _orgs,
+    memStore: Object.fromEntries(_memStore),
+    pendQueue: Object.fromEntries(_pendQueue),
+    backups: Object.fromEntries(_backups),
+    auditLog: Object.fromEntries(_auditLog),
+  });
+}
+function _rehydrateMemoryState() {
+  const saved = kvStore.get(MEMORY_STATE_KEY, null);
+  if (!saved) return;
+  try {
+    for (const [id, cfg] of Object.entries(saved.orgs || {})) { if (!_orgs[id]) _orgs[id] = cfg; }
+    for (const [k, v] of Object.entries(saved.memStore || {})) _memStore.set(k, v);
+    for (const [k, v] of Object.entries(saved.pendQueue || {})) _pendQueue.set(k, v);
+    for (const [k, v] of Object.entries(saved.backups || {})) _backups.set(k, v);
+    for (const [k, v] of Object.entries(saved.auditLog || {})) _auditLog.set(k, v);
+    console.log('Two-tier memory rehydrated:', _memStore.size, 'stores,', _pendQueue.size, 'org pending queues');
+  } catch (e) { console.warn('Two-tier memory rehydrate failed:', e.message); }
+}
+
 function _audit(req, orgId, action, extra) {
   const log = _auditLog.get(orgId) || [];
   log.push({
@@ -2243,6 +2124,7 @@ function _audit(req, orgId, action, extra) {
   });
   if (log.length > 10000) log.splice(0, log.length - 10000);
   _auditLog.set(orgId, log);
+  _saveMemState(); // every mutating memory path audits, so this persists all state
 }
 
 function _takeBackup(orgId, triggeredBy) {
@@ -2476,7 +2358,7 @@ app.post('/api/orgs/:orgId/admins', requireAuth, (req, res) => {
 // ---------------------------------------------------------------------------
 
 // === Error Telemetry Endpoints ===
-app.post('/api/errors', (req, res) => {
+app.post('/api/errors', bridgeGuard, (req, res) => {
   const { errors } = req.body || {};
   if (!Array.isArray(errors)) return res.status(400).json({ error: 'errors array required' });
   let circuitBreaks = [];
@@ -2622,53 +2504,12 @@ app.options('/api/meet-caption-config', (_req, res) => { res.set('Access-Control
 // expert opinion) -> "Post" creates a pending job -> the local Windows poller
 // (reusing the Selenium stack) claims the job, posts to LinkedIn, reports back.
 // ===========================================================================
-const SOCIAL_TARGETS_PATH = path.join(__dirname, 'data', 'social-targets.json');
-const SOCIAL_POSTS_PATH = path.join(__dirname, 'data', 'social-posts.json');
+const SOCIAL_TARGETS_KEY = 'social-targets';
+const SOCIAL_POSTS_KEY = 'social-posts';
 
-// ---- Durable KV: Postgres-backed when DATABASE_URL is set; file fallback otherwise ----
-// Render's filesystem is EPHEMERAL (wiped on every redeploy), which silently erased
-// viral targets + meeting-prep entries. With DATABASE_URL we persist these small JSON
-// stores in Postgres (hydrated into memory at boot) so they survive redeploys.
-let _pgPool = null;
-const _kv = {};
-let _kvHydrated = false;
-if (process.env.DATABASE_URL) {
-  try {
-    const { Pool } = require('pg');
-    _pgPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 3 });
-    _pgPool.on('error', (e) => console.warn('pg pool error:', e.message));
-  } catch (e) { console.warn('pg unavailable, using file storage:', e.message); _pgPool = null; }
-}
-async function _kvInit() {
-  if (!_pgPool) { _kvHydrated = true; return; }
-  try {
-    await _pgPool.query('CREATE TABLE IF NOT EXISTS app_kv (k text primary key, v jsonb, updated_at timestamptz default now())');
-    const r = await _pgPool.query('SELECT k, v FROM app_kv');
-    for (const row of r.rows) _kv[row.k] = row.v;
-    _kvHydrated = true;
-    console.log('Durable KV hydrated from Postgres:', r.rows.length, 'keys');
-  } catch (e) {
-    console.warn('KV init failed, falling back to files:', e.message);
-    _pgPool = null; _kvHydrated = true;
-  }
-}
-const _kvKey = (p) => path.basename(p);
-
-function _readJsonSafe(p, fallback) {
-  if (_pgPool) { const k = _kvKey(p); return (k in _kv) ? _kv[k] : fallback; }
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
-}
-function _writeJsonSocial(p, obj) {
-  if (_pgPool) {
-    const k = _kvKey(p); _kv[k] = obj;
-    _pgPool.query('INSERT INTO app_kv(k,v,updated_at) VALUES($1,$2,now()) ON CONFLICT(k) DO UPDATE SET v=$2, updated_at=now()', [k, JSON.stringify(obj)])
-      .catch((e) => console.warn('kv write ' + k + ' failed:', e.message));
-    return;
-  }
-  const dir = path.dirname(p);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(obj, null, 2));
-}
+// Durable JSON stores now live in store.js (kvStore, required at the top of this
+// file): Postgres-backed when MEMORY_DATABASE_URL/DATABASE_URL is set, data/*.json
+// file fallback otherwise. Keys equal the old filenames without ".json".
 function _socialId() { return 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
 // Guard for endpoints the LOCAL poller calls. If SOCIAL_BRIDGE_TOKEN is set,
@@ -2705,14 +2546,14 @@ async function _genSocialDraft(style, post) {
 
 // --- Page-facing endpoints (requireAuth) -----------------------------------
 app.get('/api/social/targets', requireAuth, (_req, res) => {
-  res.json(_readJsonSafe(SOCIAL_TARGETS_PATH, { updatedAt: null, targets: [] }));
+  res.json(kvStore.get(SOCIAL_TARGETS_KEY, { updatedAt: null, targets: [] }));
 });
 
 app.post('/api/social/draft', requireAuth, async (req, res) => {
   try {
     let post = req.body && req.body.post;
     if (!post && req.body && req.body.targetId) {
-      const store = _readJsonSafe(SOCIAL_TARGETS_PATH, { targets: [] });
+      const store = kvStore.get(SOCIAL_TARGETS_KEY, { targets: [] });
       post = (store.targets || []).find(t => t.id === req.body.targetId);
     }
     if (!post) return res.status(400).json({ error: 'Provide a targetId or a post object' });
@@ -2725,14 +2566,14 @@ app.post('/api/social/draft', requireAuth, async (req, res) => {
 });
 
 app.get('/api/social/posts', requireAuth, (_req, res) => {
-  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const store = kvStore.get(SOCIAL_POSTS_KEY, { jobs: [] });
   res.json({ jobs: (store.jobs || []).slice(-50).reverse() });
 });
 
 app.post('/api/social/posts', requireAuth, (req, res) => {
   const b = req.body || {};
   if (!b.text || !b.text.trim()) return res.status(400).json({ error: 'Missing draft text' });
-  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const store = kvStore.get(SOCIAL_POSTS_KEY, { jobs: [] });
   const job = {
     id: _socialId(),
     createdAt: new Date().toISOString(),
@@ -2746,7 +2587,7 @@ app.post('/api/social/posts', requireAuth, (req, res) => {
     claimedAt: null, postedAt: null, error: null, resultUrl: null,
   };
   store.jobs = store.jobs || []; store.jobs.push(job);
-  _writeJsonSocial(SOCIAL_POSTS_PATH, store);
+  kvStore.set(SOCIAL_POSTS_KEY, store);
   res.json({ ok: true, job });
 });
 
@@ -2767,27 +2608,27 @@ app.post('/api/social/targets', bridgeGuard, (req, res) => {
     comments: t.comments != null ? t.comments : null,
     shares: t.shares != null ? t.shares : null,
   }));
-  _writeJsonSocial(SOCIAL_TARGETS_PATH, { updatedAt: new Date().toISOString(), targets: norm });
+  kvStore.set(SOCIAL_TARGETS_KEY, { updatedAt: new Date().toISOString(), targets: norm });
   res.json({ ok: true, count: norm.length });
 });
 
 app.get('/api/social/posts/pending', bridgeGuard, (_req, res) => {
-  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const store = kvStore.get(SOCIAL_POSTS_KEY, { jobs: [] });
   res.json({ jobs: (store.jobs || []).filter(j => j.status === 'pending') });
 });
 
 app.post('/api/social/posts/:id/claim', bridgeGuard, (req, res) => {
-  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const store = kvStore.get(SOCIAL_POSTS_KEY, { jobs: [] });
   const job = (store.jobs || []).find(j => j.id === req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
   if (job.status !== 'pending') return res.status(409).json({ error: 'Already ' + job.status });
   job.status = 'claimed'; job.claimedAt = new Date().toISOString();
-  _writeJsonSocial(SOCIAL_POSTS_PATH, store);
+  kvStore.set(SOCIAL_POSTS_KEY, store);
   res.json({ ok: true, job });
 });
 
 app.post('/api/social/posts/:id/result', bridgeGuard, (req, res) => {
-  const store = _readJsonSafe(SOCIAL_POSTS_PATH, { jobs: [] });
+  const store = kvStore.get(SOCIAL_POSTS_KEY, { jobs: [] });
   const job = (store.jobs || []).find(j => j.id === req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
   const b = req.body || {};
@@ -2795,41 +2636,41 @@ app.post('/api/social/posts/:id/result', bridgeGuard, (req, res) => {
   job.resultUrl = b.resultUrl || null;
   job.error = b.error || null;
   job.postedAt = new Date().toISOString();
-  _writeJsonSocial(SOCIAL_POSTS_PATH, store);
+  kvStore.set(SOCIAL_POSTS_KEY, store);
   res.json({ ok: true, job });
 });
 
 // --- Breaking-source "be first" monitor + refresh + super-viral email alert ----
-const SOCIAL_SOURCES_PATH = path.join(__dirname, 'data', 'social-sources.json');
-const SOCIAL_REFRESH_PATH = path.join(__dirname, 'data', 'social-refresh.json');
-const SOCIAL_ALERTS_PATH = path.join(__dirname, 'data', 'social-alerts.json');
+const SOCIAL_SOURCES_KEY = 'social-sources';
+const SOCIAL_REFRESH_KEY = 'social-refresh';
+const SOCIAL_ALERTS_KEY = 'social-alerts';
 
 // Breaking news sources the page shows (pushed by the local news monitor)
 app.get('/api/social/sources', requireAuth, (_req, res) => {
-  res.json(_readJsonSafe(SOCIAL_SOURCES_PATH, { updatedAt: null, sources: [] }));
+  res.json(kvStore.get(SOCIAL_SOURCES_KEY, { updatedAt: null, sources: [] }));
 });
 app.post('/api/social/sources', bridgeGuard, (req, res) => {
   const sources = (req.body && req.body.sources) || [];
-  _writeJsonSocial(SOCIAL_SOURCES_PATH, { updatedAt: new Date().toISOString(), sources });
+  kvStore.set(SOCIAL_SOURCES_KEY, { updatedAt: new Date().toISOString(), sources });
   res.json({ ok: true, count: sources.length });
 });
 
 // "Find viral posts" button -> request an on-demand refresh the local poller runs
 app.post('/api/social/refresh', requireAuth, (req, res) => {
-  const store = _readJsonSafe(SOCIAL_REFRESH_PATH, {});
+  const store = kvStore.get(SOCIAL_REFRESH_KEY, {});
   store.requestedAt = new Date().toISOString();
   store.kind = (req.body && req.body.kind) || 'viral';
-  _writeJsonSocial(SOCIAL_REFRESH_PATH, store);
+  kvStore.set(SOCIAL_REFRESH_KEY, store);
   res.json({ ok: true, requestedAt: store.requestedAt });
 });
 app.get('/api/social/refresh', bridgeGuard, (_req, res) => {
-  const s = _readJsonSafe(SOCIAL_REFRESH_PATH, {});
+  const s = kvStore.get(SOCIAL_REFRESH_KEY, {});
   res.json({ pending: !!(s.requestedAt && s.requestedAt !== s.doneAt), requestedAt: s.requestedAt || null, kind: s.kind || 'viral' });
 });
 app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
-  const s = _readJsonSafe(SOCIAL_REFRESH_PATH, {});
+  const s = kvStore.get(SOCIAL_REFRESH_KEY, {});
   s.doneAt = (req.body && req.body.requestedAt) || s.requestedAt || new Date().toISOString();
-  _writeJsonSocial(SOCIAL_REFRESH_PATH, s);
+  kvStore.set(SOCIAL_REFRESH_KEY, s);
   res.json({ ok: true });
 });
 
@@ -2839,11 +2680,11 @@ app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
 // Items flow: automated scanner → /api/ai-sync/pending → user approves →
 //             /api/ai-memory   ← Intelligence tab + Contact 360 reads here
 // ===========================================================================
-const AI_SYNC_PENDING_PATH = path.join(__dirname, 'data', 'ai-sync-pending.json');
-const AI_MEMORY_PATH       = path.join(__dirname, 'data', 'ai-memory.json');
+const AI_SYNC_PENDING_KEY = 'ai-sync-pending';
+const AI_MEMORY_KEY       = 'ai-memory';
 
 function _readAiPending() {
-  const store = _readJsonSafe(AI_SYNC_PENDING_PATH, { items: [] });
+  const store = kvStore.get(AI_SYNC_PENDING_KEY, { items: [] });
   // Seed sample data if empty
   if (!store.items || !store.items.length) {
     store.items = [
@@ -2885,13 +2726,13 @@ function _readAiPending() {
       },
 
     ];
-    _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
+    kvStore.set(AI_SYNC_PENDING_KEY, store);
   }
   return store;
 }
 
 function _readAiMemory() {
-  const store = _readJsonSafe(AI_MEMORY_PATH, { entries: [] });
+  const store = kvStore.get(AI_MEMORY_KEY, { entries: [] });
   // Seed entries so memory isn't empty on first load / after redeploy
   if (!store.entries || !store.entries.length) {
     store.entries = [
@@ -2932,7 +2773,7 @@ function _readAiMemory() {
         approvedAt: '2026-01-15T12:00:00Z',
       },
     ];
-    _writeJsonSocial(AI_MEMORY_PATH, store);
+    kvStore.set(AI_MEMORY_KEY, store);
   }
   return store;
 }
@@ -2966,7 +2807,7 @@ app.post('/api/ai-sync/pending', requireAuth, (req, res) => {
     createdAt: new Date().toISOString(),
   };
   store.items.push(item);
-  _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
+  kvStore.set(AI_SYNC_PENDING_KEY, store);
   res.json({ ok: true, item });
 });
 
@@ -2979,7 +2820,7 @@ app.post('/api/ai-sync/approve/:id', requireAuth, (req, res) => {
   if (idx < 0) return res.status(404).json({ error: 'Item not found' });
   const item = pStore.items[idx];
   pStore.items.splice(idx, 1);
-  _writeJsonSocial(AI_SYNC_PENDING_PATH, pStore);
+  kvStore.set(AI_SYNC_PENDING_KEY, pStore);
   const mStore = _readAiMemory();
   const entry = {
     id: 'mem_' + Date.now().toString(36),
@@ -2991,7 +2832,7 @@ app.post('/api/ai-sync/approve/:id', requireAuth, (req, res) => {
     approvedAt: new Date().toISOString(),
   };
   mStore.entries.push(entry);
-  _writeJsonSocial(AI_MEMORY_PATH, mStore);
+  kvStore.set(AI_MEMORY_KEY, mStore);
   res.json({ ok: true, entry });
 });
 
@@ -3002,18 +2843,21 @@ app.post('/api/ai-sync/discard/:id', requireAuth, (req, res) => {
   const idx = (store.items || []).findIndex(i => i.id === id);
   if (idx < 0) return res.status(404).json({ error: 'Item not found' });
   store.items.splice(idx, 1);
-  _writeJsonSocial(AI_SYNC_PENDING_PATH, store);
+  kvStore.set(AI_SYNC_PENDING_KEY, store);
   res.json({ ok: true });
 });
 
-// -- Prep Asset Store (in-memory) --
-const _prepAssets = {};
+// -- Prep Asset Store (durable via kvStore) --
+const PREP_ASSETS_KEY = 'prep-assets';
+let _prepAssets = {};
+kvStore.init().then(() => { _prepAssets = kvStore.get(PREP_ASSETS_KEY, {}) || {}; }).catch(()=>{});
 
 app.post('/api/save-prep-asset', requireAuth, (req, res) => {
   const { company, companyName, brand, date, html } = req.body || {};
   if (!company || !html) return res.status(400).json({ error: 'company and html required' });
   const slug = company.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
   _prepAssets[slug] = { slug, companyName: companyName || company, brand: brand || 'vorro', date: date || new Date().toISOString().slice(0, 10), html, savedAt: Date.now() };
+  kvStore.set(PREP_ASSETS_KEY, _prepAssets);
   console.log('[prep-asset] Saved for ' + slug);
   res.json({ ok: true, slug });
 });
@@ -3049,7 +2893,7 @@ app.put('/api/ai-memory/:id', requireAuth, (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Not found' });
   if (req.body.memory) entry.memory = String(req.body.memory).slice(0, 500);
   entry.updatedAt = new Date().toISOString();
-  _writeJsonSocial(AI_MEMORY_PATH, store);
+  kvStore.set(AI_MEMORY_KEY, store);
   res.json({ ok: true, entry });
 });
 
@@ -3060,7 +2904,7 @@ app.delete('/api/ai-memory/:id', requireAuth, (req, res) => {
   const idx = (store.entries || []).findIndex(e => e.id === id);
   if (idx < 0) return res.status(404).json({ error: 'Not found' });
   store.entries.splice(idx, 1);
-  _writeJsonSocial(AI_MEMORY_PATH, store);
+  kvStore.set(AI_MEMORY_KEY, store);
   res.json({ ok: true });
 });
 
@@ -3143,11 +2987,11 @@ app.get('/api/team/meeting-report', requireAuth, (req, res) => {
 });
 
 // PRODUCTIVITY TASKS — assignable action items extracted from INTERNAL calls
-// Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
+// Durable via kvStore (Postgres-backed; data/*.json file fallback).
 // The scheduled internal-meeting-task-extractor writes here (x-api-token);
 // the dashboard reads/edits here (signed-in session).
 // ===========================================================================
-const PRODUCTIVITY_TASKS_PATH = path.join(__dirname, 'data', 'productivity-tasks.json');
+const PRODUCTIVITY_TASKS_KEY = 'productivity-tasks';
 
 function _prodSlug(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
@@ -3178,7 +3022,7 @@ function _normProdTask(t, existing) {
 
 // GET — list all productivity tasks (signed-in session OR service token).
 app.get('/api/productivity/tasks', requireAuth, (_req, res) => {
-  const store = _readJsonSafe(PRODUCTIVITY_TASKS_PATH, { tasks: [] });
+  const store = kvStore.get(PRODUCTIVITY_TASKS_KEY, { tasks: [] });
   res.json({ tasks: Array.isArray(store.tasks) ? store.tasks : [] });
 });
 
@@ -3188,7 +3032,7 @@ app.post('/api/productivity/tasks', requireAuth, (req, res) => {
   const b = req.body || {};
   const incoming = Array.isArray(b.tasks) ? b.tasks : (b.title ? [b] : []);
   if (!incoming.length) return res.status(400).json({ error: 'Provide a task (title) or {tasks:[...]}' });
-  const store = _readJsonSafe(PRODUCTIVITY_TASKS_PATH, { tasks: [] });
+  const store = kvStore.get(PRODUCTIVITY_TASKS_KEY, { tasks: [] });
   const tasks = Array.isArray(store.tasks) ? store.tasks : [];
   const byId = {};
   tasks.forEach(t => { if (t && t.id) byId[t.id] = t; });
@@ -3202,7 +3046,7 @@ app.post('/api/productivity/tasks', requireAuth, (req, res) => {
     result.push(norm);
   }
   store.tasks = tasks;
-  _writeJsonSocial(PRODUCTIVITY_TASKS_PATH, store);
+  kvStore.set(PRODUCTIVITY_TASKS_KEY, store);
   res.json({ ok: true, added, updated, tasks: result });
 });
 
@@ -3210,7 +3054,7 @@ app.post('/api/productivity/tasks', requireAuth, (req, res) => {
 app.post('/api/productivity/tasks/:id', requireAuth, (req, res) => {
   const id = req.params.id;
   const b = req.body || {};
-  const store = _readJsonSafe(PRODUCTIVITY_TASKS_PATH, { tasks: [] });
+  const store = kvStore.get(PRODUCTIVITY_TASKS_KEY, { tasks: [] });
   const tasks = Array.isArray(store.tasks) ? store.tasks : [];
   const t = tasks.find(x => x && x.id === id);
   if (!t) return res.status(404).json({ error: 'Task not found' });
@@ -3221,28 +3065,28 @@ app.post('/api/productivity/tasks/:id', requireAuth, (req, res) => {
   if (b.due !== undefined) t.due = String(b.due || '');
   t.updatedAt = new Date().toISOString();
   store.tasks = tasks;
-  _writeJsonSocial(PRODUCTIVITY_TASKS_PATH, store);
+  kvStore.set(PRODUCTIVITY_TASKS_KEY, store);
   res.json({ ok: true, task: t });
 });
 
 // ===========================================================================
 // ARTIFACTS — pin/remove preferences + most-emailed-client ranking
-// Durable (Postgres-backed via _writeJsonSocial/_readJsonSafe; file fallback).
+// Durable via kvStore (Postgres-backed; data/*.json file fallback).
 // Prefs survive redeploys and are shared across devices for the single owner.
 // ===========================================================================
-const ARTIFACT_PREFS_PATH = path.join(__dirname, 'data', 'artifact-prefs.json');
-const ARTIFACT_CLIENTS_PATH = path.join(__dirname, 'data', 'artifact-clients.json');
+const ARTIFACT_PREFS_KEY = 'artifact-prefs';
+const ARTIFACT_CLIENTS_KEY = 'artifact-clients';
 
 // Pin/hide preferences. Shape: { pinned:[...ids], hidden:[...ids], updatedAt }
 app.get('/api/artifacts/prefs', requireAuth, (_req, res) => {
-  const p = _readJsonSafe(ARTIFACT_PREFS_PATH, { pinned: [], hidden: [], updatedAt: null });
+  const p = kvStore.get(ARTIFACT_PREFS_KEY, { pinned: [], hidden: [], updatedAt: null });
   res.json({ pinned: Array.isArray(p.pinned) ? p.pinned : [], hidden: Array.isArray(p.hidden) ? p.hidden : [], updatedAt: p.updatedAt || null });
 });
 app.post('/api/artifacts/prefs', requireAuth, (req, res) => {
   const b = req.body || {};
   const clean = (a) => Array.from(new Set((Array.isArray(a) ? a : []).filter(x => typeof x === 'string' && x).map(String))).slice(0, 2000);
   const obj = { pinned: clean(b.pinned), hidden: clean(b.hidden), updatedAt: new Date().toISOString() };
-  _writeJsonSocial(ARTIFACT_PREFS_PATH, obj);
+  kvStore.set(ARTIFACT_PREFS_KEY, obj);
   res.json({ ok: true, pinned: obj.pinned, hidden: obj.hidden });
 });
 
@@ -3274,7 +3118,7 @@ const _ARTIFACT_CLIENTS_SEED = {
   ]
 };
 app.get('/api/artifacts/clients', requireAuth, (_req, res) => {
-  const c = _readJsonSafe(ARTIFACT_CLIENTS_PATH, _ARTIFACT_CLIENTS_SEED);
+  const c = kvStore.get(ARTIFACT_CLIENTS_KEY, _ARTIFACT_CLIENTS_SEED);
   res.json({ updatedAt: c.updatedAt || null, source: c.source || _ARTIFACT_CLIENTS_SEED.source, clients: Array.isArray(c.clients) ? c.clients : [] });
 });
 app.post('/api/artifacts/clients', bridgeGuard, (req, res) => {
@@ -3282,7 +3126,7 @@ app.post('/api/artifacts/clients', bridgeGuard, (req, res) => {
   const clients = (Array.isArray(b.clients) ? b.clients : []).filter(x => x && (x.domain || x.company)).slice(0, 500)
     .map(x => ({ domain: String(x.domain || '').toLowerCase(), company: String(x.company || (x.domain || '').split('.')[0] || '').toLowerCase(), weight: Number(x.weight) || 1 }));
   const obj = { updatedAt: new Date().toISOString(), source: b.source || 'gmail:in:sent', clients };
-  _writeJsonSocial(ARTIFACT_CLIENTS_PATH, obj);
+  kvStore.set(ARTIFACT_CLIENTS_KEY, obj);
   res.json({ ok: true, count: clients.length });
 });
 
@@ -3301,7 +3145,7 @@ app.post('/api/social/alert', bridgeGuard, async (req, res) => {
   const posts = (req.body && req.body.posts) || [];
   const threshold = (req.body && req.body.threshold) || 0;
   if (!posts.length) return res.json({ ok: true, emailed: 0, note: 'no posts' });
-  const seen = _readJsonSafe(SOCIAL_ALERTS_PATH, { urls: [] });
+  const seen = kvStore.get(SOCIAL_ALERTS_KEY, { urls: [] });
   const fresh = posts.filter(p => p.url && !seen.urls.includes(p.url));
   if (!fresh.length) return res.json({ ok: true, emailed: 0, note: 'all already alerted' });
   const rows = fresh.map(p =>
@@ -3315,7 +3159,7 @@ app.post('/api/social/alert', bridgeGuard, async (req, res) => {
   try {
     await _sendAlertEmail(`Super-viral alert: ${fresh.length} post(s)`, html);
     seen.urls = (seen.urls || []).concat(fresh.map(p => p.url)).slice(-500);
-    _writeJsonSocial(SOCIAL_ALERTS_PATH, seen);
+    kvStore.set(SOCIAL_ALERTS_KEY, seen);
     res.json({ ok: true, emailed: fresh.length });
   } catch (e) {
     res.status(502).json({ error: e.message });
@@ -3328,9 +3172,9 @@ app.post('/api/social/alert', bridgeGuard, async (req, res) => {
 // with the Drive doc link + local file path (service token). The dashboard GETs
 // them to link "Prep Doc" instead of opening a Gmail draft.
 // ===========================================================================
-const PREP_INDEX_FILE = path.join(__dirname, 'data', 'meeting-prep-index.json');
-function _loadPrepIndex() { return _readJsonSafe(PREP_INDEX_FILE, { entries: [] }); }
-function _savePrepIndex(idx) { _writeJsonSocial(PREP_INDEX_FILE, idx); }
+const PREP_INDEX_KEY = 'meeting-prep-index';
+function _loadPrepIndex() { return kvStore.get(PREP_INDEX_KEY, { entries: [] }); }
+function _savePrepIndex(idx) { kvStore.set(PREP_INDEX_KEY, idx); }
 // Service token OR a signed-in session may write prep entries.
 function prepWriteGuard(req, res, next) {
   const svc = process.env.SERVICE_API_TOKEN;
@@ -3435,8 +3279,11 @@ async function _autoCleanThreadIds() {
 setTimeout(() => _autoCleanThreadIds(), 10000);
 setInterval(() => _autoCleanThreadIds(), 60 * 60 * 1000);
 
-_kvInit();
-// ── DRAFT CLEANUP: strip <!-- THREAD_ID:... --> from existing drafts ──
+kvStore.init().then(() => {
+  loadErrorLog();
+  _hydrateBriefMemory();
+  _rehydrateMemoryState();
+}).catch((e) => console.warn('Durable store init failed:', e.message));// ── DRAFT CLEANUP: strip <!-- THREAD_ID:... --> from existing drafts ──
 app.post('/api/fix-thread-ids', requireAuth, async (req, res) => {
   try {
     const auth = getAuthedClient();

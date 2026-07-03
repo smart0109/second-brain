@@ -12,3 +12,4 @@ setup-sb-git.cowork.bat
 *.v5-backup*
 build_qa_spreadsheet.py
 run_qa_build.bat
+render.env
