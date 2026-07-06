@@ -1207,8 +1207,8 @@ app.get('/api/live-captions', requireAuth, (req, res) => {
 // Caption-parsing config the extension fetches at startup (server-side self-heal:
 // update selectors here and every user picks them up — no re-install).
 const MEET_CAPTION_CONFIG = {
-  version: 2,
-  updated: '2026-06-18',
+  version: 3,
+  updated: '2026-06-24',
   // Per-platform: find the captions region, then each row = speaker + text.
   // Update selectors here and every user's extension picks them up — no re-install.
   platforms: {
@@ -1216,7 +1216,7 @@ const MEET_CAPTION_CONFIG = {
       regionSelectors: ['div[role="region"][aria-label*="aption" i]', 'div[aria-live="polite"]', '.a4cQT'],
       rowSelectors: ['.nMcdL', '.TBMuR', 'div[class*="caption"]'],
       speakerSelectors: ['.NWpY1d', '.zs7s8d', 'span[class*="name" i]'],
-      textSelectors: ['.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
+      textSelectors: ['.ygicle', '.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
       captionsButtonSelectors: ['button[aria-label*="aption" i]', 'button[jsname][data-tooltip*="aption" i]'],
       toggleKey: 'c',
     },
@@ -1241,7 +1241,7 @@ const MEET_CAPTION_CONFIG = {
   regionSelectors: ['div[role="region"][aria-label*="aption" i]', 'div[aria-live="polite"]', '.a4cQT'],
   rowSelectors: ['.nMcdL', '.TBMuR', 'div[class*="caption"]'],
   speakerSelectors: ['.NWpY1d', '.zs7s8d', 'span[class*="name" i]'],
-  textSelectors: ['.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
+  textSelectors: ['.ygicle', '.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
   captionsButtonSelectors: ['button[aria-label*="aption" i]', 'button[jsname][data-tooltip*="aption" i]'],
   toggleKey: 'c',
 };
