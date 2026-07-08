@@ -2453,7 +2453,14 @@ app.options('/api/live-captions', (_req, res) => { res.set('Access-Control-Allow
 app.post('/api/live-captions', (req, res) => {
   res.set('Access-Control-Allow-Origin','*');
   const code = String((req.query.code || (req.body && req.body.code) || '')).trim().toUpperCase();
-  if (!code || !_capCodes.has(code)) return res.status(401).json({ error: 'invalid or expired pairing code' });
+  if (!code || !/^[A-Z0-9]{6,12}$/.test(code)) return res.status(401).json({ error: 'invalid pairing code' });
+  if (!_capCodes.has(code)) {
+    // Restart-proof pairing: server restarts wipe the in-memory _capCodes registry,
+    // which used to 401 every extension post until the dashboard re-registered.
+    // Accept well-formed codes (capped) so captions keep flowing across restarts.
+    if (_capBuffers.size >= 30) return res.status(429).json({ error: 'too many caption streams' });
+    _capCodes.set(code, { userId: 'unverified', exp: Date.now() + 2*60*60*1000 });
+  }
   const buf = _capBuffers.get(code) || { lines: [], updated: 0 };
   const incoming = (req.body && req.body.lines) || [];
   for (const l of incoming) { if (l && l.text) buf.lines.push({ speaker: String(l.speaker||'').slice(0,80), text: String(l.text).slice(0,2000), ts: Number(l.ts)||Date.now() }); }

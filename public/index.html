@@ -6712,6 +6712,9 @@ async function toggleMeetCaptions(){
     const cc=document.getElementById('meetCapCode'); if(cc)cc.textContent=_meetCapCode;
     if(btn){btn.textContent='Stop Captions';btn.className='listen-btn active';}
     _meetCapTimer=setInterval(pollMeetCaptions,1500);
+    // Heartbeat: re-register the pairing code every 10 min so a server restart
+    // (which wipes the in-memory code registry) re-pairs without any clicks.
+    if(!window._meetCapHb)window._meetCapHb=setInterval(()=>{fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'}).catch(()=>{});},600000);
     pollMeetCaptions();
   }catch(e){ const st=document.getElementById('meetCapStatus'); if(st)st.textContent=e.message; }
 }
