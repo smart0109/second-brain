@@ -161,9 +161,9 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .hero-clock:hover { background:rgba(255,255,255,0.06) }
 .hero-clock-time { font-family:var(--font-display);font-size:16px;font-weight:700;color:#e2e8f0;letter-spacing:0.5px }
 .hero-clock-label { font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px }
-.hero-quote { flex:1;min-width:200px;font-size:12px;font-style:italic;color:#cbd5e1;text-align:right;cursor:pointer;padding:4px 8px;border-radius:6px;transition:color 0.3s;line-height:1.4 }
-.hero-quote:hover { color:#c9a227 }
-.hero-quote .quote-attr { font-size:10px;font-style:normal;color:#334155;margin-top:2px }
+.hero-quote { flex:1;min-width:220px;font-size:18px;font-weight:700;font-style:italic;color:#f1f5f9;text-align:right;cursor:pointer;padding:6px 10px;border-radius:6px;transition:color 0.3s;line-height:1.45;letter-spacing:0.2px;text-shadow:0 1px 12px rgba(201,162,39,0.25) }
+.hero-quote:hover { color:#f5c451 }
+.hero-quote .quote-attr { font-size:13px;font-style:normal;font-weight:700;color:#c9a227;margin-top:4px;letter-spacing:0.4px;text-transform:uppercase }
 
 /* Contact 360 hero */
 .contact-hero { display: flex; align-items: center; gap: 16px; padding: 22px; background: linear-gradient(135deg, var(--bg-elevated) 0%, #1a2744 100%); color: #fff; border-radius: 12px; margin-bottom: 14px; border: 1px solid var(--border); }
@@ -375,6 +375,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .copilot-action-btn.rebuttal { border-left: 3px solid var(--orange); }
 .copilot-action-btn.tone { border-left: 3px solid var(--purple); }
 .copilot-action-btn.advise { border-left: 3px solid var(--green); }
+.copilot-action-btn.motivate { border-left: 3px solid var(--pink); }
+.copilot-action-btn.humor { border-left: 3px solid var(--teal); }
 .copilot-response { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; min-height: 100px; overflow: hidden; }
 .copilot-response .cr-header { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
 .copilot-response .cr-body { padding: 14px; font-size: 12px; line-height: 1.7; color: var(--text-secondary); max-height: 300px; overflow-y: auto; }
@@ -1098,6 +1100,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
               <div class="cab-icon">&#128172;</div>
               <div class="cab-label">Advise</div>
               <div class="cab-hint">What to say next</div>
+            </div>
+            <div class="copilot-action-btn motivate" onclick="copilotAction('motivate')">
+              <div class="cab-icon">&#128170;</div>
+              <div class="cab-label">Motivate</div>
+              <div class="cab-hint">Quick pep talk / pump-up</div>
+            </div>
+            <div class="copilot-action-btn humor" onclick="copilotAction('humor')">
+              <div class="cab-icon">&#128514;</div>
+              <div class="cab-label">Humor</div>
+              <div class="cab-hint">Lighten the mood</div>
             </div>
           </div>
 
@@ -7249,7 +7261,9 @@ async function copilotAction(type){
     explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said. Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now.`,
     rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection. Bullets: one that acknowledges the concern; two to three that counter it with specific ${kb.company} data/results; one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say now.`,
     tone:`${sessionTone}\n${fmt}\n\nTask: read the room. Bullets: overall tone in 1-2 words; two to three citing the exact words/phrases that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
-    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a statement. Bullets: one summarizing what they asked; two to three with the factual answer using ${kb.company} metrics/case studies; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question.`
+    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a statement. Bullets: one summarizing what they asked; two to three with the factual answer using ${kb.company} metrics/case studies; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question.`,
+    motivate:`${sessionTone}\n${fmt}\n\nTask: Manish needs a quick confidence/energy boost mid-call. Bullets: one short punchy pep-talk line; one reminder of a concrete win/strength (use ${kb.company} data if relevant); one reframing whatever is happening in the live conversation as an opportunity, not a setback; one closing bullet starting "Say to yourself: " with a one-line mantra under 15 words. Keep it upbeat and genuine, not cheesy corporate-speak.`,
+    humor:`${sessionTone}\n${fmt}\n\nTask: lighten the mood for a second with some clean, work-appropriate humor related to sales calls, the topic just discussed, or the current situation. Bullets: one light joke or witty one-liner; one playful observation about the live conversation; one bullet starting "Say: " with a short, natural, funny-but-professional line Manish could actually say out loud to break tension or build rapport. Keep it tasteful — never at the prospect's expense.`
   };
 
   const data=[
@@ -7312,9 +7326,11 @@ function renderCopilotResponse(type,text){
     explain:'&#128161; What They Said (Plain English)',
     rebuttal:'&#9889; Rebuttal',
     tone:'&#127912; Tone Analysis',
-    advise:'&#128172; Your Answer'
+    advise:'&#128172; Your Answer',
+    motivate:'&#128170; Pep Talk',
+    humor:'&#128514; Lighten It Up'
   };
-  const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50'};
+  const colors={explain:'#2196f3',rebuttal:'#ff9800',tone:'#9c27b0',advise:'#4caf50',motivate:'#db2777',humor:'#0d9488'};
   const headerEl=document.querySelector('.copilot-response .cr-header');
   headerEl.innerHTML=`<span style="color:${colors[type]}">${headers[type]}</span><button id="btnSpeak2" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer" title="Read response aloud">&#128264; Read Aloud</button>`;
   _ttsText=typeof text==='string'?text:JSON.stringify(text);
