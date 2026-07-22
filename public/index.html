@@ -632,7 +632,9 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <div class="sidebar-group-title">Market &amp; Distribution</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="color:#e879f9;font-weight:600">Artifacts</div>
-    <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
+    <!-- Intelligence is reachable from Marketing's own sidebar entry, and from
+         Sales via the AI Transcription > Intelligence sub-tab (see view-copilot). -->
+    <div class="tab" data-view="intelligence" data-org="marketing" onclick="switchView('intelligence')">Intelligence</div>
 
     <div class="sidebar-group-title">Admin</div>
     <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
@@ -936,6 +938,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- INTELLIGENCE -->
         <div id="view-intelligence" class="view">
+      <div class="meetings-subnav">
+        <button class="prod-btn" onclick="switchView('copilot')">AI Coach</button>
+        <button class="prod-btn primary" onclick="switchView('intelligence')">Intelligence</button>
+      </div>
 
       <!-- Company selector bar -->
       <div id="intelCompanyBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
@@ -1016,6 +1022,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- COPILOT -->
     <div id="view-copilot" class="view">
+      <div class="meetings-subnav">
+        <button class="prod-btn primary" onclick="switchView('copilot')">AI Coach</button>
+        <button class="prod-btn" onclick="switchView('intelligence')">Intelligence</button>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
         <input id="copilotProspectSearch" type="text" placeholder="Search by prospect name or company..." style="flex:1;min-width:200px;padding:8px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:12px;outline:none" onkeydown="if(event.key==='Enter')searchCopilotProspect()">
         <button onclick="searchCopilotProspect()" style="padding:8px 14px;background:#c9a227;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Load Prospect</button>
