@@ -2705,6 +2705,7 @@ function switchView(v){
   if(v==='intelligence'&&!window._intelLoaded)safeLoad(loadIntelligence,'Intelligence');
   if(v==='aisync'&&!window._aisyncLoaded){window._aisyncLoaded=true;loadAiSync();}
   if(v==='copilot'&&!window._copilotLoaded)safeLoad(loadCopilot,'Copilot');
+  else if(v==='copilot'&&window._copilotLoaded)refreshCopilotCurrentMeeting().catch(()=>{});
   if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
   if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadRecentContacts();loadMostMentioned();loadRecentExecChanges();}
   // Legal tab is static — no data load needed on switch
@@ -6559,6 +6560,13 @@ let copilotCurrentMeeting=null;
 let copilotMeetingContext='';
 let copilotAttendeeData={};
 let copilotLastActionType='';
+// Tracks which meeting the AI Transcription header/captions are currently
+// pointed at, so refreshCopilotCurrentMeeting() can detect when the "current
+// or next" meeting changes (including a brand-new meeting starting) and
+// re-target automatically, regardless of which tab is active. See
+// refreshCopilotCurrentMeeting() and restartCaptionsForMeeting() below.
+let _lastCopilotMeetingId=null;
+function _meetingKey(m){ return m?(m.id||((m.summary||'')+'|'+(m.start?.dateTime||m.start?.date||''))):null; }
 
 // Knowledge base (embedded for zero-latency)
 const KNOWLEDGE_BASE = {
@@ -6946,14 +6954,22 @@ function parseMeetTranscript(text){
 let _meetCapTimer=null, _meetCapCode='', _meetCapSince=0;
 async function toggleMeetCaptions(){
   if(_meetCapTimer){ stopMeetCaptions(); return; }
+  await _startMeetCaptions(false);
+}
+// freshMeeting=true skips any lines already sitting in the server-side buffer
+// (which is keyed per-user, not per-meeting) by starting the cursor at "now"
+// instead of replaying from 0 -- used when auto-switching into a meeting that
+// just started, so a prior meeting's stale captions don't bleed through.
+async function _startMeetCaptions(freshMeeting){
   const btn=document.getElementById('btnMeetCap');
   try{
     const r=await fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'});
     if(!r.ok)throw new Error('could not get pairing code (are you signed in?)');
-    const d=await r.json(); _meetCapCode=d.code; _meetCapSince=0;
+    const d=await r.json(); _meetCapCode=d.code; _meetCapSince=freshMeeting?Date.now():0;
     const bar=document.getElementById('meetCapBar'); if(bar)bar.style.display='flex';
     const cc=document.getElementById('meetCapCode'); if(cc)cc.textContent=_meetCapCode;
     if(btn){btn.textContent='Stop Captions';btn.className='listen-btn active';}
+    if(_meetCapTimer)clearInterval(_meetCapTimer);
     _meetCapTimer=setInterval(pollMeetCaptions,1500);
     // Heartbeat: re-register the pairing code every 10 min so a server restart
     // (which wipes the in-memory code registry) re-pairs without any clicks.
@@ -6965,6 +6981,16 @@ function stopMeetCaptions(){
   if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
   const btn=document.getElementById('btnMeetCap'); if(btn){btn.textContent='Live Captions (Meet)';btn.className='listen-btn idle';}
   const st=document.getElementById('meetCapStatus'); if(st)st.textContent='Stopped';
+}
+// Called when refreshCopilotCurrentMeeting() detects a genuinely NEW meeting
+// has started (not just "next upcoming" changing). Clears the transcript and
+// restarts the caption stream fresh so the previous meeting's lines don't
+// carry over.
+async function restartCaptionsForMeeting(){
+  if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
+  copilotTranscriptLines=[];
+  try{renderCopilotTranscript();}catch(e){}
+  await _startMeetCaptions(true);
 }
 async function pollMeetCaptions(){
   if(!_meetCapCode)return;
@@ -7384,38 +7410,91 @@ async function loadCopilot(){
     const events=allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;});
     if(events.length){
       copilotCurrentMeeting=events[0];
-      const m=copilotCurrentMeeting;
-      // Detect conference platform from conferenceUrl or location field
-      const confUrl=m.conferenceUrl||m.location||'';
-      let platform='Calendar';
-      let joinUrl='';
-      if(confUrl.includes('meet.google.com')){platform='Google Meet';joinUrl=confUrl;}
-      else if(confUrl.includes('zoom.us')){platform='Zoom';joinUrl=confUrl;}
-      else if(confUrl.includes('teams.microsoft.com')||confUrl.includes('teams.live.com')){platform='Microsoft Teams';joinUrl=confUrl;}
-      // Also check location if conferenceUrl didn't match
-      if(!joinUrl&&m.location){
-        const loc=m.location;
-        if(loc.includes('meet.google.com')){platform='Google Meet';joinUrl=loc;}
-        else if(loc.includes('zoom.us')){platform='Zoom';joinUrl=loc;}
-        else if(loc.includes('teams.microsoft.com')||loc.includes('teams.live.com')){platform='Microsoft Teams';joinUrl=loc;}
-      }
-      const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=(m.summary||'Meeting')+' ('+platform+')';
-      const start=m.start?.dateTime||m.start?.date||'';
-      const attendees=(m.attendees||[]).filter(a=>!a.self);
-      const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
-      const joinHtml=joinUrl?` <a href="${joinUrl}" target="_blank" style="color:#4caf50;font-weight:600;text-decoration:none;margin-left:8px">Join ${platform}</a>`:'';
-      const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.innerHTML=`${fmt(start)} | ${attendees.length} attendees: ${esc(names)}${joinHtml}`;
-
-      // Populate speaker dropdown from meeting attendees
-      populateSpeakersFromAttendees(attendees);
+      _lastCopilotMeetingId=_meetingKey(copilotCurrentMeeting);
+      const attendees=renderCopilotMeetingHeader(copilotCurrentMeeting);
       // Load context for attendees in parallel
       await loadAttendeeContext(attendees);
     } else {
+      _lastCopilotMeetingId=null;
       const _cmt2=document.getElementById('copilotMeetingTitle');if(_cmt2)_cmt2.textContent='No Upcoming Meeting';
       const _cmm2=document.getElementById('copilotMeetingMeta');if(_cmm2)_cmm2.textContent='Your next meeting will auto-load when it starts. You can still use the copilot with manual input.';
     }
   }catch(e){
     const _cmm3=document.getElementById('copilotMeetingMeta');if(_cmm3)_cmm3.textContent='Calendar sync failed. Use manual input.';
+  }
+}
+
+// Renders the AI Transcription header (title/meta/join link/speaker dropdown)
+// for a given meeting. Shared by loadCopilot() (first load) and
+// refreshCopilotCurrentMeeting() (periodic re-detection) so both stay in sync.
+// Returns the non-self attendee list for callers that also need it.
+function renderCopilotMeetingHeader(m){
+  // Detect conference platform from conferenceUrl or location field
+  const confUrl=m.conferenceUrl||m.location||'';
+  let platform='Calendar';
+  let joinUrl='';
+  if(confUrl.includes('meet.google.com')){platform='Google Meet';joinUrl=confUrl;}
+  else if(confUrl.includes('zoom.us')){platform='Zoom';joinUrl=confUrl;}
+  else if(confUrl.includes('teams.microsoft.com')||confUrl.includes('teams.live.com')){platform='Microsoft Teams';joinUrl=confUrl;}
+  // Also check location if conferenceUrl didn't match
+  if(!joinUrl&&m.location){
+    const loc=m.location;
+    if(loc.includes('meet.google.com')){platform='Google Meet';joinUrl=loc;}
+    else if(loc.includes('zoom.us')){platform='Zoom';joinUrl=loc;}
+    else if(loc.includes('teams.microsoft.com')||loc.includes('teams.live.com')){platform='Microsoft Teams';joinUrl=loc;}
+  }
+  const _cmt=document.getElementById('copilotMeetingTitle');if(_cmt)_cmt.textContent=(m.summary||'Meeting')+' ('+platform+')';
+  const start=m.start?.dateTime||m.start?.date||'';
+  const attendees=(m.attendees||[]).filter(a=>!a.self);
+  const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).slice(0,4).join(', ');
+  const joinHtml=joinUrl?` <a href="${joinUrl}" target="_blank" style="color:#4caf50;font-weight:600;text-decoration:none;margin-left:8px">Join ${platform}</a>`:'';
+  const _cmm=document.getElementById('copilotMeetingMeta');if(_cmm)_cmm.innerHTML=`${fmt(start)} | ${attendees.length} attendees: ${esc(names)}${joinHtml}`;
+  // Populate speaker dropdown from meeting attendees
+  populateSpeakersFromAttendees(attendees);
+  return attendees;
+}
+
+// Periodically re-detects the current/next meeting for the AI Transcription
+// tab and, when a genuinely NEW meeting has actually started, auto-refreshes
+// the header and restarts captions -- regardless of which tab is active. This
+// fixes two related complaints: (1) AI Transcription didn't auto-turn-on when
+// a meeting started (previously the "current meeting" was only computed once,
+// whenever the tab happened to first load), and (2) it kept showing whatever
+// meeting was "current" at that one-time load instead of the meeting actually
+// happening right now. Hooked into the existing 60s global meeting watcher
+// (checkUpcomingMeetings) so it runs continuously without a separate poller.
+async function refreshCopilotCurrentMeeting(){
+  const now=new Date();
+  const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
+  const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
+  const futureEnd=new Date(now.getTime()+7*86400000);
+  const [todayR,futR]=await Promise.allSettled([
+    call(`${CAL}__list_events`,{startTime:todayStart.toISOString(),endTime:todayEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+    call(`${CAL}__list_events`,{startTime:todayEnd.toISOString(),endTime:futureEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
+  ]);
+  const todayEvents=todayR.status==='fulfilled'?(todayR.value?.events||[]):[];
+  const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,10);
+  const allToday=[...todayEvents,...futureEvents];
+  const events=allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;});
+  const next=events.length?events[0]:null;
+  const nextKey=_meetingKey(next);
+  if(nextKey===_lastCopilotMeetingId)return; // nothing changed since last check
+  const nextStart=next?(next.start?.dateTime||next.start?.date):null;
+  const isInProgress=!!(nextStart&&new Date(nextStart)<=now);
+  _lastCopilotMeetingId=nextKey;
+  copilotCurrentMeeting=next;
+  if(!next){
+    const _cmt2=document.getElementById('copilotMeetingTitle');if(_cmt2)_cmt2.textContent='No Upcoming Meeting';
+    const _cmm2=document.getElementById('copilotMeetingMeta');if(_cmm2)_cmm2.textContent='Your next meeting will auto-load when it starts. You can still use the copilot with manual input.';
+    return;
+  }
+  const attendees=renderCopilotMeetingHeader(next);
+  loadAttendeeContext(attendees).catch(()=>{});
+  if(isInProgress){
+    // A new meeting is actually underway (not just "next upcoming" ticking
+    // over to a future one) -- auto-start/restart captions for it.
+    try{ await restartCaptionsForMeeting(); }catch(e){}
+    dbg('AI Transcription auto-switched to meeting in progress: '+(next.summary||'Meeting'),'ok');
   }
 }
 
@@ -9980,6 +10059,11 @@ function startMeetingWatcher(){
 }
 
 async function checkUpcomingMeetings(){
+  // Keep the AI Transcription tab's "current meeting" + captions in sync on
+  // every tick, independent of which tab is active. Runs first so it isn't
+  // skipped by the early-return below (which only governs the notification
+  // overlay, not the copilot state).
+  try{ await refreshCopilotCurrentMeeting(); }catch(e){ dbg('Copilot auto-refresh error: '+e.message,'warn'); }
   try{
     const now=new Date();
     const soon=new Date(now.getTime()+5*60000); // 5 min ahead
