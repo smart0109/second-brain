@@ -490,8 +490,137 @@ async function handleCalendar(toolName, args) {
     return { events };
   }
 
+  if (toolName === 'update_event') {
+    // Used for drag-and-drop rescheduling: move an event to a new start/end time (and/or date).
+    const { eventId, start, end, timeZone } = args || {};
+    if (!eventId) throw new Error('eventId is required');
+    if (!start || !end) throw new Error('start and end are required');
+    const requestBody = {
+      start: { dateTime: start, timeZone: timeZone || 'America/New_York' },
+      end: { dateTime: end, timeZone: timeZone || 'America/New_York' },
+    };
+    const resp = await calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      requestBody,
+      sendUpdates: 'all',
+    });
+    return {
+      success: true,
+      event: { id: resp.data.id, summary: resp.data.summary, start: resp.data.start, end: resp.data.end },
+    };
+  }
+
+  if (toolName === 'freebusy') {
+    const { emails, timeMin, timeMax } = args || {};
+    if (!emails || !Array.isArray(emails) || !emails.length) throw new Error('emails array is required');
+    if (!timeMin || !timeMax) throw new Error('timeMin and timeMax are required');
+    const resp = await calendar.freebusy.query({
+      requestBody: { timeMin, timeMax, items: emails.map((email) => ({ id: email })) },
+    });
+    return resp.data;
+  }
+
   throw new Error(`Unknown Calendar tool: ${toolName}`);
 }
+
+// ---------------------------------------------------------------------------
+// Internal-team detection, for "who do we need to check availability for"
+// when suggesting a new meeting slot. External/client attendees' calendars
+// generally aren't queryable via freebusy anyway, so this also acts as the
+// practical filter for that.
+// ---------------------------------------------------------------------------
+const INTERNAL_EMAIL_DOMAINS = ['cadienttalent.com', 'vorro.net', 'commercev3.com', 'revengineer.ai', 'basisvectors.com', 'basisvps.com'];
+const INTERNAL_EMAIL_ALLOWLIST = ['manish696@gmail.com'];
+function isInternalAttendeeEmail(email) {
+  if (!email) return false;
+  const e = String(email).toLowerCase().trim();
+  if (INTERNAL_EMAIL_ALLOWLIST.includes(e)) return true;
+  const domain = e.split('@')[1] || '';
+  return INTERNAL_EMAIL_DOMAINS.includes(domain);
+}
+
+// ---------------------------------------------------------------------------
+// Find the next open slot for a meeting, based on internal attendees' Google
+// Calendar free/busy. Used by the Meetings day-schedule "Find next slot" tool.
+// ---------------------------------------------------------------------------
+app.post('/api/calendar/find-slot', requireAuth, async (req, res) => {
+  const auth = getAuthedClient();
+  if (!auth) return res.status(401).json({ error: 'Google not authenticated' });
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const { attendees, durationMinutes, afterTime, searchDays } = req.body || {};
+  const duration = Math.max(15, Math.min(480, parseInt(durationMinutes, 10) || 30));
+  const days = Math.max(1, Math.min(14, parseInt(searchDays, 10) || 7));
+
+  let internalAttendees = (attendees || []).filter(isInternalAttendeeEmail);
+  if (!internalAttendees.length) internalAttendees = ['primary'];
+  internalAttendees = [...new Set(internalAttendees)];
+
+  const searchStart = afterTime ? new Date(afterTime) : new Date();
+  if (isNaN(searchStart.getTime())) return res.status(400).json({ error: 'invalid afterTime' });
+  const searchEnd = new Date(searchStart.getTime() + days * 24 * 60 * 60 * 1000);
+
+  try {
+    const fbResp = await calendar.freebusy.query({
+      requestBody: {
+        timeMin: searchStart.toISOString(),
+        timeMax: searchEnd.toISOString(),
+        items: internalAttendees.map((id) => ({ id })),
+      },
+    });
+    const calendars = fbResp.data.calendars || {};
+    let busy = [];
+    let skipped = [];
+    for (const [calId, cal] of Object.entries(calendars)) {
+      if (cal.errors && cal.errors.length) { skipped.push(calId); continue; }
+      busy.push(...(cal.busy || []).map((b) => ({ start: new Date(b.start), end: new Date(b.end) })));
+    }
+    busy.sort((a, b) => a.start - b.start);
+
+    const BUSINESS_START_HOUR = 9, BUSINESS_END_HOUR = 18;
+    function isBusinessHours(d) {
+      const day = d.getDay();
+      if (day === 0 || day === 6) return false;
+      return d.getHours() >= BUSINESS_START_HOUR && d.getHours() < BUSINESS_END_HOUR;
+    }
+    function overlapsBusy(start, end) {
+      return busy.some((b) => start < b.end && end > b.start);
+    }
+
+    // Round the search start up to the next 15-minute mark.
+    let candidate = new Date(Math.ceil(searchStart.getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000));
+
+    let found = null;
+    for (let guard = 0; guard < 3000 && !found; guard++) {
+      if (!isBusinessHours(candidate)) {
+        candidate.setDate(candidate.getDate() + 1);
+        candidate.setHours(BUSINESS_START_HOUR, 0, 0, 0);
+        continue;
+      }
+      const slotEnd = new Date(candidate.getTime() + duration * 60000);
+      const slotEndHour = slotEnd.getHours() + slotEnd.getMinutes() / 60;
+      if (slotEndHour > BUSINESS_END_HOUR) {
+        candidate.setDate(candidate.getDate() + 1);
+        candidate.setHours(BUSINESS_START_HOUR, 0, 0, 0);
+        continue;
+      }
+      if (overlapsBusy(candidate, slotEnd)) {
+        candidate = new Date(candidate.getTime() + 15 * 60000);
+        continue;
+      }
+      found = { start: candidate.toISOString(), end: slotEnd.toISOString() };
+    }
+
+    if (!found) {
+      return res.status(404).json({ error: `No open slot found for ${internalAttendees.length} internal attendee(s) within ${days} day(s).`, checkedAttendees: internalAttendees });
+    }
+    res.json({ slot: found, checkedAttendees: internalAttendees, skippedAttendees: skipped, durationMinutes: duration });
+  } catch (err) {
+    console.error('find-slot error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ---- Zoho CRM ----
 async function handleZoho(toolName, args) {

@@ -61,6 +61,20 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .meetings-subnav { display: flex; gap: 8px; margin-bottom: 14px; }
 .meetings-subnav .prod-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font-size: 11px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
 .meetings-subnav .prod-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+.day-nav-chip { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font-size: 11px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.day-nav-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.day-nav-chip.drop-hover { outline: 2px dashed #34d399; outline-offset: 2px; }
+.day-hour-row { position: absolute; left: 0; right: 0; height: 48px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 10px; color: var(--text-muted); }
+.day-hour-label { position: absolute; left: -48px; top: -6px; width: 44px; text-align: right; font-size: 10px; color: var(--text-muted); }
+.day-event-block { position: absolute; left: 4px; right: 4px; border-radius: 8px; padding: 4px 8px; overflow: hidden; cursor: grab; border-left: 3px solid #60a5fa; background: rgba(96,165,250,0.16); font-size: 11px; color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: box-shadow 0.15s; }
+.day-event-block:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 5; }
+.day-event-block.dragging { opacity: 0.4; }
+.day-event-title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.day-event-time { font-size: 10px; color: var(--text-muted); }
+.day-event-actions { display: none; gap: 4px; margin-top: 3px; }
+.day-event-block:hover .day-event-actions { display: flex; }
+.day-slot-btn { font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(96,165,250,0.4); background: rgba(96,165,250,0.15); color: #60a5fa; cursor: pointer; }
+#dayScheduleGrid.drop-hover { background: rgba(52,211,153,0.05); }
 .intel-company-btn { padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#64748b;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit }
 .intel-company-btn:hover { background:rgba(255,255,255,0.08);color:#94a3b8 }
 .intel-sec { margin-bottom:14px }
@@ -605,11 +619,9 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="tab" data-view="pipeline" data-org="sales,finance" onclick="switchView('pipeline')">CRM</div>
     <div class="tab" data-view="icpchecker" data-org="sales" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Finder</div>
 
-    <div class="sidebar-group-title">Meetings</div>
+    <div class="sidebar-group-title">Meetings &amp; Work</div>
     <div class="tab" data-view="meetings" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('meetings')">Meetings</div>
     <div class="tab" data-view="copilot" data-org="sales" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
-
-    <div class="sidebar-group-title">Work &amp; Content</div>
     <div class="tab" data-view="followups" data-org="sales" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
     <div class="tab" data-view="productivity" data-org="sales" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
 
@@ -619,9 +631,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="sidebar-group-title">Market &amp; Distribution</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="color:#e879f9;font-weight:600">Artifacts</div>
     <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
-    <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
     <div class="tab" data-view="newsfeed" data-org="sales" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
     <div class="tab" data-view="socialPosting" data-org="sales" onclick="switchView('socialPosting')" style="color:#2dd4bf;font-weight:600">Social Posting</div>
+
+    <div class="sidebar-group-title">Admin</div>
+    <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
     <!-- Marketing tabs -->
     <div class="tab" data-view="mktCampaigns" data-org="marketing" onclick="switchView('mktCampaigns')" style="display:none;color:#60a5fa;font-weight:600">Campaigns</div>
     <div class="tab" data-view="mktLeads" data-org="marketing" onclick="switchView('mktLeads')" style="display:none;color:#60a5fa;font-weight:600">Lead Analytics</div>
@@ -846,6 +860,16 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <button class="prod-btn" onclick="switchView('team')">Team Activity</button>
       </div>
       <div id="meetingsListView">
+        <div class="section-header">Today's Schedule <span style="font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0;font-size:11px">— drag a meeting to reschedule</span></div>
+        <div id="daySchedNav" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-body" style="padding:14px 14px 14px 54px;position:relative;overflow-x:auto">
+            <div id="dayGridHours" style="position:absolute;left:0;top:14px;width:48px;font-size:10px;color:var(--text-muted)"></div>
+            <div id="dayScheduleGrid" style="position:relative;min-height:660px;border-left:1px solid var(--border)">
+              <div class="loading"><div class="spinner"></div><br>Loading today's schedule...</div>
+            </div>
+          </div>
+        </div>
         <div class="section-header">This Week's Calendar + Notes</div>
         <div class="card"><div class="card-body scroll-panel" id="weekCalMeetings"><div class="loading"><div class="spinner"></div><br>Loading calendar...</div></div></div>
         <div class="section-header">Granola Meeting Notes (This Week)</div>
@@ -4792,9 +4816,166 @@ async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
   el.dataset.loaded='1';
 }
 
+// ── Today's Schedule: drag-and-drop day view ──
+const DAY_SCHED_START_HOUR=7, DAY_SCHED_END_HOUR=20, DAY_SCHED_HOUR_PX=48;
+let _daySchedDate=new Date();
+let _draggingDayEvent=null;
+
+function daySchedDateKey(d){return d.toISOString().slice(0,10);}
+
+function renderDaySchedNav(){
+  const nav=document.getElementById('daySchedNav');
+  if(!nav)return;
+  const today=new Date();today.setHours(0,0,0,0);
+  const selKey=daySchedDateKey(_daySchedDate);
+  let html='';
+  for(let i=-2;i<=4;i++){
+    const d=new Date(today);d.setDate(d.getDate()+i);
+    const key=daySchedDateKey(d);
+    const label=(i===0?'Today':d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
+    html+=`<div class="day-nav-chip${key===selKey?' active':''}" data-date="${key}" onclick="loadDaySchedule(new Date('${key}T00:00:00'))" ondragover="event.preventDefault();this.classList.add('drop-hover')" ondragleave="this.classList.remove('drop-hover')" ondrop="daySchedChipDrop(event,'${key}')">${label}</div>`;
+  }
+  nav.innerHTML=html;
+}
+
+async function loadDaySchedule(dateObj){
+  _daySchedDate=dateObj||_daySchedDate||new Date();
+  renderDaySchedNav();
+  const gutter=document.getElementById('dayGridHours');
+  const grid=document.getElementById('dayScheduleGrid');
+  if(!grid)return;
+  const totalHeight=(DAY_SCHED_END_HOUR-DAY_SCHED_START_HOUR)*DAY_SCHED_HOUR_PX;
+  // Hour gutter + gridlines
+  let gutterHtml='';
+  let linesHtml='';
+  for(let h=DAY_SCHED_START_HOUR;h<=DAY_SCHED_END_HOUR;h++){
+    const top=(h-DAY_SCHED_START_HOUR)*DAY_SCHED_HOUR_PX;
+    const label=new Date(2000,0,1,h).toLocaleTimeString('en-US',{hour:'numeric',hour12:true});
+    gutterHtml+=`<div style="position:absolute;top:${top}px;right:6px;font-size:10px;color:var(--text-muted)">${label}</div>`;
+    linesHtml+=`<div style="position:absolute;left:0;right:0;top:${top}px;border-top:1px solid rgba(255,255,255,0.06)"></div>`;
+  }
+  if(gutter)gutter.innerHTML=gutterHtml;
+  grid.style.minHeight=totalHeight+'px';
+  grid.innerHTML=linesHtml+'<div class="loading" style="position:relative;z-index:1"><div class="spinner"></div></div>';
+  grid.setAttribute('ondragover','event.preventDefault();this.classList.add("drop-hover")');
+  grid.setAttribute('ondragleave','this.classList.remove("drop-hover")');
+  grid.setAttribute('ondrop','daySchedGridDrop(event)');
+
+  const dayStart=new Date(_daySchedDate);dayStart.setHours(0,0,0,0);
+  const dayEnd=new Date(dayStart);dayEnd.setDate(dayEnd.getDate()+1);
+  try{
+    const r=await call(`${CAL}__list_events`,{startTime:dayStart.toISOString(),endTime:dayEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime',pageSize:50});
+    const events=(r?.events||[]).filter(e=>e.start?.dateTime); // skip all-day events (no draggable time slot)
+    let blocksHtml='';
+    events.forEach((e,i)=>{
+      const start=new Date(e.start.dateTime);
+      const end=new Date(e.end.dateTime||e.start.dateTime);
+      const durationMin=Math.max(15,Math.round((end-start)/60000));
+      const startFrac=start.getHours()+start.getMinutes()/60;
+      const endFrac=end.getHours()+end.getMinutes()/60;
+      const top=Math.max(0,(startFrac-DAY_SCHED_START_HOUR)*DAY_SCHED_HOUR_PX);
+      const height=Math.max(22,(Math.min(endFrac,DAY_SCHED_END_HOUR)-Math.max(startFrac,DAY_SCHED_START_HOUR))*DAY_SCHED_HOUR_PX);
+      const attendees=(e.attendees||[]).filter(a=>!a.self);
+      const emails=attendees.map(a=>a.email).filter(Boolean);
+      const uid='daySchedEvt_'+i;
+      blocksHtml+=`<div class="day-event-block" id="${uid}" style="top:${top}px;height:${height}px;z-index:2" draggable="true"
+        data-event-id="${escAttr(e.id)}" data-duration="${durationMin}"
+        ondragstart="daySchedDragStart(event,'${escAttr(e.id)}',${durationMin})" ondragend="this.classList.remove('dragging')">
+        <div class="day-event-title" title="${escAttr(e.summary||'No title')}">${esc(e.summary||'No title')}</div>
+        <div class="day-event-time">${fmt(e.start.dateTime)} - ${fmt(e.end.dateTime||e.start.dateTime)}</div>
+        <div class="day-event-actions">
+          <button class="day-slot-btn" onclick="event.stopPropagation();findNextSlotFor('${escAttr(e.id)}','${escAttr(e.summary||'')}','${escAttr(emails.join(','))}',${durationMin},'${escAttr(e.end.dateTime||e.start.dateTime)}',this)">Find next slot</button>
+        </div>
+        <div class="day-sched-suggestion" style="display:none;margin-top:4px"></div>
+      </div>`;
+    });
+    grid.innerHTML=linesHtml+(blocksHtml||'<div style="position:relative;z-index:1;padding:10px;font-size:11px;color:var(--text-muted);font-style:italic">No meetings scheduled today</div>');
+  }catch(e){
+    grid.innerHTML=linesHtml+'<div style="position:relative;z-index:1;padding:10px;color:#f87171;font-size:11px">Failed to load: '+esc(e.message)+'</div>';
+  }
+}
+
+function daySchedDragStart(ev,eventId,durationMin){
+  _draggingDayEvent={eventId,durationMin:parseInt(durationMin,10)};
+  ev.target.classList.add('dragging');
+  ev.dataTransfer.effectAllowed='move';
+  try{ev.dataTransfer.setData('text/plain',eventId);}catch(e){}
+}
+
+async function daySchedGridDrop(ev){
+  ev.preventDefault();
+  const grid=document.getElementById('dayScheduleGrid');
+  grid.classList.remove('drop-hover');
+  if(!_draggingDayEvent)return;
+  const rect=grid.getBoundingClientRect();
+  const offsetY=Math.max(0,ev.clientY-rect.top);
+  let hourFrac=DAY_SCHED_START_HOUR+offsetY/DAY_SCHED_HOUR_PX;
+  // snap to nearest 15 minutes
+  hourFrac=Math.round(hourFrac*4)/4;
+  hourFrac=Math.max(DAY_SCHED_START_HOUR,Math.min(DAY_SCHED_END_HOUR-0.25,hourFrac));
+  const newStart=new Date(_daySchedDate);newStart.setHours(0,0,0,0);
+  newStart.setMinutes(Math.round(hourFrac*60));
+  const newEnd=new Date(newStart.getTime()+_draggingDayEvent.durationMin*60000);
+  await rescheduleMeeting(_draggingDayEvent.eventId,newStart,newEnd);
+  _draggingDayEvent=null;
+}
+
+async function daySchedChipDrop(ev,dateKey){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drop-hover');
+  if(!_draggingDayEvent)return;
+  // Keep the same time-of-day, just move to the dropped date.
+  const origEl=document.querySelector(`[data-event-id="${CSS.escape(_draggingDayEvent.eventId)}"]`);
+  let hour=9,min=0;
+  if(origEl){
+    const timeTxt=origEl.querySelector('.day-event-time')?.textContent||'';
+    const m=timeTxt.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if(m){hour=parseInt(m[1],10)%12;if(/pm/i.test(m[3]))hour+=12;min=parseInt(m[2],10);}
+  }
+  const [y,mo,da]=dateKey.split('-').map(Number);
+  const newStart=new Date(y,mo-1,da,hour,min,0,0);
+  const newEnd=new Date(newStart.getTime()+_draggingDayEvent.durationMin*60000);
+  await rescheduleMeeting(_draggingDayEvent.eventId,newStart,newEnd);
+  _draggingDayEvent=null;
+}
+
+async function rescheduleMeeting(eventId,newStart,newEnd){
+  try{
+    await call(`${CAL}__update_event`,{eventId,start:newStart.toISOString(),end:newEnd.toISOString(),timeZone:'America/New_York'});
+    showToast('Meeting moved to '+newStart.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}),'ok');
+    loadDaySchedule(_daySchedDate);
+  }catch(e){
+    showToast('Failed to reschedule: '+e.message,'err');
+  }
+}
+
+async function findNextSlotFor(eventId,summary,emailsCsv,durationMin,afterIso,btnEl){
+  const container=btnEl.closest('.day-event-block').querySelector('.day-sched-suggestion');
+  container.style.display='block';
+  container.innerHTML='<span style="font-size:10px;color:var(--text-muted)">Checking availability...</span>';
+  try{
+    const attendees=(emailsCsv||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const res=await fetch('/api/calendar/find-slot',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+      body:JSON.stringify({attendees,durationMinutes:durationMin,afterTime:afterIso})});
+    const data=await res.json();
+    if(!res.ok){container.innerHTML='<span style="font-size:10px;color:#f87171">'+esc(data.error||'No slot found')+'</span>';return;}
+    const s=new Date(data.slot.start);
+    const label=s.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    container.innerHTML='<span style="font-size:10px;color:#34d399">Next open: '+esc(label)+'</span> '
+      +'<button class="day-slot-btn" style="margin-left:4px" onclick=\'event.stopPropagation();moveToSuggestedSlot("'+eventId+'","'+data.slot.start+'","'+data.slot.end+'")\'>Move here</button>';
+  }catch(e){
+    container.innerHTML='<span style="font-size:10px;color:#f87171">Error: '+esc(e.message)+'</span>';
+  }
+}
+
+async function moveToSuggestedSlot(eventId,startIso,endIso){
+  await rescheduleMeeting(eventId,new Date(startIso),new Date(endIso));
+}
+
 async function loadMeetingsView(){
   window._meetLoaded=true;
   window._meetLoadedDay=new Date().toDateString();
+  loadDaySchedule(new Date());
   // Load calendar events AND Granola meetings in parallel
   const now=new Date();
   const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay());weekStart.setHours(0,0,0,0);
