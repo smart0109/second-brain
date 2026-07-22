@@ -1161,18 +1161,9 @@ app.get('/api/icp/crm-analysis', requireAuth, async (_req, res) => {
   }
 });
 
-app.post('/api/icp/score', requireAuth, (req, res) => {
-  const { name, title, company, location, brand } = req.body;
-
-  if ((!title || !title.trim()) && (!company || !company.trim())) {
-    return res.json({ tier: 'N/A', score: 0, details: { error: 'Title and company are required for ICP scoring' } });
-  }
-  if (!title || !brand) return res.status(400).json({ error: 'title and brand required' });
-
-  const config = ICP_CONFIGS[brand.toLowerCase()];
-  if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}` });
-
-  const t = title.toLowerCase();
+// Shared scoring core, used by /api/icp/score and /api/icp/find so both stay in sync.
+function scoreAgainstConfig(config, { title, company, location } = {}) {
+  const t = (title || '').toLowerCase();
   let score = 0;
   let matches = [];
   let rejects = [];
@@ -1180,9 +1171,9 @@ app.post('/api/icp/score', requireAuth, (req, res) => {
   // Check disqualifiers
   const dqTitles = (config.disqualify_titles || []).map(d => d.toLowerCase());
   for (const dq of dqTitles) {
-    if (t.includes(dq.toLowerCase())) {
+    if (t.includes(dq)) {
       rejects.push(`Disqualified title: "${dq}"`);
-      return res.json({ name, title, company, location, brand, score: 0, tier: 'DISQUALIFIED', matches: [], rejects, recommendation: 'Remove from pipeline. Title is not a buyer persona.' });
+      return { score: 0, tier: 'DISQUALIFIED', matches: [], rejects, recommendation: 'Remove from pipeline. Title is not a buyer persona.' };
     }
   }
 
@@ -1200,7 +1191,7 @@ app.post('/api/icp/score', requireAuth, (req, res) => {
   }
 
   // Keyword boosts
-  const combined = `${title} ${company || ''} ${location || ''}`.toLowerCase();
+  const combined = `${title || ''} ${company || ''} ${location || ''}`.toLowerCase();
   for (const [kw, boost] of Object.entries(config.keyword_boosts || {})) {
     if (combined.includes(kw.toLowerCase())) {
       score += boost;
@@ -1221,7 +1212,175 @@ app.post('/api/icp/score', requireAuth, (req, res) => {
   else if (tier === 'C') recommendation = 'Low-priority. Include in nurture campaigns only.';
   else recommendation = 'Does not match ICP. Consider removing from pipeline.';
 
-  res.json({ name, title, company, location, brand, score, tier, matches, rejects, recommendation });
+  return { score, tier, matches, rejects, recommendation };
+}
+
+app.post('/api/icp/score', requireAuth, (req, res) => {
+  const { name, title, company, location, brand } = req.body;
+
+  if ((!title || !title.trim()) && (!company || !company.trim())) {
+    return res.json({ tier: 'N/A', score: 0, details: { error: 'Title and company are required for ICP scoring' } });
+  }
+  if (!title || !brand) return res.status(400).json({ error: 'title and brand required' });
+
+  const config = ICP_CONFIGS[brand.toLowerCase()];
+  if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}` });
+
+  const result = scoreAgainstConfig(config, { title, company, location });
+  res.json({ name, title, company, location, brand, ...result });
+});
+
+// ---------------------------------------------------------------------------
+// ICP Finder: search existing CRM contacts/leads AND (if configured) prospect
+// externally for NEW potential clients matching a selected ICP.
+// ---------------------------------------------------------------------------
+async function fetchZohoModuleForICP(module, token, domain) {
+  try {
+    const resp = await fetch(
+      `${domain}/crm/v2/${module}?fields=First_Name,Last_Name,Full_Name,Title,Account_Name,Company,Email,Phone,Industry,Lead_Source&per_page=200&sort_by=Modified_Time&sort_order=desc`,
+      { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
+    );
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.data || [];
+  } catch (e) {
+    console.error(`ICP find: Zoho ${module} fetch failed:`, e.message);
+    return [];
+  }
+}
+
+app.get('/api/icp/find', requireAuth, async (req, res) => {
+  const brand = (req.query.brand || '').toLowerCase();
+  const tierFilter = (req.query.tier || 'all').toUpperCase();
+  const config = ICP_CONFIGS[brand];
+  if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}. Use cadient or vorro.` });
+
+  const result = {
+    brand,
+    config_summary: { product: config.product, focus: config.focus, industries: config.industries, geo: config.geo },
+    crm_matches: [],
+    external: { configured: !!process.env.APOLLO_API_KEY, results: [], message: '' },
+    totals: { crm_scanned: 0, crm_matches: 0, external_matches: 0 },
+  };
+
+  // --- Part 1: search existing CRM (Contacts + Leads) and score against this ICP ---
+  const crmCompanies = new Set();
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const [contacts, leads] = await Promise.all([
+      fetchZohoModuleForICP('Contacts', token, domain),
+      fetchZohoModuleForICP('Leads', token, domain),
+    ]);
+    const records = [
+      ...contacts.map(c => ({ source: 'contact', raw: c })),
+      ...leads.map(l => ({ source: 'lead', raw: l })),
+    ];
+    result.totals.crm_scanned = records.length;
+
+    for (const { source, raw } of records) {
+      const title = raw.Title || '';
+      const company = raw.Account_Name?.name || raw.Company || '';
+      if (!title) continue;
+      const scored = scoreAgainstConfig(config, { title, company, location: '' });
+      if (scored.tier === 'DISQUALIFIED' || scored.score <= 0) continue;
+      if (tierFilter !== 'ALL' && scored.tier !== tierFilter) continue;
+      if (company) crmCompanies.add(company.toLowerCase());
+      result.crm_matches.push({
+        source, id: raw.id,
+        name: raw.Full_Name || `${raw.First_Name || ''} ${raw.Last_Name || ''}`.trim(),
+        title, company,
+        email: raw.Email || '', phone: raw.Phone || '',
+        industry: raw.Industry || '',
+        score: scored.score, tier: scored.tier, matches: scored.matches,
+        recordUrl: `https://crm.zoho.com/crm/tab/${source === 'contact' ? 'Contacts' : 'Leads'}/${raw.id}`,
+      });
+    }
+    result.crm_matches.sort((a, b) => b.score - a.score);
+    result.totals.crm_matches = result.crm_matches.length;
+  } catch (err) {
+    console.error('ICP find: CRM search error:', err.message);
+    result.crm_error = err.message;
+  }
+
+  // --- Part 2: external prospecting for NEW potential clients (Apollo.io) ---
+  if (process.env.APOLLO_API_KEY) {
+    try {
+      const personTitles = (config.target_personas || []).map(p => p.title.split('/')[0].trim());
+      const body = {
+        api_key: process.env.APOLLO_API_KEY,
+        person_titles: personTitles,
+        organization_num_employees_ranges: [`${config.min_employees},100000`],
+        q_organization_keyword_tags: config.industries,
+        page: 1,
+        per_page: 25,
+      };
+      const apResp = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (apResp.ok) {
+        const apData = await apResp.json();
+        const people = apData.people || [];
+        for (const p of people) {
+          const company = p.organization?.name || '';
+          if (company && crmCompanies.has(company.toLowerCase())) continue; // already in CRM
+          const scored = scoreAgainstConfig(config, { title: p.title || '', company, location: p.city || '' });
+          if (scored.tier === 'DISQUALIFIED') continue;
+          if (tierFilter !== 'ALL' && scored.tier !== tierFilter) continue;
+          result.external.results.push({
+            name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+            title: p.title || '', company,
+            linkedin_url: p.linkedin_url || '',
+            email_status: p.email_status || 'unknown',
+            city: p.city || '', state: p.state || '',
+            score: scored.score, tier: scored.tier,
+          });
+        }
+        result.external.results.sort((a, b) => b.score - a.score);
+      } else {
+        result.external.message = `Apollo search failed: ${apResp.status}`;
+      }
+    } catch (err) {
+      console.error('ICP find: external search error:', err.message);
+      result.external.message = `External search error: ${err.message}`;
+    }
+  } else {
+    result.external.message = 'External prospecting is not configured. Add APOLLO_API_KEY to Render environment variables to enable discovery of new potential clients outside the CRM.';
+  }
+  result.totals.external_matches = result.external.results.length;
+
+  res.json(result);
+});
+
+// Add an externally-discovered prospect into Zoho as a new Lead.
+app.post('/api/icp/find/add-lead', requireAuth, async (req, res) => {
+  const { name, title, company, email, linkedin_url, brand } = req.body;
+  if (!name || !company) return res.status(400).json({ error: 'name and company required' });
+  try {
+    const token = await getZohoAccessToken();
+    const domain = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
+    const parts = String(name).trim().split(/\s+/);
+    const First_Name = parts.slice(0, -1).join(' ') || parts[0] || '';
+    const Last_Name = parts.length > 1 ? parts[parts.length - 1] : (parts[0] || 'Unknown');
+    const leadData = {
+      First_Name, Last_Name, Company: company, Title: title || '',
+      Email: email || undefined,
+      Lead_Source: 'ICP Finder',
+      Description: `Discovered via ICP Finder external search${brand ? ` (${brand})` : ''}.${linkedin_url ? ` LinkedIn: ${linkedin_url}` : ''}`,
+    };
+    const resp = await fetch(`${domain}/crm/v2/Leads`, {
+      method: 'POST',
+      headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [leadData] }),
+    });
+    const respData = await resp.json();
+    if (!resp.ok) return res.status(resp.status).json({ error: 'Zoho lead creation failed', details: respData });
+    res.json({ success: true, lead: respData.data?.[0] || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------------------------------------------------------------------------
