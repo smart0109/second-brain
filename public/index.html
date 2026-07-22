@@ -631,8 +631,6 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
     <div class="sidebar-group-title">Market &amp; Distribution</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="color:#e879f9;font-weight:600">Artifacts</div>
     <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
-    <div class="tab" data-view="newsfeed" data-org="sales" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
-    <div class="tab" data-view="socialPosting" data-org="sales" onclick="switchView('socialPosting')" style="color:#2dd4bf;font-weight:600">Social Posting</div>
 
     <div class="sidebar-group-title">Admin</div>
     <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
@@ -691,8 +689,6 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
         <div class="stat-card"><div class="stat-num" id="statPipeline">-</div><div class="stat-label">Pipeline $</div></div>
       </div>
       <div id="staleAlerts" style="display:none"></div>
-      <div class="section-header" style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="document.getElementById('autoStatusPanel').style.display=document.getElementById('autoStatusPanel').style.display==='none'?'block':'none';this.querySelector('.toggle-arrow').textContent=document.getElementById('autoStatusPanel').style.display==='none'?'+':'-'">Automation Status <span class="toggle-arrow" style="font-size:14px;color:#334155">-</span></div>
-      <div id="autoStatusPanel"><div class="card" style="margin-bottom:10px"><div class="card-body" style="padding:10px" id="automationStatus"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div></div>
       <div class="grid-2">
         <div>
           <div class="section-header">Today's Calendar</div>
@@ -701,11 +697,64 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           <div class="card"><div class="card-body scroll-panel" id="priorityThreads"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
         </div>
         <div>
-          <div class="section-header">Gmail Drafts</div>
-          <div class="card"><div class="card-body scroll-panel" id="draftsList"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
           <div class="section-header">Late-Stage Deals (S4+)</div>
           <div class="card"><div class="card-body scroll-panel" id="closingDeals"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
         </div>
+      </div>
+
+      <!-- News (moved from its own tab) -->
+      <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Competitor &amp; Industry News</div>
+      <div class="sh-collapsible-wrap">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <button class="prod-btn" onclick="event.stopPropagation();loadNewsFeed(true)" style="background:rgba(6,182,212,0.15);color:#06b6d4;border-color:rgba(6,182,212,0.3)">Refresh News</button>
+        </div>
+        <div class="grid-2">
+          <div>
+            <div class="section-header" style="color:#06b6d4">Cadient / HR Tech</div>
+            <div class="card"><div class="card-body scroll-panel" id="newsCadient" style="max-height:500px"><div class="loading"><div class="spinner"></div><br>Loading news...</div></div></div>
+          </div>
+          <div>
+            <div class="section-header" style="color:#06b6d4">Vorro / Healthcare IT</div>
+            <div class="card"><div class="card-body scroll-panel" id="newsVorro" style="max-height:500px"><div class="loading"><div class="spinner"></div><br>Loading news...</div></div></div>
+          </div>
+        </div>
+        <div class="section-header" style="color:#818cf8">Arista Networks</div>
+        <div class="grid-2">
+          <div>
+            <div class="card"><div class="card-body scroll-panel" id="newsArista" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading Arista news...</div></div></div>
+          </div>
+          <div>
+            <div class="section-header" style="font-size:11px;color:var(--text-muted)">Arista competitors</div>
+            <div class="card"><div class="card-body scroll-panel" id="newsCompArista" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+          </div>
+        </div>
+        <div class="section-header" style="color:#06b6d4">Industry Trends &amp; Market Moves</div>
+        <div class="card"><div class="card-body scroll-panel" id="newsIndustry" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
+        <div class="section-header" style="color:#06b6d4">Competitor Watch &middot; latest brief each</div>
+        <div class="grid-2">
+          <div>
+            <div class="section-header" style="font-size:11px;color:var(--text-muted)">Cadient competitors</div>
+            <div class="card"><div class="card-body scroll-panel" id="newsCompCadient" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+          </div>
+          <div>
+            <div class="section-header" style="font-size:11px;color:var(--text-muted)">Vorro competitors</div>
+            <div class="card"><div class="card-body scroll-panel" id="newsCompVorro" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Social Posting (moved from its own tab) -->
+      <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Social Media Posting</div>
+      <div class="sh-collapsible-wrap">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <button class="prod-btn" onclick="event.stopPropagation();spFindViral()" style="background:rgba(45,212,191,0.28);color:#2dd4bf;border-color:rgba(45,212,191,0.5);font-weight:700">Find viral posts</button>
+          <button class="prod-btn" onclick="event.stopPropagation();window._socialPostingLoaded=false;loadSocialPosting()" style="background:rgba(45,212,191,0.15);color:#2dd4bf;border-color:rgba(45,212,191,0.3)">Refresh</button>
+        </div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">Pick a viral post to engage with, generate two AI drafts (a punchy challenge and an expert take), edit if you like, then Post. Posting runs through your local LinkedIn poster.</div>
+        <div id="spSources"></div>
+        <div id="spTargets"><div class="loading"><div class="spinner"></div><br>Loading viral posts...</div></div>
+        <div id="spDrafts" style="margin-top:16px"></div>
+        <div id="spHistory" style="margin-top:22px"></div>
       </div>
     </div>
 
@@ -935,6 +984,11 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
           </select>
           <button onclick="loadAiSync()" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Refresh</button>
         </div>
+      </div>
+
+      <div class="section-header collapsible" onclick="toggleSection(this)"><span class="sh-arrow">&#9660;</span> Automation Status</div>
+      <div class="sh-collapsible-wrap">
+        <div class="card" style="margin-bottom:16px"><div class="card-body" style="padding:10px" id="automationStatus"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -1507,58 +1561,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       <div class="fu-stats" id="fuStats"></div>
       <div class="fu-filter-bar" id="fuFilterBar"></div>
       <div id="fuDraftsList"><div class="loading"><div class="spinner"></div><br>Loading drafts...</div></div>
-    </div>
 
-    <div id="view-socialPosting" class="view">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <h2 style="font-size:16px;font-weight:700;flex:1;color:#2dd4bf">Social Media Posting</h2>
-        <button class="prod-btn" onclick="spFindViral()" style="background:rgba(45,212,191,0.28);color:#2dd4bf;border-color:rgba(45,212,191,0.5);font-weight:700">Find viral posts</button>
-        <button class="prod-btn" onclick="window._socialPostingLoaded=false;loadSocialPosting()" style="background:rgba(45,212,191,0.15);color:#2dd4bf;border-color:rgba(45,212,191,0.3)">Refresh</button>
-      </div>
-      <div style="font-size:12px;color:#94a3b8;margin-bottom:12px">Pick a viral post to engage with, generate two AI drafts (a punchy challenge and an expert take), edit if you like, then Post. Posting runs through your local LinkedIn poster.</div>
-      <div id="spSources"></div>
-      <div id="spTargets"><div class="loading"><div class="spinner"></div><br>Loading viral posts...</div></div>
-      <div id="spDrafts" style="margin-top:16px"></div>
-      <div id="spHistory" style="margin-top:22px"></div>
-    </div>
-
-    <div id="view-newsfeed" class="view">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <h2 style="font-size:16px;font-weight:700;flex:1">Competitor &amp; Industry News</h2>
-        <button class="prod-btn" onclick="loadNewsFeed(true)" style="background:rgba(6,182,212,0.15);color:#06b6d4;border-color:rgba(6,182,212,0.3)">Refresh</button>
-      </div>
-      <div class="grid-2">
-        <div>
-          <div class="section-header" style="color:#06b6d4">Cadient / HR Tech</div>
-          <div class="card"><div class="card-body scroll-panel" id="newsCadient" style="max-height:500px"><div class="loading"><div class="spinner"></div><br>Loading news...</div></div></div>
-        </div>
-        <div>
-          <div class="section-header" style="color:#06b6d4">Vorro / Healthcare IT</div>
-          <div class="card"><div class="card-body scroll-panel" id="newsVorro" style="max-height:500px"><div class="loading"><div class="spinner"></div><br>Loading news...</div></div></div>
-        </div>
-      </div>
-      <div class="section-header" style="color:#818cf8">Arista Networks</div>
-      <div class="grid-2">
-        <div>
-          <div class="card"><div class="card-body scroll-panel" id="newsArista" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading Arista news...</div></div></div>
-        </div>
-        <div>
-          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Arista competitors</div>
-          <div class="card"><div class="card-body scroll-panel" id="newsCompArista" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
-        </div>
-      </div>
-      <div class="section-header" style="color:#06b6d4">Industry Trends &amp; Market Moves</div>
-      <div class="card"><div class="card-body scroll-panel" id="newsIndustry" style="max-height:400px"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
-      <div class="section-header" style="color:#06b6d4">Competitor Watch &middot; latest brief each</div>
-      <div class="grid-2">
-        <div>
-          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Cadient competitors</div>
-          <div class="card"><div class="card-body scroll-panel" id="newsCompCadient" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
-        </div>
-        <div>
-          <div class="section-header" style="font-size:11px;color:var(--text-muted)">Vorro competitors</div>
-          <div class="card"><div class="card-body scroll-panel" id="newsCompVorro" style="max-height:380px"><div class="loading"><div class="spinner"></div><br>Scanning...</div></div></div>
-        </div>
+      <div class="section-header collapsible" onclick="toggleSection(this)" style="margin-top:18px"><span class="sh-arrow">&#9660;</span> Gmail Drafts</div>
+      <div class="sh-collapsible-wrap">
+        <div class="card"><div class="card-body scroll-panel" id="draftsList"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
       </div>
     </div>
 
@@ -2702,10 +2708,9 @@ function switchView(v){
   if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
   if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadRecentContacts();loadMostMentioned();loadRecentExecChanges();}
   // Legal tab is static — no data load needed on switch
-  if(v==='newsfeed'&&!window._newsLoaded)safeLoad(loadNewsFeed,'News Feed');
+  // News and Social Posting are now Today sub-sections, loaded from loadDashboard() instead.
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
   if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
-  if(v==='socialPosting'&&!window._socialPostingLoaded)safeLoad(loadSocialPosting,'Social Posting');
   if(v==='artifacts'&&!window._artifactsLoaded)safeLoad(loadArtifacts,'Artifacts');
   // Marketing views
   if(v==='mktCampaigns'&&!window._mktCampaignsLoaded){window._mktCampaignsLoaded=true;safeLoad(loadMktCampaigns,'Campaigns');}
@@ -2750,9 +2755,12 @@ async function loadDashboard(){
   const friStr=fri.toISOString().slice(0,10);
   const todayStr=now.toISOString().slice(0,10);
 
-  // Fire automation status + stale thread checks + meeting cache in parallel with main dashboard data
-  loadAutomationStatus().catch(e=>dbg('AutoStatus failed: '+e.message,'err'));
+  // Fire stale thread checks + meeting cache in parallel with main dashboard data.
+  // (Automation Status now lives under Admin / AI Sync, loaded from loadAiSync() instead.)
   loadStaleThreads().catch(e=>dbg('StaleThreads failed: '+e.message,'err'));
+  // News and Social Posting are now Today sub-sections — load them here instead of on tab switch.
+  if(!window._newsLoaded){window._newsLoaded=true;loadNewsFeed().catch(e=>dbg('News failed: '+e.message,'err'));}
+  if(!window._socialPostingLoaded){window._socialPostingLoaded=true;loadSocialPosting().catch(e=>dbg('Social Posting failed: '+e.message,'err'));}
   // Pre-load cached meetings for calendar prep notes
   if(!window._cachedMeetings){
     call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}).then(r=>{
@@ -10685,6 +10693,7 @@ function _aiCatBadge(cat) {
 }
 
 async function loadAiSync() {
+  loadAutomationStatus().catch(e=>dbg('AutoStatus failed: '+e.message,'err'));
   const brand = document.getElementById('aisyncBrandFilter')?.value || 'all';
   const [pendRes, memRes] = await Promise.allSettled([
     fetch(`/api/ai-sync/pending?brand=${brand}`, { credentials:'same-origin' }).then(r=>r.json()),
