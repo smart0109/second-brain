@@ -53,11 +53,20 @@ if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
 const ZOHO_API_DOMAIN = process.env.ZOHO_API_DOMAIN || 'https://www.zohoapis.com';
 
 // Google OAuth scopes
+// NOTE: calendar.events (read/write) replaces the old calendar.readonly so the
+// Meetings day-schedule drag-and-drop reschedule (calendar.events.patch) and
+// the "find next slot" free/busy lookup both work. This does NOT take effect
+// for the existing GOOGLE_REFRESH_TOKEN already stored in Render's env — that
+// token was minted under the old read-only scope and Google does not
+// retroactively grant new scopes to it. Someone with Manish's Google login
+// must re-run the one-time refresh-token setup (or hit /auth/google and swap
+// in the resulting refresh token) and update GOOGLE_REFRESH_TOKEN in Render
+// before reschedule/find-slot will work in production.
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.compose',
   'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
 ];
