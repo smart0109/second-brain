@@ -49,11 +49,18 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .tab:hover .pin-btn { display:block; }
 .tab .pin-btn:hover { opacity:1; background:rgba(201,162,39,0.3); }
 .tab .pin-btn.pinned { display:block; opacity:0.8; color:#c9a227; }
-.tabs { display: flex; background: var(--bg-surface); border-bottom: 1px solid var(--border); padding: 0 24px; position: sticky; top: 52px; z-index: 90; overflow-x: auto; gap: 2px; }
+.tabs { display: flex; flex-direction: column; align-items: stretch; background: var(--bg-surface); border-right: 1px solid var(--border); border-bottom: none; padding: 10px 8px; position: fixed; left: 0; top: 52px; bottom: 0; width: 208px; z-index: 90; overflow-x: hidden; overflow-y: auto; gap: 1px; }
 .fav-bar.has-items ~ .tabs { top: 82px; }
-.tab { padding: 12px 18px; font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.25s var(--transition-smooth); white-space: nowrap; letter-spacing: 0.3px; position: relative; }
+.sidebar-group-title { font-family: var(--font-display); font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; padding: 14px 10px 4px; }
+.tabs .sidebar-group-title:first-child { padding-top: 4px; }
+.tab { padding: 9px 12px; font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.25s var(--transition-smooth); white-space: nowrap; letter-spacing: 0.3px; position: relative; }
+.tabs .tab { border-bottom: none; border-left: 3px solid transparent; border-radius: 6px; white-space: normal; }
 .tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.02); }
 .tab.active { color: var(--accent-text); border-bottom-color: var(--accent); font-weight: 700; }
+.tabs .tab.active { border-left-color: var(--accent); border-bottom-color: transparent; background: var(--accent-dim); }
+.meetings-subnav { display: flex; gap: 8px; margin-bottom: 14px; }
+.meetings-subnav .prod-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font-size: 11px; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+.meetings-subnav .prod-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
 .intel-company-btn { padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#64748b;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit }
 .intel-company-btn:hover { background:rgba(255,255,255,0.08);color:#94a3b8 }
 .intel-sec { margin-bottom:14px }
@@ -69,7 +76,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .tab .badge { background: var(--red); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 6px; margin-left: 4px; }
 
 /* Main */
-.main { flex: 1; padding: 20px 24px; max-width: 1600px; margin: 0 auto; width: 100%; }
+.main { flex: 1; padding: 20px 24px; max-width: 1600px; margin: 0 auto; width: 100%; margin-left: 224px; }
+@media (max-width: 900px) { .tabs { position: static; width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); } .main { margin-left: auto; } }
 .view { display: none; }
 .view.active { display: block; }
 
@@ -592,20 +600,28 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
   <div class="tabs" id="tabBar">
     <!-- Shared across all views -->
     <div class="tab active" data-view="dashboard" data-org="all" onclick="switchView('dashboard')">Today</div>
-    <!-- Sales-only tabs -->
+
+    <div class="sidebar-group-title">Accounts &amp; Pipeline</div>
     <div class="tab" data-view="contact360" data-org="sales" onclick="switchView('contact360')">Contact 360</div>
     <div class="tab" data-view="pipeline" data-org="sales,finance" onclick="switchView('pipeline')">Pipeline</div>
-    <div class="tab" data-view="team" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('team')">Team</div>
-    <div class="tab" data-view="meetings" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('meetings')">Meetings</div>
-    <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
-        <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
-    <div class="tab" data-view="copilot" data-org="sales" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
-    <div class="tab" data-view="productivity" data-org="sales" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
-    <div class="tab" data-view="legal" data-org="sales" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
-    <div class="tab" data-view="newsfeed" data-org="sales" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
     <div class="tab" data-view="icpchecker" data-org="sales" onclick="switchView('icpchecker')" style="color:#a78bfa;font-weight:600">ICP Checker</div>
+
+    <div class="sidebar-group-title">Meetings</div>
+    <div class="tab" data-view="meetings" data-org="sales,marketing,finance,hr,operations,product" onclick="switchView('meetings')">Meetings</div>
+    <div class="tab" data-view="copilot" data-org="sales" onclick="switchView('copilot')" style="color:#4caf50;font-weight:600">AI Transcription</div>
+
+    <div class="sidebar-group-title">Work &amp; Content</div>
     <div class="tab" data-view="followups" data-org="sales" onclick="switchView('followups')" style="color:#fb923c;font-weight:600">Follow-ups</div>
+    <div class="tab" data-view="productivity" data-org="sales" onclick="switchView('productivity')" style="color:#ff9800;font-weight:600">Productivity</div>
+
+    <div class="sidebar-group-title">Assets &amp; Documents</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="color:#e879f9;font-weight:600">Artifacts</div>
+    <div class="tab" data-view="legal" data-org="sales" onclick="switchView('legal')" style="color:#f472b6;font-weight:600">Legal Assets</div>
+
+    <div class="sidebar-group-title">Market &amp; Distribution</div>
+    <div class="tab" data-view="intelligence" data-org="sales,marketing" onclick="switchView('intelligence')">Intelligence</div>
+    <div class="tab" data-view="aisync" data-org="admin" onclick="switchView('aisync')">&#129504; AI Sync</div>
+    <div class="tab" data-view="newsfeed" data-org="sales" onclick="switchView('newsfeed')" style="color:#06b6d4;font-weight:600">News</div>
     <div class="tab" data-view="socialPosting" data-org="sales" onclick="switchView('socialPosting')" style="color:#2dd4bf;font-weight:600">Social Posting</div>
     <!-- Marketing tabs -->
     <div class="tab" data-view="mktCampaigns" data-org="marketing" onclick="switchView('mktCampaigns')" style="display:none;color:#60a5fa;font-weight:600">Campaigns</div>
@@ -804,8 +820,12 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
       </div>
     </div>
 
-    <!-- TEAM -->
+    <!-- TEAM (reached via the Meetings > Team Activity sub-tab) -->
     <div id="view-team" class="view">
+      <div class="meetings-subnav">
+        <button class="prod-btn" onclick="switchView('meetings')">Calendar &amp; Notes</button>
+        <button class="prod-btn primary" onclick="switchView('team')">Team Activity</button>
+      </div>
       <div class="section-header">BDR Team Activity</div>
       <div id="teamGrid" class="grid-4"></div>
       <div class="section-header" style="margin-top:16px">Recent Team Threads</div>
@@ -814,6 +834,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
     <!-- MEETINGS -->
     <div id="view-meetings" class="view">
+      <div class="meetings-subnav">
+        <button class="prod-btn primary" onclick="switchView('meetings')">Calendar &amp; Notes</button>
+        <button class="prod-btn" onclick="switchView('team')">Team Activity</button>
+      </div>
       <div id="meetingsListView">
         <div class="section-header">This Week's Calendar + Notes</div>
         <div class="card"><div class="card-body scroll-panel" id="weekCalMeetings"><div class="loading"><div class="spinner"></div><br>Loading calendar...</div></div></div>
