@@ -2215,12 +2215,7 @@ async function _preBriefSweep() {
       return;
     }
     const now = new Date();
-    const listed = await handleCalendar('list_events', {
-      startTime: now.toISOString(),
-      endTime: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      timeZone: 'America/New_York',
-    });
-    const events = (listed && listed.events) || [];
+    const events = await _getWeekEvents(false); // shared 7-day cache; falls through to live fetch when stale
 
     const todayStr = now.getFullYear() + '-' +
       String(now.getMonth() + 1).padStart(2, '0') + '-' +
@@ -2265,8 +2260,94 @@ async function _preBriefSweep() {
     _preBriefSweepBusy = false;
   }
 }
-setTimeout(() => { _preBriefSweep().catch(() => {}); }, 2 * 60 * 1000).unref();
-setInterval(() => { _preBriefSweep().catch(() => {}); }, 60 * 60 * 1000).unref();
+// ===========================================================================
+// UNIFIED BACKGROUND JOB SCHEDULER -- single registry for every recurring
+// data fetch/organize job. Staggered offsets so jobs never fire together,
+// per-job busy guard + try/catch + timing, health at GET /api/jobs/status.
+// ===========================================================================
+const _jobs = [];
+function _registerJob(name, intervalMin, offsetMin, fn) {
+  _jobs.push({ name, intervalMin, offsetMin, fn, running: false, lastRun: null, lastOk: null, lastResult: '', lastMs: 0, runs: 0 });
+}
+async function _runJob(j) {
+  if (j.running) return;
+  j.running = true;
+  const t0 = Date.now();
+  try {
+    const r = await j.fn();
+    j.lastOk = true; j.lastResult = String(r == null ? 'ok' : r).slice(0, 300);
+  } catch (e) {
+    j.lastOk = false; j.lastResult = String((e && e.message) || e).slice(0, 300);
+    console.warn('[jobs] ' + j.name + ' failed:', j.lastResult);
+  }
+  j.lastMs = Date.now() - t0; j.lastRun = new Date().toISOString(); j.runs++; j.running = false;
+}
+function _startScheduler() {
+  for (const j of _jobs) {
+    setTimeout(() => {
+      _runJob(j);
+      setInterval(() => _runJob(j), j.intervalMin * 60 * 1000).unref();
+    }, Math.max(1, j.offsetMin) * 60 * 1000).unref();
+  }
+  console.log('[jobs] scheduler: ' + _jobs.map((j) => j.name + ' every ' + j.intervalMin + 'm (+' + j.offsetMin + 'm)').join(', '));
+}
+app.get('/api/jobs/status', requireAuth, (req, res) => {
+  res.json({ jobs: _jobs.map((j) => ({ name: j.name, intervalMin: j.intervalMin, offsetMin: j.offsetMin, running: j.running, lastRun: j.lastRun, lastOk: j.lastOk, lastResult: j.lastResult, lastMs: j.lastMs, runs: j.runs })) });
+});
+
+// Shared 7-day calendar cache: ONE calendar fetch serves the meetings cache,
+// the pre-brief sweep, and any future consumer. 20-minute freshness window.
+const MEETINGS_CACHE_KEY = 'meetings-cache-7d';
+async function _getWeekEvents(force) {
+  const cached = kvStore.get(MEETINGS_CACHE_KEY, null);
+  if (!force && cached && cached.fetchedAt && (Date.now() - cached.fetchedAt) < 20 * 60 * 1000) {
+    return cached.events || [];
+  }
+  if (!process.env.GOOGLE_REFRESH_TOKEN) return (cached && cached.events) || [];
+  const now = new Date();
+  const listed = await handleCalendar('list_events', {
+    startTime: now.toISOString(),
+    endTime: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    timeZone: 'America/New_York',
+  });
+  const events = ((listed && listed.events) || []).map((e) => ({
+    id: e.id, summary: e.summary, start: e.start, end: e.end,
+    attendees: (e.attendees || []).map((a) => ({ email: a.email, displayName: a.displayName, self: a.self, responseStatus: a.responseStatus })),
+    conferenceUrl: e.conferenceUrl, location: e.location, status: e.status,
+  }));
+  kvStore.set(MEETINGS_CACHE_KEY, { fetchedAt: Date.now(), events });
+  return events;
+}
+
+// Nightly organize: prune pre-briefs for meetings ended >24h ago; drop
+// transcript bodies (summaries kept) from meeting notes older than 60 days.
+async function _nightlyOrganize() {
+  const out = [];
+  const state = _preBriefState();
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  let pruned = 0;
+  for (const [id, b] of Object.entries(state.briefs || {})) {
+    if (b && b.startTs && b.startTs < cutoff) { delete state.briefs[id]; pruned++; }
+  }
+  if (pruned) _preBriefSave(state);
+  out.push('pre-briefs pruned ' + pruned);
+  const mn = kvStore.get(MEETING_NOTES_KEY, { entries: [] });
+  const tCut = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  let compacted = 0;
+  for (const e of mn.entries || []) {
+    if (e.transcript && e.endTs && e.endTs < tCut) { e.transcript = ''; compacted++; }
+  }
+  if (compacted) kvStore.set(MEETING_NOTES_KEY, mn);
+  out.push('notes compacted ' + compacted);
+  return out.join(', ');
+}
+
+_registerJob('meetings-cache', 15, 1, () => _getWeekEvents(true).then((ev) => ev.length + ' events cached'));
+_registerJob('pre-brief-sweep', 60, 3, () => _preBriefSweep());
+_registerJob('caption-buffer-cleanup', 10, 2, () => _capCleanup());
+_registerJob('gmail-thread-id-cleanup', 60, 7, () => _autoCleanThreadIds());
+_registerJob('nightly-organize', 1440, 25, () => _nightlyOrganize());
+_startScheduler();
 
 // ── Deep Ask — Sonnet 4.6 with auto-injected live context ───────────────────
 app.post('/api/ask/deep', requireAuth, async (req, res) => {
@@ -2914,7 +2995,8 @@ app.post('/api/transcribe/token', requireAuth, (_req, res) => {
 const _capBuffers = new Map();
 const _capCodes = new Map();
 function _capCleanup(){ const now=Date.now(); for(const [c,m] of _capCodes) if(m.exp<now){_capCodes.delete(c);_capBuffers.delete(c);} }
-setInterval(_capCleanup, 10*60*1000).unref && setInterval(_capCleanup,10*60*1000).unref();
+// _capCleanup now runs via the unified job scheduler ('caption-buffer-cleanup', 10m).
+// The old line here also had a bug: `.unref && setInterval(...)` registered the interval TWICE.
 function _stableCapCode(req){ const id=(req.session&&(req.session.userId||req.session.email))||'anon'; const secret=process.env.SESSION_SECRET||'sb-captions'; return dgCrypto.createHmac('sha256',secret).update('cap:'+id).digest('hex').slice(0,8).toUpperCase(); }
 app.post('/api/live-captions/code', requireAuth, (req, res) => {
   const code = _stableCapCode(req);
@@ -3875,8 +3957,7 @@ async function _autoCleanThreadIds() {
     if (fixed) console.log('[thread-id-cleanup] Fixed ' + fixed + ' drafts');
   } catch(e) { console.warn('[thread-id-cleanup]', e.message); }
 }
-setTimeout(() => _autoCleanThreadIds(), 10000);
-setInterval(() => _autoCleanThreadIds(), 60 * 60 * 1000);
+// _autoCleanThreadIds now runs via the unified job scheduler ('gmail-thread-id-cleanup', 60m).
 
 kvStore.init().then(() => {
   loadErrorLog();
