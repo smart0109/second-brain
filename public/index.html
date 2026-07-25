@@ -7003,7 +7003,16 @@ function stopMeetCaptions(){
   if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
   const btn=document.getElementById('btnMeetCap'); if(btn){btn.textContent='Live Captions (Meet)';btn.className='listen-btn idle';}
   const st=document.getElementById('meetCapStatus'); if(st)st.textContent='Stopped';
+  _finalizeMeetingNotes();
 }
+
+// --- Per-meeting notes sessions: tell the server which meeting the caption
+// stream belongs to so it persists a transcript + summary per meeting. ---
+const _MN_INTERNAL_DOMAINS=['basisvps.com','vorro.net','cadienttalent.com','commercev3.com','basisvectors.com','gmail.com','hotmail.com','outlook.com','yahoo.com'];
+function _mnCompanyFromAttendees(atts){for(const a of (atts||[])){const em=((a&&a.email)||'').toLowerCase();const d=em.split('@')[1]||'';if(d&&_MN_INTERNAL_DOMAINS.indexOf(d)===-1)return d;}return '';}
+function _mnBrandGuess(){try{return (typeof detectBrandFromContext==='function'&&detectBrandFromContext())||'';}catch(e){return '';}}
+async function _startMeetingNotesSession(m,attendees){try{await fetch('/api/meeting-notes/session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({meetingId:(typeof _meetingKey==='function'?_meetingKey(m):'')||'',title:(m&&m.summary)||'Meeting',company:_mnCompanyFromAttendees(attendees),brand:_mnBrandGuess(),attendees:(attendees||[]).map(function(a){return a.email||a.displayName||'';}).filter(Boolean),startTs:Date.now()})});}catch(e){}}
+async function _finalizeMeetingNotes(){try{await fetch('/api/meeting-notes/finalize',{method:'POST',credentials:'same-origin'});}catch(e){}}
 // Called when refreshCopilotCurrentMeeting() detects a genuinely NEW meeting
 // has started (not just "next upcoming" changing). Clears the transcript and
 // restarts the caption stream fresh so the previous meeting's lines don't
@@ -7444,6 +7453,7 @@ async function loadCopilot(){
       _lastCopilotMeetingId=null;
       const _cmt2=document.getElementById('copilotMeetingTitle');if(_cmt2)_cmt2.textContent='No Upcoming Meeting';
       const _cmm2=document.getElementById('copilotMeetingMeta');if(_cmm2)_cmm2.textContent='Your next meeting will auto-load when it starts. You can still use the copilot with manual input.';
+    _finalizeMeetingNotes();
     }
   }catch(e){
     const _cmm3=document.getElementById('copilotMeetingMeta');if(_cmm3)_cmm3.textContent='Calendar sync failed. Use manual input.';
@@ -7512,6 +7522,7 @@ async function refreshCopilotCurrentMeeting(){
   if(!next){
     const _cmt2=document.getElementById('copilotMeetingTitle');if(_cmt2)_cmt2.textContent='No Upcoming Meeting';
     const _cmm2=document.getElementById('copilotMeetingMeta');if(_cmm2)_cmm2.textContent='Your next meeting will auto-load when it starts. You can still use the copilot with manual input.';
+    _finalizeMeetingNotes();
     return;
   }
   const attendees=renderCopilotMeetingHeader(next);
@@ -7520,8 +7531,10 @@ async function refreshCopilotCurrentMeeting(){
     // A new meeting is actually underway (not just "next upcoming" ticking
     // over to a future one) -- auto-start/restart captions for it.
     try{ await restartCaptionsForMeeting(); }catch(e){}
+    _startMeetingNotesSession(next, attendees);
     dbg('AI Transcription auto-switched to meeting in progress: '+(next.summary||'Meeting'),'ok');
   }
+  else{ _finalizeMeetingNotes(); } // meeting over, none in progress -> store its notes
 }
 
 async function loadCopilotStripMeeting(idx){

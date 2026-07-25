@@ -2774,6 +2774,125 @@ app.get('/api/live-captions', requireAuth, (req, res) => {
   if (!buf) return res.json({ lines: [], now: Date.now() });
   res.json({ lines: buf.lines.filter((l)=>l.ts>since), now: Date.now() });
 });
+
+// ===========================================================================
+// Per-meeting transcript sessions -- segments the per-user caption stream into
+// durable per-meeting notes (kvStore/Postgres key 'meeting-notes'), auto-
+// summarizes each meeting, and feeds the summary into the AI Sync pending
+// queue for the matched company so approved notes land in per-brand AI memory.
+// External automations (email follow-up ledger) read GET /api/meeting-notes
+// authenticated via the x-api-token SERVICE_API_TOKEN path in requireAuth.
+// ===========================================================================
+const MEETING_NOTES_KEY = 'meeting-notes';
+const _capSessions = new Map(); // cap code -> { meetingId, title, company, brand, attendees, startTs }
+
+async function _aiSummarize(systemPrompt, userContent, maxTokens) {
+  const providers = [
+    () => askGroq(systemPrompt, userContent, maxTokens),
+    () => askAnthropic(systemPrompt, userContent, maxTokens),
+    () => askGemini(systemPrompt, userContent, maxTokens),
+  ];
+  for (const fn of providers) {
+    try { const out = await fn(); if (out) return out; } catch (e) { /* try next */ }
+  }
+  return '';
+}
+
+function _finalizeCapSession(code, endTs) {
+  const sess = _capSessions.get(code);
+  if (!sess) return null;
+  _capSessions.delete(code);
+  const buf = _capBuffers.get(code);
+  const lines = buf ? buf.lines.filter((l) => l.ts >= sess.startTs && l.ts <= (endTs || Date.now())) : [];
+  if (!lines.length) return null; // nothing captured -> no empty notes
+  const transcript = lines.map((l) => (l.speaker ? l.speaker + ': ' : '') + l.text).join('\\n').slice(0, 120000);
+  const store = kvStore.get(MEETING_NOTES_KEY, { entries: [] });
+  const entry = {
+    id: 'mn_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    meetingId: sess.meetingId || '', title: sess.title || 'Meeting',
+    company: sess.company || '', brand: sess.brand || '',
+    attendees: sess.attendees || [], startTs: sess.startTs, endTs: endTs || Date.now(),
+    lineCount: lines.length, transcript, summary: '', createdAt: new Date().toISOString(),
+  };
+  store.entries.push(entry);
+  if (store.entries.length > 200) store.entries = store.entries.slice(-200);
+  kvStore.set(MEETING_NOTES_KEY, store);
+  _summarizeMeetingEntry(entry.id).catch((e) => console.warn('[meeting-notes] summarize failed:', e.message));
+  return entry;
+}
+
+async function _summarizeMeetingEntry(entryId) {
+  const store = kvStore.get(MEETING_NOTES_KEY, { entries: [] });
+  const entry = (store.entries || []).find((e) => e.id === entryId);
+  if (!entry || !entry.transcript) return;
+  const sys = 'You summarize sales meeting transcripts for a CRO. Return plain text with these sections: 1) Two to three sentence summary. 2) Decisions made. 3) Commitments with owner and date, both sides. 4) Open questions. 5) Next step. Be specific, use the names in the transcript, no preamble.';
+  const out = await _aiSummarize(sys, 'Meeting: ' + entry.title + '\\nAttendees: ' + (entry.attendees || []).join(', ') + '\\n\\nTranscript:\\n' + entry.transcript.slice(0, 30000), 700);
+  if (!out) return;
+  entry.summary = String(out).slice(0, 4000);
+  kvStore.set(MEETING_NOTES_KEY, store);
+  try {
+    const p = kvStore.get(AI_SYNC_PENDING_KEY, { items: [] });
+    p.items.push({
+      id: 'ai_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      category: 'meeting_notes',
+      source: 'AI Transcription -- ' + entry.title + (entry.company ? ' (' + entry.company + ')' : ''),
+      date: new Date(entry.startTs).toISOString().slice(0, 10),
+      content: entry.summary.slice(0, 2000),
+      suggestedMemory: entry.summary.slice(0, 500),
+      risk: null, riskReason: null,
+      brand: entry.brand || '',
+      createdAt: new Date().toISOString(),
+    });
+    kvStore.set(AI_SYNC_PENDING_KEY, p);
+  } catch (e) { console.warn('[meeting-notes] ai-sync push failed:', e.message); }
+}
+
+// Start (or switch) the meeting session for this user's caption stream.
+// Starting a new session finalizes the previous one in the same handler.
+app.post('/api/meeting-notes/session', requireAuth, (req, res) => {
+  const code = _stableCapCode(req);
+  const b = req.body || {};
+  const prev = _finalizeCapSession(code, Date.now());
+  _capSessions.set(code, {
+    meetingId: String(b.meetingId || '').slice(0, 200),
+    title: String(b.title || 'Meeting').slice(0, 200),
+    company: String(b.company || '').slice(0, 120),
+    brand: String(b.brand || '').slice(0, 40),
+    attendees: Array.isArray(b.attendees) ? b.attendees.slice(0, 30).map((a) => String(a).slice(0, 120)) : [],
+    startTs: Number(b.startTs) || Date.now(),
+  });
+  res.json({ ok: true, finalizedPrevious: prev ? prev.id : null });
+});
+
+app.post('/api/meeting-notes/finalize', requireAuth, (req, res) => {
+  const code = _stableCapCode(req);
+  const e = _finalizeCapSession(code, Date.now());
+  res.json({ ok: true, entry: e ? { id: e.id, title: e.title, lineCount: e.lineCount } : null });
+});
+
+// List stored meeting notes. ?company= filters company/title/attendees,
+// ?since= epoch ms, ?limit= (default 50, max 200), ?full=1 adds transcripts.
+app.get('/api/meeting-notes', requireAuth, (req, res) => {
+  const store = kvStore.get(MEETING_NOTES_KEY, { entries: [] });
+  let entries = store.entries || [];
+  const q = req.query || {};
+  if (q.company) {
+    const needle = String(q.company).toLowerCase();
+    entries = entries.filter((e) =>
+      (e.company || '').toLowerCase().includes(needle) ||
+      (e.title || '').toLowerCase().includes(needle) ||
+      (e.attendees || []).some((a) => String(a).toLowerCase().includes(needle)));
+  }
+  if (q.since) entries = entries.filter((e) => e.startTs >= Number(q.since));
+  const lim = Math.min(Number(q.limit) || 50, 200);
+  const full = q.full === '1';
+  entries = entries.slice(-lim).reverse();
+  res.json({ entries: full ? entries : entries.map((e) => ({
+    id: e.id, meetingId: e.meetingId, title: e.title, company: e.company, brand: e.brand,
+    attendees: e.attendees, startTs: e.startTs, endTs: e.endTs, lineCount: e.lineCount, summary: e.summary,
+  })) });
+});
+
 const MEET_CAPTION_CONFIG = { version:3, updated:'2026-06-24',
   platforms:{
     meet:{ regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
