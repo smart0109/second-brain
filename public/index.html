@@ -1131,6 +1131,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
               <button id="btnSpeak" onclick="speakResponse()" style="font-size:10px;padding:3px 10px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:#1e2a3a;cursor:pointer;display:none" title="Read response aloud">&#128264; Read Aloud</button>
             </div>
             <div class="cr-body" id="copilotResponseBody"><div class="empty-state">Click an action button or enable Auto-Coach for real-time intelligence</div></div>
+            <div id="liveToneStamp" style="font-size:10px;color:var(--text-muted);padding:4px 2px 0;text-align:right"></div>
           </div>
 
           <!-- LIVE COACHING FEED -->
@@ -1171,6 +1172,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
           <div class="copilot-context-panel" id="copilotContextPanel">
             <div class="section-header">Meeting Context</div>
+            <div id="preMeetingBriefCard"></div>
             <div id="copilotContextCards"></div>
           </div>
         </div>
@@ -6997,12 +6999,14 @@ async function _startMeetCaptions(freshMeeting){
     // (which wipes the in-memory code registry) re-pairs without any clicks.
     if(!window._meetCapHb)window._meetCapHb=setInterval(()=>{fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'}).catch(()=>{});},600000);
     pollMeetCaptions();
+    _startLiveTone();
   }catch(e){ const st=document.getElementById('meetCapStatus'); if(st)st.textContent=e.message; }
 }
 function stopMeetCaptions(){
   if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
   const btn=document.getElementById('btnMeetCap'); if(btn){btn.textContent='Live Captions (Meet)';btn.className='listen-btn idle';}
   const st=document.getElementById('meetCapStatus'); if(st)st.textContent='Stopped';
+  _stopLiveTone();
   _finalizeMeetingNotes();
 }
 
@@ -7013,6 +7017,109 @@ function _mnCompanyFromAttendees(atts){for(const a of (atts||[])){const em=((a&&
 function _mnBrandGuess(){try{return (typeof detectBrandFromContext==='function'&&detectBrandFromContext())||'';}catch(e){return '';}}
 async function _startMeetingNotesSession(m,attendees){try{await fetch('/api/meeting-notes/session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({meetingId:(typeof _meetingKey==='function'?_meetingKey(m):'')||'',title:(m&&m.summary)||'Meeting',company:_mnCompanyFromAttendees(attendees),brand:_mnBrandGuess(),attendees:(attendees||[]).map(function(a){return a.email||a.displayName||'';}).filter(Boolean),startTs:Date.now()})});}catch(e){}}
 async function _finalizeMeetingNotes(){try{await fetch('/api/meeting-notes/finalize',{method:'POST',credentials:'same-origin'});}catch(e){}}
+
+// --- Live tone auto-analysis: while live captions run, the TONE coach action
+// re-runs automatically every 60s on the last ~40 transcript lines, rendering
+// into the normal coach response area with a "Live tone updated" timestamp.
+// Busy-guarded so calls never stack; a cycle is skipped when no new transcript
+// lines arrived since the last tone run (manual or auto). Manual Tone button
+// presses still work and reset the 60s timer (see copilotAction). ---
+let _liveToneTimer=null,_liveToneBusy=false,_liveToneLastIdx=-1;
+function _startLiveTone(){
+  if(_liveToneTimer)clearInterval(_liveToneTimer);
+  _liveToneLastIdx=-1;
+  _liveToneTimer=setInterval(_runLiveTone,60000);
+  const st=document.getElementById('liveToneStamp');
+  if(st)st.textContent='Live tone: auto-refresh every 60s while captions run';
+}
+function _stopLiveTone(){
+  if(_liveToneTimer){clearInterval(_liveToneTimer);_liveToneTimer=null;}
+  const st=document.getElementById('liveToneStamp');
+  if(st)st.textContent='';
+}
+function _resetLiveToneTimer(){
+  if(!_liveToneTimer)return;
+  clearInterval(_liveToneTimer);
+  _liveToneTimer=setInterval(_runLiveTone,60000);
+}
+async function _runLiveTone(){
+  if(_liveToneBusy)return; // never stack tone calls
+  if(!copilotTranscriptLines.length||copilotTranscriptLines.length===_liveToneLastIdx)return; // no new lines since last tone run
+  _liveToneBusy=true;
+  try{
+    _liveToneLastIdx=copilotTranscriptLines.length;
+    await copilotAction('tone',{lastLines:40});
+    const st=document.getElementById('liveToneStamp');
+    if(st)st.textContent='Live tone updated '+new Date().toLocaleTimeString()+' (auto, every 60s)';
+  }catch(e){}
+  finally{_liveToneBusy=false;}
+}
+
+// --- Pre-Meeting Brief: as soon as a meeting becomes the "next" one in the
+// copilot meeting watcher, generate a brief AHEAD of its start time via the
+// existing server-side Meeting Brief endpoint (POST /api/brief, MANISH HQ v6),
+// plus the last 3 stored meeting-notes summaries for the external attendee
+// company (GET /api/meeting-notes). Cached per meeting key in _preBriefCache
+// so it is generated once per meeting, never on every 60s tick. ---
+const _preBriefCache=new Map();
+function _renderPreBrief(entry){
+  const el=document.getElementById('preMeetingBriefCard');
+  if(!el||!entry)return;
+  let inner='';
+  if(entry.pending){
+    inner='<div style="font-size:11px;color:var(--text-muted)">Generating pre-meeting brief for '+esc(entry.title||'Meeting')+'...</div>';
+  }else if(entry.error){
+    inner='<div style="font-size:11px;color:#fb923c">Pre-meeting brief unavailable: '+esc(entry.error)+'</div>';
+  }else{
+    const briefHtml=esc(entry.brief||'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+    let notesHtml='';
+    if(entry.notes&&entry.notes.length){
+      notesHtml='<div style="margin-top:8px;font-size:10px;font-weight:700;color:var(--text-secondary);text-transform:uppercase">Prior meeting notes'+(entry.company?' ('+esc(entry.company)+')':'')+'</div>'+
+        entry.notes.map(function(n){var s=n.summary||'';return '<div style="margin-top:4px;font-size:11px;color:var(--text-secondary);line-height:1.45"><b>'+esc(n.title||'Meeting')+'</b>'+(n.startTs?' ('+new Date(n.startTs).toLocaleDateString()+')':'')+': '+esc(s.slice(0,220))+(s.length>220?'...':'')+'</div>';}).join('');
+    }
+    inner='<div style="font-size:12px;line-height:1.55;color:var(--text-primary)">'+briefHtml+'</div>'+notesHtml;
+  }
+  el.innerHTML='<div style="border:1px solid var(--border);border-radius:8px;background:var(--bg-card);padding:10px 12px;margin-bottom:10px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">'+
+    '<span style="font-size:11px;font-weight:700;color:var(--accent)">&#128203; Pre-Meeting Brief &mdash; '+esc(entry.title||'Meeting')+'</span>'+
+    '<span style="font-size:9px;color:var(--text-muted);white-space:nowrap">'+(entry.generatedAt?'generated '+new Date(entry.generatedAt).toLocaleTimeString():'')+'</span>'+
+    '</div>'+inner+'</div>';
+}
+async function _maybeGeneratePreBrief(m,attendees){
+  try{
+    if(!m)return;
+    const key=(typeof _meetingKey==='function'?_meetingKey(m):null)||((m.summary||'')+'|'+((m.start&&(m.start.dateTime||m.start.date))||''));
+    const cached=_preBriefCache.get(key);
+    if(cached){_renderPreBrief(cached);return;} // once per meeting
+    const entry={pending:true,title:m.summary||'Meeting'};
+    _preBriefCache.set(key,entry);
+    _renderPreBrief(entry);
+    const company=_mnCompanyFromAttendees(attendees||[]);
+    let notes=[];
+    if(company){
+      try{
+        const nr=await fetch('/api/meeting-notes?company='+encodeURIComponent(company)+'&limit=3',{credentials:'same-origin'});
+        if(nr.ok){const nd=await nr.json();notes=((nd&&nd.entries)||[]).filter(function(n){return n&&n.summary;}).slice(0,3);}
+      }catch(e){}
+    }
+    let r=null;
+    try{
+      r=await fetch('/api/brief',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({eventId:m.id||'',title:m.summary||'Meeting',startTime:(m.start&&(m.start.dateTime||m.start.date))||'',attendees:(attendees||[]).map(function(a){return a.email||a.displayName||'';}).filter(Boolean).slice(0,10)})});
+    }catch(e){
+      _preBriefCache.delete(key); // network hiccup -> retry on a later watcher tick
+      const el=document.getElementById('preMeetingBriefCard');if(el)el.innerHTML='';
+      return;
+    }
+    entry.pending=false;entry.notes=notes;entry.company=company;entry.generatedAt=Date.now();
+    if(!r.ok){entry.error='HTTP '+r.status;_renderPreBrief(entry);return;}
+    const d=await r.json().catch(function(){return null;});
+    entry.brief=(d&&d.brief)||'';
+    if(!entry.brief)entry.error='empty brief response';
+    _renderPreBrief(entry);
+    try{dbg('Pre-Meeting Brief ready: '+entry.title,'ok');}catch(e){}
+  }catch(e){}
+}
+
 // Called when refreshCopilotCurrentMeeting() detects a genuinely NEW meeting
 // has started (not just "next upcoming" changing). Clears the transcript and
 // restarts the caption stream fresh so the previous meeting's lines don't
@@ -7127,6 +7234,12 @@ function getRecentTranscript(minutes){
 
 function getFullTranscript(){
   return copilotTranscriptLines.map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
+}
+
+// Last N transcript LINES (vs getRecentTranscript's minutes window) -- used by
+// the 60s live tone auto-analysis.
+function getRecentTranscriptLines(n){
+  return copilotTranscriptLines.slice(-(n||40)).map(l=>(l.speaker?l.speaker+': ':'')+l.text).join('\n');
 }
 
 // ── Objection Detection ──
@@ -7252,8 +7365,8 @@ function assignTask(id,person){
   renderKanban();
 }
 
-async function copilotAction(type){
-  const transcript=getRecentTranscript(10);
+async function copilotAction(type,_opts){
+  const transcript=(_opts&&_opts.lastLines)?getRecentTranscriptLines(_opts.lastLines):getRecentTranscript(10);
   if(!transcript&&!copilotTranscriptLines.length){
     document.getElementById('copilotResponseBody').innerHTML='<div style="padding:12px;text-align:center;color:#fb923c;font-weight:600;font-size:13px;background:rgba(251,146,60,0.15);border-radius:6px">Type or paste meeting conversation in the transcript box first, then click this button again.</div>';
     // Flash the manual input area
@@ -7267,6 +7380,7 @@ async function copilotAction(type){
   const activeBtn=document.querySelector(`.copilot-action-btn.${type}`);
   if(activeBtn)activeBtn.classList.add('active');
   copilotLastActionType=type;
+  if(type==='tone'&&!(_opts&&_opts.lastLines)){_resetLiveToneTimer();_liveToneLastIdx=copilotTranscriptLines.length;} // manual Tone resets the 60s auto cycle
 
   const body=document.getElementById('copilotResponseBody');
   body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Thinking...</div>';
@@ -7447,6 +7561,7 @@ async function loadCopilot(){
       copilotCurrentMeeting=events[0];
       _lastCopilotMeetingId=_meetingKey(copilotCurrentMeeting);
       const attendees=renderCopilotMeetingHeader(copilotCurrentMeeting);
+      _maybeGeneratePreBrief(copilotCurrentMeeting,attendees);
       // Load context for attendees in parallel
       await loadAttendeeContext(attendees);
     } else {
@@ -7527,6 +7642,7 @@ async function refreshCopilotCurrentMeeting(){
   }
   const attendees=renderCopilotMeetingHeader(next);
   loadAttendeeContext(attendees).catch(()=>{});
+  _maybeGeneratePreBrief(next,attendees); // brief ready AHEAD of the meeting; cached per meeting key
   if(isInProgress){
     // A new meeting is actually underway (not just "next upcoming" ticking
     // over to a future one) -- auto-start/restart captions for it.
