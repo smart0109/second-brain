@@ -2010,43 +2010,41 @@ function _hydrateBriefMemory() {
 // newer org-aware two-tier memory system further down, which is now live.
 
 // ── Meeting Brief Generator ──────────────────────────────────────────────────
-app.post('/api/brief', requireAuth, async (req, res) => {
-  const { eventId, attendees = [], title, startTime } = req.body;
-  if (!title) return res.status(400).json({ error: 'title required' });
-
+// Reusable brief generator -- used by POST /api/brief (on-demand) and the
+// hourly pre-brief sweep below (ahead-of-time). Returns the brief text or throws.
+async function _generateMeetingBrief({ eventId, title, startTime, attendees = [], userId }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
 
-  try {
-    const emailQuery = attendees.length
-      ? '(' + attendees.slice(0, 3).map(a => `from:${a} OR to:${a}`).join(' OR ') + ') newer_than:30d'
-      : `"${title.slice(0, 40)}" newer_than:30d`;
+  const emailQuery = attendees.length
+    ? '(' + attendees.slice(0, 3).map(a => `from:${a} OR to:${a}`).join(' OR ') + ') newer_than:30d'
+    : `"${title.slice(0, 40)}" newer_than:30d`;
 
-    const [emailR, granolaR] = await Promise.allSettled([
-      handleGmail('search_threads', { query: emailQuery, pageSize: 8 }),
-      handleGranola('query_granola_meetings', { query: (attendees.slice(0, 2).join(' ') || title).slice(0, 80) })
-    ]);
+  const [emailR, granolaR] = await Promise.allSettled([
+    handleGmail('search_threads', { query: emailQuery, pageSize: 8 }),
+    handleGranola('query_granola_meetings', { query: (attendees.slice(0, 2).join(' ') || title).slice(0, 80) })
+  ]);
 
-    const emailCtx = emailR.status === 'fulfilled'
-      ? (emailR.value?.threads || []).slice(0, 5).map(t => {
-          const last = t.messages?.slice(-1)[0] || {};
-          return `"${last.subject}" from ${last.sender}: ${(last.snippet || '').slice(0, 120)}`;
-        }).join('\n')
-      : '';
+  const emailCtx = emailR.status === 'fulfilled'
+    ? (emailR.value?.threads || []).slice(0, 5).map(t => {
+        const last = t.messages?.slice(-1)[0] || {};
+        return `"${last.subject}" from ${last.sender}: ${(last.snippet || '').slice(0, 120)}`;
+      }).join('\n')
+    : '';
 
-    const granolaCtx = granolaR.status === 'fulfilled'
-      ? (typeof granolaR.value === 'string'
-          ? granolaR.value
-          : JSON.stringify(granolaR.value)).slice(0, 2000)
-      : '';
+  const granolaCtx = granolaR.status === 'fulfilled'
+    ? (typeof granolaR.value === 'string'
+        ? granolaR.value
+        : JSON.stringify(granolaR.value)).slice(0, 2000)
+    : '';
 
-    const prompt = [
-      `Pre-meeting brief for: "${title}"`,
-      `Start: ${startTime || 'soon'}`,
-      `Attendees: ${attendees.join(', ') || 'unknown'}`,
-      emailCtx ? `\nRecent email threads:\n${emailCtx}` : '',
-      granolaCtx ? `\nPast meeting notes:\n${granolaCtx}` : '',
-      `\nCreate a tight brief with these sections:
+  const prompt = [
+    `Pre-meeting brief for: "${title}"`,
+    `Start: ${startTime || 'soon'}`,
+    `Attendees: ${attendees.join(', ') || 'unknown'}`,
+    emailCtx ? `\nRecent email threads:\n${emailCtx}` : '',
+    granolaCtx ? `\nPast meeting notes:\n${granolaCtx}` : '',
+    `\nCreate a tight brief with these sections:
 **Context** (2 sentences on what this meeting is about)
 **Objectives** (2-3 bullets: specific outcomes to achieve)
 **Agenda Intel** (1-2 bullets: what they'll likely raise based on email/notes)
@@ -2054,43 +2052,221 @@ app.post('/api/brief', requireAuth, async (req, res) => {
 **Watch Out** (1 risk or sensitive topic to navigate)
 
 Under 200 words total. Manish reads this in under 60 seconds.`
-    ].filter(Boolean).join('\n');
+  ].filter(Boolean).join('\n');
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 800,
-        system: "You are Manish's executive assistant. Manish is CRO at Basis Vectors Capital managing Cadient (AI hiring platform) and Vorro (healthcare integration). Be direct, specific, no fluff.",
-        messages: [{ role: 'user', content: prompt }]
-      })
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 800,
+      system: "You are Manish's executive assistant. Manish is CRO at Basis Vectors Capital managing Cadient (AI hiring platform) and Vorro (healthcare integration). Be direct, specific, no fluff.",
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!resp.ok) throw new Error(`Claude API error: ${resp.status}`);
+  const result = await resp.json();
+  const brief = result.content?.[0]?.text || '';
+
+  // Auto-store brief in memory (unchanged behavior from the old inline route)
+  const uid = userId || process.env.ALLOWED_EMAIL || 'manish';
+  const existing = _memoryStore.get(uid) || [];
+  _memoryStore.set(uid, [...existing, {
+    memory: `Brief for "${title}" (${new Date().toLocaleDateString()}): ${brief.slice(0, 200)}`,
+    metadata: { type: 'meeting_brief', title, attendees },
+    created_at: new Date().toISOString()
+  }].slice(-300));
+  _persistBriefMemory();
+
+  return brief;
+}
+
+app.post('/api/brief', requireAuth, async (req, res) => {
+  const { eventId, attendees = [], title, startTime } = req.body;
+  if (!title) return res.status(400).json({ error: 'title required' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+
+  try {
+    const brief = await _generateMeetingBrief({
+      eventId, title, startTime, attendees,
+      userId: req.session?.email || process.env.ALLOWED_EMAIL || 'manish',
     });
-
-    if (!resp.ok) throw new Error(`Claude API error: ${resp.status}`);
-    const result = await resp.json();
-    const brief = result.content?.[0]?.text || '';
-
-    // Auto-store brief in memory
-    const userId = req.session?.email || process.env.ALLOWED_EMAIL || 'manish';
-    const existing = _memoryStore.get(userId) || [];
-    _memoryStore.set(userId, [...existing, {
-      memory: `Brief for "${title}" (${new Date().toLocaleDateString()}): ${brief.slice(0, 200)}`,
-      metadata: { type: 'meeting_brief', title, attendees },
-      created_at: new Date().toISOString()
-    }].slice(-300));
-    _persistBriefMemory();
-
     res.json({ brief, title, attendees, generated_at: new Date().toISOString() });
   } catch (err) {
     console.error('Brief generation error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Pre-Meeting Briefs prepared AHEAD of time (no browser tab needed).
+// kvStore key 'pre-briefs' = { briefs: { [eventId]: { eventId, title, startTs,
+// attendees, company, brief, generatedAt } }, lastSundayRefresh } -- capped to
+// the ~60 most recent by startTs. An hourly sweep (below) fills it from the
+// server's own Google Calendar read access.
+// ---------------------------------------------------------------------------
+const PRE_BRIEFS_KEY = 'pre-briefs';
+const PRE_BRIEFS_MAX = 60;
+
+function _preBriefState() {
+  const v = kvStore.get(PRE_BRIEFS_KEY, null);
+  if (v && typeof v === 'object' && v.briefs && typeof v.briefs === 'object') return v;
+  return { briefs: {}, lastSundayRefresh: '' };
+}
+
+function _preBriefSave(state) {
+  const ids = Object.keys(state.briefs);
+  if (ids.length > PRE_BRIEFS_MAX) {
+    ids.sort((a, b) => (state.briefs[b].startTs || 0) - (state.briefs[a].startTs || 0));
+    for (const id of ids.slice(PRE_BRIEFS_MAX)) delete state.briefs[id];
+  }
+  kvStore.set(PRE_BRIEFS_KEY, state);
+}
+
+// First external (non-internal-domain) attendee's email domain, as the company key.
+function _preBriefCompany(attendees) {
+  for (const a of (attendees || [])) {
+    const em = String((a && a.email) || a || '').toLowerCase().trim();
+    if (!em.includes('@') || isInternalAttendeeEmail(em)) continue;
+    return em.split('@')[1] || '';
+  }
+  return '';
+}
+
+async function _preBriefGenerateAndStore({ eventId, title, startTime, attendees }) {
+  const brief = await _generateMeetingBrief({
+    eventId, title, startTime, attendees,
+    userId: process.env.ALLOWED_EMAIL || 'manish',
+  });
+  const entry = {
+    eventId,
+    title: title || 'Meeting',
+    startTs: Date.parse(startTime) || Date.now(),
+    attendees: (attendees || []).slice(0, 15),
+    company: _preBriefCompany(attendees),
+    brief,
+    generatedAt: Date.now(),
+  };
+  const state = _preBriefState();
+  state.briefs[eventId] = entry;
+  _preBriefSave(state);
+  return entry;
+}
+
+// Generate (or return stored) brief for one event. force=true regenerates.
+app.post('/api/pre-briefs/generate', requireAuth, async (req, res) => {
+  const { eventId, title, startTime, attendees = [], force } = req.body || {};
+  if (!eventId) return res.status(400).json({ error: 'eventId required' });
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const state = _preBriefState();
+  const have = state.briefs[String(eventId)];
+  if (have && have.brief && !force) return res.json({ ...have, stored: true });
+  try {
+    const entry = await _preBriefGenerateAndStore({
+      eventId: String(eventId), title, startTime,
+      attendees: (attendees || []).map(a => (a && a.email) || a).filter(Boolean),
+    });
+    res.json({ ...entry, stored: false });
+  } catch (err) {
+    console.error('Pre-brief generation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ?eventId= -> one stored brief (404 if none). Without eventId -> the list
+// (metadata only unless ?full=1).
+app.get('/api/pre-briefs', requireAuth, (req, res) => {
+  const state = _preBriefState();
+  const { eventId, full } = req.query || {};
+  if (eventId) {
+    const entry = state.briefs[String(eventId)];
+    if (!entry || !entry.brief) return res.status(404).json({ error: 'no stored brief for eventId' });
+    return res.json(entry);
+  }
+  const list = Object.values(state.briefs)
+    .sort((a, b) => (a.startTs || 0) - (b.startTs || 0))
+    .map(e => (full === '1' ? e : {
+      eventId: e.eventId, title: e.title, startTs: e.startTs,
+      company: e.company, generatedAt: e.generatedAt, attendees: e.attendees,
+    }));
+  res.json({ briefs: list, lastSundayRefresh: state.lastSundayRefresh || '' });
+});
+
+// Hourly sweep: list the next 7 days via the server's own Google Calendar READ
+// access (GOOGLE_REFRESH_TOKEN) and pre-generate briefs for events that have
+// none. Skips all-day events, self-declined events, and events with zero
+// non-self attendees. Max 10 generations per tick, 3s pause between AI calls.
+// Sundays after 15:00 local server time: force-refresh ALL upcoming briefs
+// once that day (lastSundayRefresh guards across restarts). Whole tick is
+// try/catch'd -- a calendar failure can never crash the server.
+const _pbSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let _preBriefSweepBusy = false;
+async function _preBriefSweep() {
+  if (_preBriefSweepBusy) return;
+  _preBriefSweepBusy = true;
+  try {
+    if (!process.env.GOOGLE_REFRESH_TOKEN) {
+      console.log('[pre-briefs] no calendar access, sweep idle');
+      return;
+    }
+    const now = new Date();
+    const listed = await handleCalendar('list_events', {
+      startTime: now.toISOString(),
+      endTime: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      timeZone: 'America/New_York',
+    });
+    const events = (listed && listed.events) || [];
+
+    const todayStr = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
+    const state0 = _preBriefState();
+    let forceAll = false;
+    if (now.getDay() === 0 && now.getHours() >= 15 && state0.lastSundayRefresh !== todayStr) {
+      forceAll = true;
+      state0.lastSundayRefresh = todayStr; // recorded up-front so a mid-pass restart doesn't repeat it
+      _preBriefSave(state0);
+      console.log('[pre-briefs] Sunday full refresh of next week\'s briefs');
+    }
+
+    let generated = 0, skipped = 0;
+    for (const ev of events) {
+      if (generated >= 10) break; // per-tick cap
+      const isAllDay = !!(ev.start && ev.start.date && !ev.start.dateTime);
+      const atts = ev.attendees || [];
+      const selfDeclined = atts.some((a) => a.self && a.responseStatus === 'declined');
+      const nonSelfCount = atts.filter((a) => !a.self).length;
+      if (!ev.id || isAllDay || selfDeclined || nonSelfCount === 0) { skipped++; continue; }
+      const have = _preBriefState().briefs[ev.id];
+      if (have && have.brief && !forceAll) { skipped++; continue; }
+      try {
+        if (generated > 0) await _pbSleep(3000); // pause between AI calls
+        await _preBriefGenerateAndStore({
+          eventId: ev.id,
+          title: ev.summary || 'Meeting',
+          startTime: (ev.start && (ev.start.dateTime || ev.start.date)) || '',
+          attendees: atts.map((a) => a.email || a.displayName || '').filter(Boolean).slice(0, 15),
+        });
+        generated++;
+      } catch (e) {
+        console.warn('[pre-briefs] generate failed for', ev.summary || ev.id, '-', e.message);
+        skipped++;
+      }
+    }
+    console.log(`[pre-briefs] sweep: ${events.length} events, ${generated} generated, ${skipped} skipped`);
+  } catch (err) {
+    console.warn('[pre-briefs] sweep error (non-fatal):', err.message);
+  } finally {
+    _preBriefSweepBusy = false;
+  }
+}
+setTimeout(() => { _preBriefSweep().catch(() => {}); }, 2 * 60 * 1000).unref();
+setInterval(() => { _preBriefSweep().catch(() => {}); }, 60 * 60 * 1000).unref();
 
 // ── Deep Ask — Sonnet 4.6 with auto-injected live context ───────────────────
 app.post('/api/ask/deep', requireAuth, async (req, res) => {

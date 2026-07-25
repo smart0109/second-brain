@@ -7094,6 +7094,24 @@ async function _maybeGeneratePreBrief(m,attendees){
     const entry={pending:true,title:m.summary||'Meeting'};
     _preBriefCache.set(key,entry);
     _renderPreBrief(entry);
+    // Server-prepared brief first: the hourly server sweep stores briefs in
+    // kvStore 'pre-briefs' ahead of the meeting (keyed by calendar event id).
+    // Fall back to client-side generation only when the server has none.
+    try{
+      const sid=(m&&m.id)||'';
+      if(sid){
+        const sr=await fetch('/api/pre-briefs?eventId='+encodeURIComponent(sid),{credentials:'same-origin'});
+        if(sr.ok){
+          const sd=await sr.json().catch(function(){return null;});
+          if(sd&&sd.brief){
+            entry.pending=false;entry.brief=sd.brief;entry.company=sd.company||'';entry.generatedAt=sd.generatedAt||Date.now();entry.notes=[];
+            _renderPreBrief(entry);
+            try{dbg('Pre-Meeting Brief loaded from server: '+entry.title,'ok');}catch(e){}
+            return;
+          }
+        }
+      }
+    }catch(e){}
     const company=_mnCompanyFromAttendees(attendees||[]);
     let notes=[];
     if(company){
