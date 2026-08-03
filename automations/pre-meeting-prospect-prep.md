@@ -1,6 +1,6 @@
 ---
 name: pre-meeting-prospect-prep
-description: Weekday 6:00 AM + 12:00 PM: scan today + tomorrow's calendar for EXTERNAL prospect meetings, research company + attendees, generate Gmail prep draft per meeting with Granola notes, AND generate a personalized Vorro or Cadient interactive HTML sales asset. Skips meetings that already have a prep draft.
+description: Weekday 6:00 AM + 12:00 PM: scan today + tomorrow's calendar for EXTERNAL prospect meetings, research company + attendees, generate Gmail prep draft per meeting with Granola notes, AND generate a personalized sales asset that pulls a real facility image when available and produces the rich cinematic /<token>/ collateral page (self-contained HTML as fallback). Skips meetings that already have a prep draft.
 ---
 
 You are Manish Agarwal's pre-meeting prep assistant. Manish is CRO at Basis Vectors Capital, running Cadient (HR/Talent) and Vorro (Healthcare Integration). Run on the schedule or on demand.
@@ -193,6 +193,13 @@ For every EXTERNAL meeting where the angle is VORRO, CADIENT, or BOTH, generate 
 
 **Asset build process:**
 
+**A0) Pull a facility image (if available).**
+Before the logo, try to get a REAL photo of the prospect's building or campus (hospitals and many companies have one). First hit wins; skip anything that looks like a logo/favicon/icon:
+1. Their website `og:image` / `twitter:image` — fetch the homepage HTML and read the meta tag.
+2. Wikipedia lead image for the exact facility/company name: `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&piprop=original&titles=<NAME>`.
+3. If `GOOGLE_PLACES_KEY` is set, a Google Places photo for the street address; else a Static Street View via `GOOGLE_MAPS_KEY` for the address.
+Use the resolved image as a full-width **facility banner** at the top of the hero (above the contact card), and as the left cell of the rich page's pitch row (Step I). If nothing suitable is found, skip it and use the gradient hero as before. NEVER invent one or pass off a stock/AI image as "the facility" — a missing photo just falls back to the backdrop. (Reference resolver: `resolve_facility_image.py` in the vorro-vertical-pages skill.)
+
 **A) Get the prospect's logo.**
 Navigate to the company's homepage via Chrome MCP (mcp__Claude_in_Chrome__navigate). Then run JavaScript to find logo images:
 ```javascript
@@ -287,6 +294,13 @@ In the SALES ASSET section of the prep email:
 ```
 Build the Windows path by replacing the Linux `/sessions/*/mnt/outputs/` prefix with `C:\Users\manis\AppData\Roaming\Claude\local-agent-mode-sessions\` and substituting the session folder names appropriately.
 
+**I) Also generate the rich cinematic collateral page (the /<token>/ format) as the primary asset.**
+This is the format Manish considers "the real collateral" (e.g. `smart0109.github.io/696309e339a0/`): the interactive Vorro pipeline as the hero, an always-visible systems band (vendor chips visible without clicking), a personalized brief scrolling beneath it, the Vorro DataHub video, and the Meet-with-Manish CTA — with the facility image from A0.
+- Token: first 12 hex chars of `sha1("vorro:" + CompanyName)`. Live URL: `https://smart0109.github.io/<token>/`.
+- Build it with the **vorro-vertical-pages** skill's rich-page recipe (`references/rich-react-page.md`): the `industry_pipeline` engine defaulting to this company's pipeline + the `hbpage` brief built from the Step 2 research + the facility image + the Vorro DataHub video. `Vorro_Partner_Forerunner_Technologies.html` in the deploy folder is the golden reference.
+- Deploy the page to the pages repo `smart0109/smart0109.github.io` at `/<token>/` via git (same mechanism as the existing 200 pages), then put the live `https://smart0109.github.io/<token>/` link in the SALES ASSET section as the PRIMARY link (keep the self-contained asset link as a secondary "offline copy").
+- **FALLBACK (never block the run):** if the rich build or deploy fails, keep the self-contained asset (A–H) as the asset, note "rich page pending" in the SALES ASSET section, and continue. The automation must never go silent (see HARD RULE 3).
+
 ### Step 5 — Send the summary email
 
 After all drafts and assets are created, send ONE email via Gmail MCP `create_draft` (saved-as-draft to manish696@gmail.com):
@@ -334,3 +348,4 @@ When you encounter ANY new error pattern (rate limit, malformed event, logo fetc
 
 (Append new learnings here as one-liners with date)
 - 2026-05-05: Added Step 4b — interactive HTML sales asset generation per meeting (Vorro or Cadient, based on angle). Assets saved to outputs folder, linked in Gmail prep draft.
+- 2026-08-03: Step 4b now (A0) pulls a REAL facility image (og:image -> Wikipedia -> Google Places/Street View; logos skipped; falls back to the gradient/backdrop if none) and (I) generates the rich cinematic /<token>/ collateral page as the PRIMARY meeting-prep asset (matches the deployed 200-page format the user pointed to), with the self-contained HTML asset kept as the fallback so the run never goes silent.
