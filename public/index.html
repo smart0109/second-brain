@@ -212,7 +212,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .meeting-context .section-header { font-size: 10px; margin: 8px 0 4px; }
 .mtg-email-item { padding: 4px 0; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
 .mtg-email-icon { width: 18px; height: 18px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; }
-.mtg-transcript-box { font-size: 11px; color: var(--text-secondary); line-height: 1.5; max-height: 120px; overflow-y: auto; background: var(--bg-base); padding: 10px; border-radius: 6px; margin: 4px 0; border: 1px solid var(--border); }
+.mtg-transcript-box { font-size: 11px; color: var(--text-secondary); line-height: 1.5; max-height: 120px; overflow-y: auto; overflow-wrap: anywhere; word-break: break-word; background: var(--bg-base); padding: 10px; border-radius: 6px; margin: 4px 0; border: 1px solid var(--border); }
 .thread-context { border-top: 1px solid var(--border); background: var(--bg-surface); padding: 12px 14px; }
 .thread-context .section-header { font-size: 10px; margin: 8px 0 4px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .thread-notes-box { font-size: 11px; color: var(--text-secondary); line-height: 1.6; background: var(--bg-base); padding: 10px; border-radius: 6px; margin: 4px 0; max-height: 160px; overflow-y: auto; border: 1px solid var(--border); }
@@ -336,7 +336,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .chart-wrap { padding: 14px; height: 200px; }
 
 /* Copilot */
-.copilot-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.copilot-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-width: 0; }
+.copilot-layout > div { min-width: 0; }
 @media (max-width: 900px) { .copilot-layout { grid-template-columns: 1fr; } }
 .copilot-meeting-bar { background: var(--bg-card); color: var(--text-primary); padding: 14px 18px; border-radius: 10px; margin-bottom: 14px; display: flex; align-items: center; gap: 14px; border: 1px solid var(--border); }
 .copilot-meeting-bar .cmb-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-dim); border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; color: var(--accent-text); }
@@ -356,8 +357,8 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .copilot-audio-bar .listen-dot.off { background: var(--text-muted); }
 .copilot-audio-bar .listen-dot.on { background: var(--green); animation: pulse-green 1s infinite; }
 @keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:0.4} }
-.copilot-transcript { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 200px; max-height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
-.copilot-transcript .ct-line { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.copilot-transcript { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 200px; max-height: 400px; overflow-y: auto; overflow-wrap: anywhere; word-break: break-word; font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
+.copilot-transcript .ct-line { padding: 4px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; word-break: break-word; }
 .copilot-transcript .ct-line .ct-time { font-size: 9px; color: var(--text-muted); margin-right: 6px; }
 .copilot-transcript .ct-interim { color: var(--text-muted); font-style: italic; padding: 4px 0; }
 .copilot-input-wrap { margin-top: 8px; }
@@ -1883,21 +1884,26 @@ let _callCount=0;
 const _tabStatus={dashboard:'pending',contact360:'n/a',pipeline:'pending',team:'pending',meetings:'pending',intelligence:'pending',copilot:'pending',productivity:'pending',legal:'static'};
 function tabReport(){return Object.entries(_tabStatus).map(([k,v])=>`${k}:${v}`).join(' | ');}
 
-async function call(t,a){
+async function call(t,a,timeoutMs){
   const id=++_callCount;
   const shortName=t.split('__').pop();
   dbg(`#${id} CALL ${shortName}...`);
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(),timeoutMs||25000);
   try{
-    const res=await fetch('/api/proxy',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({tool:t,args:a||{}})});
+    const res=await fetch('/api/proxy',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({tool:t,args:a||{}}),signal:ctrl.signal});
     if(!res.ok){const txt=await res.text();throw new Error('HTTP '+res.status+': '+txt);}
     const r=await res.json();
     const shape=r?Object.keys(r).slice(0,6).join(','):'null';
     dbg(`#${id} OK ${shortName} -> [${shape}]`,'ok');
     return r;
   }catch(e){
+    if(e.name==='AbortError')e.message='Timed out after '+Math.round((timeoutMs||25000)/1000)+'s waiting on '+shortName;
     dbg(`#${id} FAIL ${shortName}: ${e.message}`,'err');
     if(typeof _eBus!=='undefined')_eBus.capture(e,'call:'+shortName,{callId:id});
     throw e;
+  }finally{
+    clearTimeout(to);
   }
 }
 // [ErrorBus handles global error capture above]
@@ -7711,7 +7717,17 @@ function renderCopilotMeetingHeader(m){
 // meeting was "current" at that one-time load instead of the meeting actually
 // happening right now. Hooked into the existing 60s global meeting watcher
 // (checkUpcomingMeetings) so it runs continuously without a separate poller.
+let _copilotRefreshInFlight=false;
 async function refreshCopilotCurrentMeeting(){
+  if(_copilotRefreshInFlight)return; // reentrancy guard: a slow prior call is still running (e.g. laggy Calendar API) - skip this tick rather than race it
+  _copilotRefreshInFlight=true;
+  try{
+    return await _refreshCopilotCurrentMeetingImpl();
+  }finally{
+    _copilotRefreshInFlight=false;
+  }
+}
+async function _refreshCopilotCurrentMeetingImpl(){
   const now=new Date();
   const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
   const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
@@ -10310,7 +10326,17 @@ function startMeetingWatcher(){
   dbg('Meeting watcher started (60s poll)','ok');
 }
 
+let _checkUpcomingInFlight=false;
 async function checkUpcomingMeetings(){
+  if(_checkUpcomingInFlight)return; // reentrancy guard: previous 60s tick (or a slow Calendar API response) still running
+  _checkUpcomingInFlight=true;
+  try{
+    return await _checkUpcomingMeetingsImpl();
+  }finally{
+    _checkUpcomingInFlight=false;
+  }
+}
+async function _checkUpcomingMeetingsImpl(){
   // Keep the AI Transcription tab's "current meeting" + captions in sync on
   // every tick, independent of which tab is active. Runs first so it isn't
   // skipped by the early-return below (which only governs the notification
@@ -10368,6 +10394,7 @@ async function checkUpcomingMeetings(){
     try{
       if('Notification' in window && Notification.permission==='granted'){
         const capNote = platform==='Google Meet' ? ' AI will auto-capture with names.' : (platform==='Teams'||platform==='Zoom') ? ' Use Live (mic/system) to capture; named transcript after via '+(platform==='Teams'?'Teams/Graph':'Zoom cloud')+'.' : '';
+        const names=attendees.map(a=>a.displayName||a.email||'').filter(Boolean).join(', ');
         const n=new Notification('Meeting starting '+timeStr+(platform?' · '+platform:''), { body: (meeting.summary||'Meeting') + (names?' — '+names:'') + '.' + capNote, tag: meetingId });
         n.onclick=()=>{ try{ window.focus(); switchView('copilot'); }catch(e){} if(joinUrl)window.open(joinUrl,'_blank'); n.close(); };
       }
