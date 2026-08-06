@@ -3151,12 +3151,16 @@ app.get('/api/meeting-notes', requireAuth, (req, res) => {
   })) });
 });
 
-const MEET_CAPTION_CONFIG = { version:3, updated:'2026-06-24',
+const MEET_CAPTION_CONFIG = { version:4, updated:'2026-08-06',
   platforms:{
-    meet:{ regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
-      rowSelectors:['.nMcdL','.TBMuR','div[class*="caption"]'],
-      speakerSelectors:['.NWpY1d','.zs7s8d','span[class*="name" i]'],
-      textSelectors:['.ygicle','.bh44bd','.iTTPOb','div[class*="text" i]'],
+    // Layered priority: semantic/aria (most stable) -> jsname/jscontroller (Google keeps these
+    // more stable release-to-release) -> obfuscated hashed classes (rotate on Google's UI
+    // rebuilds, historically every few weeks) -> generic attribute-substring last resort.
+    // See PIPELINE_ERRORS.md "meet-caption-selectors-stale" for why this needed refreshing.
+    meet:{ regionSelectors:['[role="region"][aria-label*="caption" i]','div[jsname="dsyhDe"]','div[jsname="CCowhf"]','div[jscontroller="TEjq6e"]','div[jscontroller="D1tHje"]','div[jscontroller="KPn5nb"]','.a4cQT','.TBMuR','div[aria-live="polite"]'],
+      rowSelectors:['.nMcdL.bj4p3b','.nMcdL','.iTTPOb','div[class*="caption"]'],
+      speakerSelectors:['.NWpY1d','.zQRpq','.iOzk7','.lRwCcd','.zs7s8d','span[class*="name" i]'],
+      textSelectors:['.ygicle.VbkSUe','.ygicle','.bh44bd','.iTTPOb','div[class*="text" i]'],
       captionsButtonSelectors:['button[aria-label*="aption" i]','button[jsname][data-tooltip*="aption" i]'], toggleKey:'c' },
     teams:{ regionSelectors:['[data-tid="closed-captions-renderer"]','[aria-label*="aptions" i]','[class*="closed-caption" i]'],
       rowSelectors:['[data-tid="closed-caption-message"]','.ui-chat__item','[class*="caption" i][class*="message" i]','div[class*="caption" i]'],
@@ -3168,10 +3172,10 @@ const MEET_CAPTION_CONFIG = { version:3, updated:'2026-06-24',
       speakerSelectors:['.live-transcription-subtitle__item-name','[class*="item-name" i]','[class*="name" i]'],
       textSelectors:['.live-transcription-subtitle__item-text','[class*="item-text" i]','[class*="text" i]'],
       captionsButtonSelectors:['button[aria-label*="aption" i]','button[aria-label*="ranscript" i]'], toggleKey:null } },
-  regionSelectors:['div[role="region"][aria-label*="aption" i]','div[aria-live="polite"]','.a4cQT'],
-  rowSelectors:['.nMcdL','.TBMuR','div[class*="caption"]'],
-  speakerSelectors:['.NWpY1d','.zs7s8d','span[class*="name" i]'],
-  textSelectors:['.ygicle','.bh44bd','.iTTPOb','div[class*="text" i]'],
+  regionSelectors:['[role="region"][aria-label*="caption" i]','div[jsname="dsyhDe"]','div[jsname="CCowhf"]','div[jscontroller="TEjq6e"]','div[jscontroller="D1tHje"]','div[jscontroller="KPn5nb"]','.a4cQT','.TBMuR','div[aria-live="polite"]'],
+  rowSelectors:['.nMcdL.bj4p3b','.nMcdL','.iTTPOb','div[class*="caption"]'],
+  speakerSelectors:['.NWpY1d','.zQRpq','.iOzk7','.lRwCcd','.zs7s8d','span[class*="name" i]'],
+  textSelectors:['.ygicle.VbkSUe','.ygicle','.bh44bd','.iTTPOb','div[class*="text" i]'],
   captionsButtonSelectors:['button[aria-label*="aption" i]','button[jsname][data-tooltip*="aption" i]'],
   toggleKey:'c' };
 app.get('/api/meet-caption-config', (_req, res) => { res.set('Access-Control-Allow-Origin','*'); res.json(MEET_CAPTION_CONFIG); });

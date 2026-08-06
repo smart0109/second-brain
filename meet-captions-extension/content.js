@@ -2,14 +2,23 @@
  * Zoom (web). No bot joins the call — it reads the platform's OWN on-screen
  * captions (which include the speaker name) and streams finalized lines to the
  * Second Brain app via a stable pairing code. Parsing rules per platform are
- * fetched from the app server so they can be fixed centrally (self-heal). */
+ * fetched from the app server so they can be fixed centrally (self-heal).
+ *
+ * 2026-08-06: Google had rotated Meet's obfuscated caption CSS classes since
+ * this was last verified (server config was 6 weeks stale - see
+ * PIPELINE_ERRORS.md "meet-caption-selectors-stale"), so captions silently
+ * stopped being scraped even though the extension was paired and running.
+ * Added a semantic structural fallback (first <span> = speaker, region's
+ * direct children = rows) so a future class-name rotation degrades gracefully
+ * instead of going fully silent, plus a visible warning if nothing is ever
+ * captured after captions have been on for a while. */
 (() => {
   const PLATFORMS = {
     meet: {
-      regionSelectors: ['div[role="region"][aria-label*="aption" i]', 'div[aria-live="polite"]', '.a4cQT'],
-      rowSelectors: ['.nMcdL', '.TBMuR', 'div[class*="caption"]'],
-      speakerSelectors: ['.NWpY1d', '.zs7s8d', 'span[class*="name" i]'],
-      textSelectors: ['.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
+      regionSelectors: ['[role="region"][aria-label*="caption" i]', 'div[jsname="dsyhDe"]', 'div[jsname="CCowhf"]', 'div[jscontroller="TEjq6e"]', 'div[jscontroller="D1tHje"]', 'div[jscontroller="KPn5nb"]', '.a4cQT', '.TBMuR', 'div[aria-live="polite"]'],
+      rowSelectors: ['.nMcdL.bj4p3b', '.nMcdL', '.TBMuR', '.iTTPOb', 'div[class*="caption"]'],
+      speakerSelectors: ['.NWpY1d', '.zQRpq', '.iOzk7', '.lRwCcd', '.zs7s8d', 'span[class*="name" i]'],
+      textSelectors: ['.ygicle.VbkSUe', '.ygicle', '.bh44bd', '.iTTPOb', 'div[class*="text" i]'],
       captionsButtonSelectors: ['button[aria-label*="aption" i]', 'button[jsname][data-tooltip*="aption" i]'],
       toggleKey: 'c',
     },
@@ -42,6 +51,7 @@
   let queue = [];
   const sent = new Set();
   const rowState = new WeakMap();
+  let emittedAny = false, captionsConfirmedOnAt = 0, warnedNoCaptions = false;
 
   function log(...a) { try { console.log('[SB captions:' + platform + ']', ...a); } catch (e) {} }
   function pick(root, sels) { for (const s of sels) { try { const el = (root || document).querySelector(s); if (el) return el; } catch (e) {} } return null; }
@@ -50,11 +60,11 @@
   async function loadConfig() {
     try {
       const r = await fetch(appUrl + '/api/meet-caption-config', { mode: 'cors' });
-      if (r.ok) { const c = await r.json(); if (c && c.platforms && c.platforms[platform]) cfg = Object.assign({}, PLATFORMS[platform], c.platforms[platform]); log('config v' + (c.version || '?')); }
+      if (r.ok) { const c = await r.json(); if (c && c.platforms && c.platforms[platform]) cfg = Object.assign({}, PLATFORMS[platform], c.platforms[platform]); log('config v' + (c.version || '?') + ' (updated ' + (c.updated || '?') + ')'); }
     } catch (e) { log('config fetch failed, using built-in selectors'); }
   }
 
-  function captionsOn() { const region = pick(document, cfg.regionSelectors); return !!(region && region.querySelector((cfg.rowSelectors || []).join(','))); }
+  function captionsOn() { const region = pick(document, cfg.regionSelectors); return !!(region && (region.querySelector((cfg.rowSelectors || []).join(',')) || region.children.length)); }
   function enableCaptions() {
     if (captionsOn()) return;
     const btn = pick(document, cfg.captionsButtonSelectors || []);
@@ -68,20 +78,49 @@
     if (sent.has(key)) return;
     sent.add(key); if (sent.size > 6000) sent.clear();
     queue.push({ speaker: speaker || '', text, ts: Date.now() });
+    emittedAny = true;
   }
+
+  // Structural fallback for a single row when the configured class-based
+  // selectors find nothing (Google rotated its obfuscated classes again):
+  // the speaker name is reliably the first <span> in a caption row, and the
+  // caption text is whatever's left after stripping it out.
+  function semanticRowParse(row) {
+    let speaker = '';
+    try { const sp = row.querySelector('span'); if (sp && sp.textContent.trim()) speaker = sp.textContent.trim(); } catch (e) {}
+    let text = (row.innerText || '').trim();
+    if (speaker) text = text.replace(speaker, '').trim();
+    return { speaker, text };
+  }
+
+  function rowsIn(region) {
+    let rows = [];
+    try { rows = Array.from(region.querySelectorAll((cfg.rowSelectors || []).join(','))); } catch (e) {}
+    if (rows.length) return rows;
+    // Fallback: the configured row selectors matched nothing at all inside a
+    // confirmed captions region -- treat the region's own direct children as
+    // rows instead of going silent.
+    try { return Array.from(region.children || []); } catch (e) { return []; }
+  }
+
   function scan() {
     const region = pick(document, cfg.regionSelectors); if (!region) return;
-    let rows = []; try { rows = region.querySelectorAll((cfg.rowSelectors || []).join(',')); } catch (e) {}
+    const rows = rowsIn(region);
     rows.forEach((row) => {
-      const speaker = textOf(row, cfg.speakerSelectors || []);
+      let speaker = textOf(row, cfg.speakerSelectors || []);
       let text = textOf(row, cfg.textSelectors || []);
       if (!text) { text = (row.innerText || '').trim(); if (speaker) text = text.replace(speaker, '').trim(); }
+      if (!text && !speaker) {
+        const parsed = semanticRowParse(row);
+        speaker = parsed.speaker; text = parsed.text;
+      }
       const prev = rowState.get(row) || { text: '', stable: 0 };
       if (text && text === prev.text) { prev.stable++; if (prev.stable === 2 && !prev.emitted) { emit(speaker, text); prev.emitted = true; } }
       else if (text) { prev.text = text; prev.stable = 0; prev.emitted = false; }
       rowState.set(row, prev);
     });
   }
+
   async function flush() {
     if (!queue.length || !code || !appUrl) return;
     const batch = queue.splice(0, queue.length);
@@ -94,9 +133,15 @@
     const b = document.createElement('div');
     b.id = 'sb-cap-banner';
     b.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;background:#0f172a;color:#fff;font:500 12px system-ui,sans-serif;padding:8px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;align-items:center;gap:8px;max-width:300px';
-    b.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block"></span><span>Second Brain is capturing this ' + platform + ' meeting (with speaker names). Open AI Transcription for live rebuttals.</span><span id="sb-cap-x" style="cursor:pointer;opacity:.6;margin-left:4px">×</span>';
+    b.innerHTML = '<span id="sb-cap-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></span><span id="sb-cap-msg">Second Brain is capturing this ' + platform + ' meeting (with speaker names). Open AI Transcription for live rebuttals.</span><span id="sb-cap-x" style="cursor:pointer;opacity:.6;margin-left:4px">×</span>';
     (document.body || document.documentElement).appendChild(b);
     const x = b.querySelector('#sb-cap-x'); if (x) x.onclick = () => b.remove();
+  }
+  function showNoCaptionsWarning() {
+    const dot = document.getElementById('sb-cap-dot'); const msg = document.getElementById('sb-cap-msg');
+    if (dot) dot.style.background = '#f59e0b';
+    if (msg) msg.textContent = "Captions are on but Second Brain can't read any lines yet — Google may have changed " + platform + "'s caption layout again. Still trying in the background.";
+    log('WARNING: captions confirmed on but zero lines captured after 20s — selectors likely stale, structural fallback also found nothing');
   }
   function notifyOnce() {
     try {
@@ -116,9 +161,14 @@
       if (n.querySelector) { const sp = textOf(n, cfg.speakerSelectors || []); const tx = textOf(n, cfg.textSelectors || []); if (tx) emit(sp, tx); }
     })));
     mo.observe(document.body, { childList: true, subtree: true });
-    let tries = 0; const t = setInterval(() => { enableCaptions(); if (++tries >= 8) clearInterval(t); }, 2500);
+    let tries = 0; const t = setInterval(() => { enableCaptions(); if (captionsOn()) captionsConfirmedOnAt = captionsConfirmedOnAt || Date.now(); if (++tries >= 8) clearInterval(t); }, 2500);
     setInterval(scan, 700);
     setInterval(flush, 1500);
+    setInterval(() => {
+      if (!warnedNoCaptions && captionsConfirmedOnAt && !emittedAny && Date.now() - captionsConfirmedOnAt > 20000) {
+        warnedNoCaptions = true; showNoCaptionsWarning();
+      }
+    }, 5000);
     showBanner(); notifyOnce();
     log('started; appUrl=' + appUrl + ' code=' + code);
   }
