@@ -1479,7 +1479,7 @@ button { text-align: left; }
       <div id="prodGlossaryView" style="display:none">
         <div class="search-wrap" style="max-width:100%;margin-bottom:12px">
           <span class="search-icon">&#128269;</span>
-          <input id="glossarySearch" type="text" placeholder="Search terms, acronyms, nicknames..." style="background:#eae8e6;color:#d6d3d0;border:1px solid #d6d3d0" oninput="filterGlossary(this.value)">
+          <input id="glossarySearch" type="text" placeholder="Search terms, acronyms, nicknames..." style="background:#eae8e6;color:var(--text-primary);border:1px solid #d6d3d0" oninput="filterGlossary(this.value)">
         </div>
         <div id="glossaryList" class="card"><div class="card-body scroll-panel" id="glossaryItems" style="padding:12px"><div class="memory-empty">Loading glossary...</div></div></div>
       </div>
@@ -2730,7 +2730,7 @@ function spRenderSources(src){
   sources.slice(0,12).forEach(x=>{
     const fresh=(x.hours!=null && x.hours<=24);
     html+='<div style="padding:7px 0;border-top:1px solid #3b3735">'
-      +'<div style="font-size:12px;color:#d6d3d0">'+(fresh?'<span style="color:#5e8c45;font-weight:700">FRESH </span>':'')
+      +'<div style="font-size:12px;color:var(--text-primary)">'+(fresh?'<span style="color:#5e8c45;font-weight:700">FRESH </span>':'')
       +esc(x.title||'')+'</div>'
       +'<div style="font-size:11px;color:#6e6864;margin-top:2px">'+esc(x.source||'')+' &middot; '+esc(x.age||'')
       +(x.link?(' &middot; <a href="'+esc(x.link)+'" target="_blank" style="color:#3b3735">read source</a>'):'')
@@ -2750,15 +2750,15 @@ function spRenderTargets(tg){
   const el = document.getElementById('spTargets');
   const targets = tg.targets || [];
   if(!targets.length){
-    el.innerHTML = '<div class="empty-state" style="padding:20px;color:#6e6864">No viral posts queued yet. Run the local target uploader (push_social_targets) to populate this list, or paste a post URL/text below.<div style="margin-top:10px"><textarea id="spPasteText" placeholder="Paste a LinkedIn post you want to engage with..." style="width:100%;min-height:70px;background:#201e1d;color:#d6d3d0;border:1px solid #3b3735;border-radius:8px;padding:8px;font-size:12px"></textarea><input id="spPasteUrl" placeholder="Post URL (optional)" style="width:100%;margin-top:6px;background:#201e1d;color:#d6d3d0;border:1px solid #3b3735;border-radius:8px;padding:8px;font-size:12px"><button class="prod-btn" style="margin-top:8px;background:rgba(45,212,191,0.15);color:#3b3735" onclick="spGenerateFromPaste()">Generate drafts</button></div></div>';
+    el.innerHTML = '<div class="empty-state" style="padding:20px;color:#6e6864">No viral posts queued yet. Run the local target uploader (push_social_targets) to populate this list, or paste a post URL/text below.<div style="margin-top:10px"><textarea id="spPasteText" placeholder="Paste a LinkedIn post you want to engage with..." style="width:100%;min-height:70px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px"></textarea><input id="spPasteUrl" placeholder="Post URL (optional)" style="width:100%;margin-top:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px"><button class="prod-btn" style="margin-top:8px;background:rgba(45,212,191,0.15);color:#3b3735" onclick="spGenerateFromPaste()">Generate drafts</button></div></div>';
     return;
   }
   const updated = tg.updatedAt ? new Date(tg.updatedAt).toLocaleString() : 'unknown';
   let html = '<div style="font-size:11px;color:#6e6864;margin-bottom:8px">Updated: '+esc(updated)+'</div>';
   targets.forEach((t,i)=>{
     const score = (t.score!=null) ? ('<span style="color:#3b3735;font-weight:700">score '+esc(String(t.score))+'</span> ') : '';
-    html += '<div style="background:#201e1d;border:1px solid #3b3735;border-radius:10px;padding:12px;margin-bottom:8px">'
-      + '<div style="font-size:12px;color:#d6d3d0;margin-bottom:6px">'+esc((t.text||'').slice(0,400))+((t.text||'').length>400?'...':'')+'</div>'
+    html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+      + '<div style="font-size:12px;color:var(--text-primary);margin-bottom:6px">'+esc((t.text||'').slice(0,400))+((t.text||'').length>400?'...':'')+'</div>'
       + '<div style="font-size:11px;color:#6e6864;margin-bottom:8px">'+score+esc(t.author||'')+(t.authorTitle?(' — '+esc(t.authorTitle)):'')+(t.url?(' · <a href="'+esc(t.url)+'" target="_blank" style="color:#3b3735">open</a>'):'')+'</div>'
       + (t.source?('<div style="font-size:11px;color:#8a6a24;margin-bottom:8px">Source: '+esc(t.source.title||'')+(t.source.link?(' <a href="'+esc(t.source.link)+'" target="_blank" style="color:#3b3735">'+esc(t.source.source||'link')+'</a>'):'')+'</div>'):'')
       + '<button class="prod-btn" style="background:rgba(45,212,191,0.15);color:#3b3735;border-color:rgba(45,212,191,0.3)" onclick="spGenerate('+i+')">Generate drafts</button>'
@@ -2798,9 +2798,9 @@ async function spDoGenerate(body){
 }
 
 function spDraftBlock(style, label, text){
-  return '<div style="background:#201e1d;border:1px solid #3b3735;border-radius:10px;padding:12px;margin-bottom:10px">'
+  return '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">'
     + '<div style="font-size:12px;font-weight:700;color:#3b3735;margin-bottom:6px">'+esc(label)+'</div>'
-    + '<textarea id="spText-'+style+'" style="width:100%;min-height:90px;background:#201e1d;color:#d6d3d0;border:1px solid #3b3735;border-radius:8px;padding:8px;font-size:12px">'+esc(text)+'</textarea>'
+    + '<textarea id="spText-'+style+'" style="width:100%;min-height:90px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px">'+esc(text)+'</textarea>'
     + '<div style="display:flex;gap:8px;margin-top:8px">'
     + '<button class="prod-btn" style="background:rgba(45,212,191,0.18);color:#3b3735;border-color:rgba(45,212,191,0.3)" onclick="spPost(\''+style+'\')">Post to LinkedIn</button>'
     + '<button class="prod-btn" onclick="navigator.clipboard.writeText(document.getElementById(\'spText-'+style+'\').value);showToast(\'Copied\',\'ok\')">Copy</button>'
@@ -2809,7 +2809,7 @@ function spDraftBlock(style, label, text){
 
 function spRenderDrafts(j){
   const d = document.getElementById('spDrafts');
-  d.innerHTML = '<h3 style="font-size:13px;font-weight:700;color:#d6d3d0;margin:4px 0 10px">AI Drafts</h3>'
+  d.innerHTML = '<h3 style="font-size:13px;font-weight:700;color:var(--text-primary);margin:4px 0 10px">AI Drafts</h3>'
     + spDraftBlock('challenging','Challenging / Punchy', j.challenging||'')
     + spDraftBlock('expert','Expert Opinion', j.expert||'');
 }
@@ -2836,10 +2836,10 @@ function spRenderHistory(jobs){
   const el = document.getElementById('spHistory');
   if(!jobs || !jobs.length){ el.innerHTML=''; return; }
   const color = {pending:'#8a6a24',claimed:'#3b3735',posted:'#5e8c45',failed:'#8c3a2f'};
-  let html = '<h3 style="font-size:13px;font-weight:700;color:#d6d3d0;margin:4px 0 10px">Recent posts</h3>';
+  let html = '<h3 style="font-size:13px;font-weight:700;color:var(--text-primary);margin:4px 0 10px">Recent posts</h3>';
   jobs.forEach(j=>{
     const c = color[j.status]||'#6e6864';
-    html += '<div style="background:#201e1d;border:1px solid #3b3735;border-radius:8px;padding:10px;margin-bottom:6px">'
+    html += '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px">'
       + '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px"><span style="color:'+c+';font-weight:700;font-size:11px;text-transform:uppercase">'+esc(j.status)+'</span>'
       + '<span style="font-size:11px;color:#6e6864">'+esc(j.style||'')+' · '+esc(new Date(j.createdAt).toLocaleString())+'</span></div>'
       + '<div style="font-size:12px;color:#6e6864">'+esc((j.text||'').slice(0,200))+((j.text||'').length>200?'...':'')+'</div>'
@@ -3187,7 +3187,7 @@ function renderCalendar(events){
     let prepTasks='';
     if(extCompany){
       const taskLines=[];
-      taskLines.push(`<div style="font-weight:600;color:#d6d3d0;margin-bottom:6px;font-size:12px">&#9889; Prep Tasks for ${esc(extCompany)}</div>`);
+      taskLines.push(`<div style="font-weight:600;color:var(--text-primary);margin-bottom:6px;font-size:12px">&#9889; Prep Tasks for ${esc(extCompany)}</div>`);
       taskLines.push(`<div class="prep-task" onclick="window._prepAction('assets','${escAttr(extCompany)}','${escAttr(extName)}')" title="Generate Cadient/Vorro sales assets for this prospect"><span class="prep-icon">&#128640;</span> Create social selling assets for ${esc(extCompany)}</div>`);
       taskLines.push(`<div class="prep-task" onclick="window._prepAction('research','${escAttr(extCompany)}','${escAttr(extName)}')" title="Research company background, tech stack, open roles"><span class="prep-icon">&#128269;</span> Research ${esc(extCompany)} (open roles, tech stack, news)</div>`);
       taskLines.push(`<div class="prep-task" onclick="window._prepAction('battlecard','${escAttr(extCompany)}','${escAttr(extName)}')" title="Competitive intel and battlecard"><span class="prep-icon">&#9876;</span> Build competitive battlecard vs ${esc(extCompany)}</div>`);
@@ -3367,7 +3367,7 @@ async function toggleThreadContext(ctxId,threadId,sender,subject,lastMsgId){
     if(convParts.length>1){
       const convId='conv_'+threadId.replace(/[^a-zA-Z0-9]/g,'');
       html+='<div class="section-header" style="cursor:pointer" onclick="const c=document.getElementById(\''+convId+'\');c.style.display=c.style.display===\'none\'?\'block\':\'none\'">Thread Messages ('+convParts.length+') &#9660;</div>';
-      html+='<div id="'+convId+'" style="display:none;max-height:200px;overflow-y:auto;background:#201e1d;border-radius:4px;padding:6px;margin:4px 0">';
+      html+='<div id="'+convId+'" style="display:none;max-height:200px;overflow-y:auto;background:var(--bg-card);border-radius:4px;padding:6px;margin:4px 0">';
       html+=convParts.map(m=>`<div class="thread-msg-item"><span class="thread-msg-from">${esc(m.from.split('@')[0])}</span><span class="thread-msg-date">${m.date}</span><div class="thread-msg-body">${esc(truncate(m.body,300))}</div></div>`).join('');
       html+='</div>';
     }
@@ -8470,7 +8470,7 @@ async function searchCopilotProspect(){
   const threads=(emailR.status==='fulfilled'?(emailR.value?.threads||[]):[]);
   const granola=granolaR.status==='fulfilled'?granolaR.value:null;
 
-  let html='<div style="background:#201e1d;border:1px solid rgba(96,165,250,0.3);border-radius:8px;padding:10px 14px;font-size:11px">';
+  let html='<div style="background:var(--bg-card);border:1px solid rgba(96,165,250,0.3);border-radius:8px;padding:10px 14px;font-size:11px">';
   html+='<div style="font-weight:600;margin-bottom:4px;color:#3b3735">Prospect Context: '+esc(q)+'</div>';
 
   if(contacts.length){
@@ -9567,7 +9567,7 @@ Requirements:
           +'<span style="font-weight:700;font-size:14px;color:#3b3735">Generated: '+esc(tmpl.label)+'</span>'
           +'<button onclick="navigator.clipboard.writeText(window._legalDocText)" style="padding:4px 12px;background:rgba(244,114,182,0.15);border:1px solid rgba(244,114,182,0.3);border-radius:5px;color:#3b3735;cursor:pointer;font-size:11px">Copy</button>'
           +'<button onclick="legalDownloadDoc()" style="padding:4px 12px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);border-radius:5px;color:#5e8c45;cursor:pointer;font-size:11px">Download .txt</button>'
-          +'</div><pre id="legalDocText" style="white-space:pre-wrap;font-size:11px;line-height:1.7;max-height:600px;overflow-y:auto;background:#201e1d;padding:16px;border-radius:6px;border:1px solid #d6d3d0">'+safe+'</pre>';
+          +'</div><pre id="legalDocText" style="white-space:pre-wrap;font-size:11px;line-height:1.7;max-height:600px;overflow-y:auto;background:var(--bg-card);padding:16px;border-radius:6px;border:1px solid #d6d3d0">'+safe+'</pre>';
       }
     }catch(e){if(outEl)outEl.innerHTML='<div style="color:#8c3a2f;padding:12px">Generation failed: '+esc(e.message)+'</div>';}
   }
