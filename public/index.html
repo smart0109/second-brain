@@ -640,7 +640,7 @@ h1,h2,h3,h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 .hero-bar { background: var(--bg-card) !important; border: 1px solid var(--border) !important; }
 .auto-dot { box-shadow: none !important; }
 .auto-run-btn:hover { transform: none; }
-.main { max-width: 2200px; margin-left: 214px; padding: 20px 24px 56px; width: auto; }
+.main { max-width: 2200px; margin-left: 214px; padding: 20px 24px 56px; width: calc(100% - 214px); min-width: 0; }
 button, input, select, textarea { font-family: var(--font-body); }
 button { text-align: left; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -667,7 +667,7 @@ button { text-align: left; }
   .tabs .tab { border-left: none; border-bottom: none; border-right: 1px solid var(--border); border-top: 3px solid transparent; min-width: 104px; white-space: nowrap; font-size: 11px; }
   .tabs .tab.active { border-top-color: var(--accent); border-left-color: transparent; }
   .fav-bar.has-items ~ .tabs { top: auto; }
-  .main { margin-left: 0; padding: 14px 14px 84px; }
+  .main { margin-left: 0; padding: 14px 14px 84px; width: 100%; }
   .topbar { padding: 8px 14px; }
   .band-sub { margin-left: 0; width: 100%; }
 }
