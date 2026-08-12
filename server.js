@@ -666,11 +666,21 @@ async function handleZoho(toolName, args) {
     }
     const url = `${ZOHO_API_DOMAIN}/crm/v2/${module}/search?${params.toString()}`;
     const resp = await fetch(url, { headers });
+    // Zoho returns 204 No Content (empty body) when a search matches zero
+    // records -- NOT a 200 with {data:[]}. Treat that (and any other
+    // empty-body success) as "no records found" instead of throwing a JSON
+    // parse error that then surfaced to users as a scary 502.
+    if (resp.status === 204) return { data: [] };
+    const text = await resp.text();
     if (!resp.ok) {
-      const text = await resp.text();
       throw new Error(`Zoho search failed: ${resp.status} ${text}`);
     }
-    return await resp.json();
+    if (!text) return { data: [] };
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Zoho search returned unparseable body: ${text.slice(0, 200)}`);
+    }
   }
 
   if (toolName === 'updateRecord') {
