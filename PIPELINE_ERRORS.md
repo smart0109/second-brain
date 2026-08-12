@@ -107,3 +107,69 @@ Diagnosis: resize_window automation on Manish's actual (maximized, 3440px-monito
 Root cause: the prior fix (css-main-maxwidth-overflow-RESOLVED) correctly capped `.main`'s runaway growth on ultrawide monitors by raising max-width to 2200px, but left `width: auto` in place. `.app` is a `display:flex; flex-direction:column` container, and a flex item's `width:auto` combined with `margin-left:214px` doesn't force the box to actually fit inside the container after accounting for that margin -- it can render as wide as its content wants (up to the 2200px max-width ceiling) regardless of the actual available space, then the 214px margin pushes the whole oversized box further right, off the edge of the viewport. The original base `.main` rule (line 93, pre-MODERNIST-LAYER) had the same latent flaw (`width:100%` + separate `margin-left:224px`, which doesn't subtract the margin from the width either) -- it just wasn't very visible before because max-width was only 1600px and the responsive breakpoint at 900px caught most of the danger zone. Raising the cap to 2200px widened the broken range enough (roughly 900px-2414px) that a very common real-world window width -- 1710px, well within that broken range -- now hit it directly.
 Fix: `.main`'s width is now `calc(100% - 214px)` (explicitly subtracts the sidebar margin instead of hoping auto-sizing works out) plus `min-width: 0` for defense in depth against any inner content trying to force extra width. Also added an explicit `width: 100%` to the `.main` override inside the `@media (max-width: 900px)` block, since that breakpoint zeroes margin-left back to 0 and needs the width formula to match (no offset to subtract there).
 Deployed as commit f26364169543. Verified live via direct getBoundingClientRect measurement after Render's rollout: document.documentElement.scrollWidth now exactly equals clientWidth (1710 = 1710, was 2414 before) -- zero horizontal overflow -- and .main measures 1496px, exactly 1710 - 214 as intended.
+
+## [2026-08-12] meeting-brief-no-fallback-RESOLVED
+Symptom: Pre-Meeting Brief card showed "Pre-meeting brief unavailable: HTTP 503"
+live in the app (user screenshot, "Busy" meeting selected).
+Root cause: `_generateMeetingBrief()` / `/api/brief` in server.js hard-required
+`ANTHROPIC_API_KEY` via a raw single-provider `fetch()` to the Anthropic API,
+with zero fallback -- unlike `/api/ask` which already used a Groq -> Anthropic
+-> Gemini fallback chain via the shared `askGroq`/`askAnthropic`/`askGemini`
+helpers. Whenever ANTHROPIC_API_KEY wasn't set/valid, brief generation always
+503'd even though the rest of the app's AI calls kept working fine via Groq.
+Fix: rewired `_generateMeetingBrief()` to use the same Groq -> Anthropic ->
+Gemini fallback chain as `/api/ask`, and updated the `/api/brief` route's
+key-check guard to only 503 when ALL THREE provider keys are missing.
+Commit: 1a8226c9e4ba.
+
+## [2026-08-12] copilot-context-stale-on-meeting-switch-RESOLVED
+Symptom: user reported "meetings information doesnt match meeting selected" /
+"Meeting context not working" -- CRM/deal context cards and the pre-meeting
+brief kept showing the PREVIOUS meeting's data after manually switching
+meetings via the strip, even after the earlier transcript-staleness fix
+(copilot-stale-transcript-on-meeting-switch-RESOLVED) was deployed.
+Root cause: same staleness bug class as the transcript, but in two more
+places `loadCopilotStripMeeting()` never touched: (1) `copilotAttendeeData`
+and the `#copilotContextCards` DOM were never cleared on manual switch, and
+`loadAttendeeContext()`'s early-return for no-attendee meetings left stale
+cards from the prior meeting untouched; (2) `_maybeGeneratePreBrief()` was
+only ever wired into the initial page-load path and the automatic
+calendar-switch detector -- never into this manual strip-click handler -- so
+manually selecting a different meeting never even attempted to regenerate its
+brief; it just kept showing whatever brief (or error) the last meeting had.
+Fix (public/index.html, `loadCopilotStripMeeting()`): clear
+`copilotAttendeeData` and the `#copilotContextCards`/`#preMeetingBriefCard`
+DOM immediately on every manual switch; show an explicit "No context data
+found for attendees" empty-state when the newly selected meeting has no
+attendees (instead of silently leaving old cards behind); call
+`_maybeGeneratePreBrief(m,attendees)` unconditionally on manual switch so the
+brief regenerates for the newly selected meeting.
+Commit: 1a8226c9e4ba (same deploy as meeting-brief-no-fallback-RESOLVED above
+-- the two bugs compounded: even once context/brief correctly reset per
+meeting, the brief still needed the fallback fix to actually load instead of
+503ing).
+
+## [2026-08-12] ask-ai-moved-to-left-column (UX change, not a bug fix)
+Per Manish's explicit request ("move Ask AI, to the left side of the
+screen"), moved the Ask AI input block from the bottom of the right
+(coaching) column to the top of the left (transcript) column, directly under
+the meetCapBar pairing-code banner and above Live Transcript -- visible
+without scrolling through the whole right-side column now.
+Commit: 1a8226c9e4ba.
+
+## [2026-08-12] (wsl-heredoc-backtick-strip)
+Appending a PIPELINE_ERRORS.md entry via a bash heredoc (`cat >> file << 'EOF'`)
+over run_wsl_bash silently stripped every backtick-quoted code identifier in
+the content (backticks got interpreted as command substitution despite the
+quoted 'EOF' delimiter, producing bash errors like "command not found" for
+things like `_generateMeetingBrief` and leaving empty gaps in the appended
+text) -- confirmed via windows-executor__read_file afterward. This is the
+same class of issue as the previously-logged wsl-var-eating rule (WSL relay
+mangles $vars/backticks in multi-line commands), just not previously hit for
+file-append specifically. Fix applied here: write a small Python script via
+write_file (no shell string interpolation) that reads/truncates/rewrites the
+file directly, then run ONLY `python3 script.py` (no inline heredoc/backtick
+content) via run_wsl_bash. Rule going forward: NEVER heredoc file content
+containing backticks or code identifiers over run_wsl_bash -- always route
+through a Python script file instead, matching the existing wsl-var-eating
+rule.
