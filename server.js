@@ -1300,18 +1300,30 @@ app.get('/api/icp/crm-analysis', requireAuth, async (_req, res) => {
 });
 
 // Shared scoring core, used by /api/icp/score and /api/icp/find so both stay in sync.
-function scoreAgainstConfig(config, { title, company, location } = {}) {
+//
+// 2026-08-06: added a Firmographics dimension (company size + industry vertical)
+// per the ideal-customer-profile-matching Sales-Skills playbook, which scores ICP
+// fit across five weighted dimensions (firmographics, technographics, behavioral,
+// success indicators, growth signals). Title/persona + keyword matching already
+// covered part of "behavioral"; firmographics -- company size and industry --
+// was defined in ICP_CONFIGS (min_employees, industries) but never actually used
+// in scoring, so two prospects with identical titles at wildly different company
+// sizes scored identically. `employees`/`industry` are optional so this stays
+// backward-compatible with every existing caller that doesn't pass them.
+// See PIPELINE_ERRORS.md "sales-skills-integration".
+function scoreAgainstConfig(config, { title, company, location, employees, industry } = {}) {
   const t = (title || '').toLowerCase();
   let score = 0;
   let matches = [];
   let rejects = [];
+  let firmographics = [];
 
   // Check disqualifiers
   const dqTitles = (config.disqualify_titles || []).map(d => d.toLowerCase());
   for (const dq of dqTitles) {
     if (t.includes(dq)) {
       rejects.push(`Disqualified title: "${dq}"`);
-      return { score: 0, tier: 'DISQUALIFIED', matches: [], rejects, recommendation: 'Remove from pipeline. Title is not a buyer persona.' };
+      return { score: 0, tier: 'DISQUALIFIED', matches: [], rejects, firmographics: [], recommendation: 'Remove from pipeline. Title is not a buyer persona.' };
     }
   }
 
@@ -1337,6 +1349,34 @@ function scoreAgainstConfig(config, { title, company, location } = {}) {
     }
   }
 
+  // Firmographics: company size
+  const empCount = Number(employees);
+  const minEmp = config.min_employees || 0;
+  if (Number.isFinite(empCount) && empCount > 0) {
+    if (minEmp && empCount >= minEmp * 4) {
+      score += 3;
+      firmographics.push(`Enterprise-scale fit: ${empCount.toLocaleString()} employees (4x+ the ${minEmp.toLocaleString()} minimum) (+3)`);
+    } else if (!minEmp || empCount >= minEmp) {
+      score += 2;
+      firmographics.push(`Meets company-size threshold: ${empCount.toLocaleString()} employees (min ${minEmp.toLocaleString()}) (+2)`);
+    } else {
+      firmographics.push(`Below typical company-size threshold: ${empCount.toLocaleString()} employees vs ${minEmp.toLocaleString()} minimum — may still qualify on other signals, verify budget/complexity`);
+    }
+  }
+
+  // Firmographics: industry vertical
+  if (industry && industry.trim()) {
+    const indLower = industry.trim().toLowerCase();
+    const industryList = config.industries || [];
+    const hit = industryList.find(i => indLower.includes(i.toLowerCase()) || i.toLowerCase().includes(indLower));
+    if (hit) {
+      score += 2;
+      firmographics.push(`Industry match: "${industry.trim()}" aligns with core ICP vertical "${hit}" (+2)`);
+    } else {
+      firmographics.push(`Industry "${industry.trim()}" not in core ICP verticals (${industryList.slice(0, 4).join(', ')}${industryList.length > 4 ? ', ...' : ''}) — verify fit manually`);
+    }
+  }
+
   // Determine tier
   let tier = 'DISQUALIFIED';
   if (score >= config.tier_thresholds.A) tier = 'A';
@@ -1350,11 +1390,11 @@ function scoreAgainstConfig(config, { title, company, location } = {}) {
   else if (tier === 'C') recommendation = 'Low-priority. Include in nurture campaigns only.';
   else recommendation = 'Does not match ICP. Consider removing from pipeline.';
 
-  return { score, tier, matches, rejects, recommendation };
+  return { score, tier, matches, rejects, firmographics, recommendation };
 }
 
 app.post('/api/icp/score', requireAuth, (req, res) => {
-  const { name, title, company, location, brand } = req.body;
+  const { name, title, company, location, brand, employees, industry } = req.body;
 
   if ((!title || !title.trim()) && (!company || !company.trim())) {
     return res.json({ tier: 'N/A', score: 0, details: { error: 'Title and company are required for ICP scoring' } });
@@ -1364,8 +1404,8 @@ app.post('/api/icp/score', requireAuth, (req, res) => {
   const config = ICP_CONFIGS[brand.toLowerCase()];
   if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}` });
 
-  const result = scoreAgainstConfig(config, { title, company, location });
-  res.json({ name, title, company, location, brand, ...result });
+  const result = scoreAgainstConfig(config, { title, company, location, employees, industry });
+  res.json({ name, title, company, location, brand, employees, industry, ...result });
 });
 
 // ---------------------------------------------------------------------------

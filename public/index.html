@@ -105,6 +105,10 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 /* Grid */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.pb-card { transition: box-shadow 0.2s, border-color 0.2s; }
+.pb-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+.pb-flash { animation: pbFlash 1.5s ease; }
+@keyframes pbFlash { 0% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
 .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
 @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
 
@@ -358,9 +362,21 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .copilot-audio-bar .listen-dot.on { background: var(--green); animation: pulse-green 1s infinite; }
 @keyframes pulse-green { 0%,100%{opacity:1} 50%{opacity:0.4} }
 .copilot-transcript { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-height: 200px; max-height: 400px; overflow-y: auto; overflow-wrap: anywhere; word-break: break-word; font-size: 12px; line-height: 1.7; color: var(--text-secondary); }
-.copilot-transcript .ct-line { padding: 4px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; word-break: break-word; }
-.copilot-transcript .ct-line .ct-time { font-size: 9px; color: var(--text-muted); margin-right: 6px; }
+.copilot-transcript .ct-line { padding: 4px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; word-break: break-word; display: flex; align-items: flex-start; gap: 6px; }
+.copilot-transcript .ct-line .ct-time { font-size: 9px; color: var(--text-muted); margin-right: 6px; flex-shrink: 0; }
+.copilot-transcript .ct-line .ct-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 .copilot-transcript .ct-interim { color: var(--text-muted); font-style: italic; padding: 4px 0; }
+.copilot-transcript .ct-actions { display: none; gap: 2px; flex-shrink: 0; margin-left: auto; }
+.copilot-transcript .ct-line:hover .ct-actions { display: flex; }
+.copilot-transcript .ct-actions button { border: none; background: transparent; cursor: pointer; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 4px; color: var(--text-muted); }
+.copilot-transcript .ct-actions button:hover { background: var(--accent-dim); color: var(--text-primary); }
+.copilot-transcript .ct-del-btn:hover { color: var(--red); }
+.copilot-transcript .ct-edit-btn:hover { color: var(--accent-text); }
+.copilot-transcript .ct-editing { align-items: center; }
+.copilot-transcript .ct-edit-input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 12px; padding: 3px 7px; border: 1px solid var(--accent); border-radius: 5px; background: var(--bg-elevated); color: var(--text-primary); outline: none; }
+.copilot-transcript .ct-edit-save, .copilot-transcript .ct-edit-cancel { border: none; background: transparent; cursor: pointer; font-size: 12px; padding: 3px 6px; flex-shrink: 0; }
+.copilot-transcript .ct-edit-save { color: var(--green); font-weight: 700; }
+.copilot-transcript .ct-edit-cancel { color: var(--text-muted); }
 .copilot-input-wrap { margin-top: 8px; }
 .copilot-input-wrap textarea { width: 100%; min-height: 50px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; font-family: inherit; resize: vertical; outline: none; background: var(--bg-card); color: var(--text-primary); transition: border-color 0.2s; }
 .copilot-input-wrap textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
@@ -1056,6 +1072,16 @@ button { text-align: left; }
       <!-- Dynamic panel rendered by renderIntelPanel() -->
       <div id="intelMainPanel"></div>
 
+      <!-- Sales Playbooks (collapsible) -- built from PLAYBOOK_LIBRARY in one
+           shot by buildPlaybookLibrary(), triggered once from loadIntelligence().
+           Cards also targeted by openPlaybook() (id="pb-<key>") when a playbook
+           is clicked from the live Playbook Coach panel on the AI Coach tab. -->
+      <details style="margin-top:16px" open>
+        <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;padding:8px 0;user-select:none">Sales Playbooks</summary>
+        <div style="font-size:11px;color:var(--text-muted);margin:-4px 0 10px">Frameworks behind the AI Coach actions and the live Playbook Coach panel. Click a card to expand.</div>
+        <div id="playbookLibraryGrid" class="grid-3" style="gap:10px"></div>
+      </details>
+
       <!-- Company Prospecting (collapsible, at bottom) -->
       <details style="margin-top:16px">
         <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;padding:8px 0;user-select:none">Find Decision Makers</summary>
@@ -1221,7 +1247,8 @@ button { text-align: left; }
             </div>
           </div>
 
-          <button onclick="generateTasksFromTranscript()" style="width:100%;padding:11px;margin-bottom:10px;border-radius:8px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent-text);font-size:12px;font-weight:700;cursor:pointer">&#9745; Generate Tasks from Meeting &rarr; Productivity</button>
+          <button onclick="generateTasksFromTranscript()" style="width:100%;padding:11px;margin-bottom:8px;border-radius:8px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent-text);font-size:12px;font-weight:700;cursor:pointer">&#9745; Generate Tasks from Meeting &rarr; Productivity</button>
+          <button onclick="generateDealReview()" style="width:100%;padding:11px;margin-bottom:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:12px;font-weight:700;cursor:pointer">&#128203; Deal Review (once the call wraps)</button>
 
           <div id="copilotResponse" class="copilot-response">
             <div class="cr-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -1265,6 +1292,16 @@ button { text-align: left; }
             <div class="section-header">Suggested Assets</div>
             <div id="copilotSuggestedAssets" style="display:flex;gap:6px;flex-wrap:wrap">
               <div class="empty-state" style="padding:10px;font-size:11px;width:100%">Assets will auto-surface based on conversation topics</div>
+            </div>
+          </div>
+
+          <!-- PLAYBOOK COACH: same topic-detection trigger as Suggested Assets,
+               surfaces the relevant Sales Playbook (see Intelligence tab for
+               the full library) instead of a Drive asset. -->
+          <div style="margin-top:10px">
+            <div class="section-header">Playbook Coach</div>
+            <div id="copilotPlaybookPanel" style="display:flex;flex-direction:column;gap:6px">
+              <div class="empty-state" style="padding:10px;font-size:11px;width:100%">Relevant playbooks (objection handling, discovery, closing...) will surface here based on the live conversation.</div>
             </div>
           </div>
 
@@ -1611,6 +1648,14 @@ button { text-align: left; }
             <div>
               <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Location</label>
               <input type="text" id="icpLocation" placeholder="New York, NY" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Employee Count <span style="text-transform:none;font-weight:400">(firmographic fit)</span></label>
+              <input type="number" id="icpEmployees" placeholder="2500" min="0" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Industry <span style="text-transform:none;font-weight:400">(firmographic fit)</span></label>
+              <input type="text" id="icpIndustry" placeholder="Healthcare" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none">
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
@@ -1972,6 +2017,7 @@ function fmtDate(iso){if(!iso)return '';return new Date(iso).toLocaleDateString(
 function fmtFull(iso){if(!iso)return '';return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}
 function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function escAttr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function truncate(s,n){return s&&s.length>n?s.slice(0,n)+'...':(s||'')}
 // Expandable section headers — smooth max-height animation
 function toggleSection(header){
@@ -6295,6 +6341,7 @@ function showIntelKb(c){
 async function loadIntelligence(){
   // Render panel for default company on first load
   if(!window._intelPanelRendered){window._intelPanelRendered=true;renderIntelPanel(currentIntelCompany);}
+  if(!window._playbookLibraryBuilt){window._playbookLibraryBuilt=true;try{buildPlaybookLibrary();}catch(e){}}
   window._intelLoaded=true;
   const saved=localStorage.getItem('sb_intel_company')||'all';
   setIntelCompany(saved);
@@ -6683,6 +6730,7 @@ function _pushTranscriptLine(line){
   return true;
 }
 let copilotTranscriptLines=[];
+let copilotEditingIdx=-1;
 let copilotCurrentMeeting=null;
 let copilotMeetingContext='';
 let copilotAttendeeData={};
@@ -7264,17 +7312,52 @@ async function pollMeetCaptions(){
 
 function renderCopilotTranscript(){
   const el=document.getElementById('copilotTranscript');
-  if(!copilotTranscriptLines.length){el.innerHTML='<div class="empty-state">Transcript will appear here. Select a speaker, type what they said, press Enter.</div>';return}
+  if(!copilotTranscriptLines.length){copilotEditingIdx=-1;el.innerHTML='<div class="empty-state">Transcript will appear here. Select a speaker, type what they said, press Enter.</div>';return}
   const speakerColors={};const palette=['#3b3735','#5e8c45','#8a6a24','#3b3735','#8c3a2f','#8a6a24','#3b3735','#3b3735'];
   let ci=0;
   copilotTranscriptLines.forEach(l=>{if(l.speaker&&!speakerColors[l.speaker])speakerColors[l.speaker]=palette[ci++%palette.length];});
-  el.innerHTML=copilotTranscriptLines.map(l=>{
+  el.innerHTML=copilotTranscriptLines.map((l,i)=>{
+    const timeStr=l.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true});
+    if(i===copilotEditingIdx){
+      return `<div class="ct-line ct-editing"><span class="ct-time">${timeStr}</span><input type="text" class="ct-edit-input" id="ctEditInput" value="${escAttr(l.text)}" onkeydown="if(event.key==='Enter'){event.preventDefault();saveTranscriptEdit(${i})}else if(event.key==='Escape'){event.preventDefault();cancelTranscriptEdit()}"><button class="ct-edit-save" onclick="saveTranscriptEdit(${i})" title="Save">Save</button><button class="ct-edit-cancel" onclick="cancelTranscriptEdit()" title="Cancel">✕</button></div>`;
+    }
     const spk=l.speaker||'';
     const color=speakerColors[spk]||'var(--text-muted)';
     const canRename=(l.dgSpeaker!==undefined&&l.dgSpeaker>=0);const spkTag=spk?`<span style="color:${color};font-weight:700;font-size:11px;margin-right:6px${canRename?';cursor:pointer;text-decoration:underline dotted':''}" ${canRename?`onclick="renameDgSpeaker(${l.dgSpeaker})" title="Click to rename this speaker"`:''}>${esc(spk)}:</span>`:'';
-    return `<div class="ct-line"><span class="ct-time">${l.time.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit',hour12:true})}</span>${spkTag}${esc(l.text)}</div>`;
+    return `<div class="ct-line" data-idx="${i}"><span class="ct-time">${timeStr}</span>${spkTag}<span class="ct-text">${esc(l.text)}</span><span class="ct-actions"><button class="ct-edit-btn" onclick="editTranscriptLine(${i})" title="Edit this line">✎</button><button class="ct-del-btn" onclick="deleteTranscriptLine(${i})" title="Delete this line">✕</button></span></div>`;
   }).join('');
-  el.scrollTop=el.scrollHeight;
+  if(copilotEditingIdx<0){el.scrollTop=el.scrollHeight;}
+  else{const inp=document.getElementById('ctEditInput');if(inp){inp.focus();inp.select();}}
+}
+
+function editTranscriptLine(idx){
+  if(!copilotTranscriptLines[idx])return;
+  copilotEditingIdx=idx;
+  renderCopilotTranscript();
+}
+
+function saveTranscriptEdit(idx){
+  const inp=document.getElementById('ctEditInput');
+  const line=copilotTranscriptLines[idx];
+  if(!line){copilotEditingIdx=-1;renderCopilotTranscript();return;}
+  const val=(inp?inp.value:'').trim();
+  if(val)line.text=val;
+  copilotEditingIdx=-1;
+  renderCopilotTranscript();
+}
+
+function cancelTranscriptEdit(){
+  copilotEditingIdx=-1;
+  renderCopilotTranscript();
+}
+
+function deleteTranscriptLine(idx){
+  if(!copilotTranscriptLines[idx])return;
+  if(!confirm('Delete this transcript line? This cannot be undone.'))return;
+  copilotTranscriptLines.splice(idx,1);
+  if(copilotEditingIdx===idx)copilotEditingIdx=-1;
+  else if(copilotEditingIdx>idx)copilotEditingIdx--;
+  renderCopilotTranscript();
 }
 
 function renderCopilotInterim(text){
@@ -7346,6 +7429,16 @@ function getRecentTranscriptLines(n){
 }
 
 // ── Objection Detection ──
+// 2026-08-06: objection handling reworked around the LAER framework (Listen,
+// Acknowledge, Explore, Respond) from the Sales-Skills objection-handling
+// playbook, plus the ARC pattern (Acknowledge, Respond, Continue) from its
+// objection-recognition playbook. OBJECTION_PATTERNS' regex match is the
+// "Listen" step (already happened by the time text reaches here); ACK_LINES
+// supplies "Acknowledge"; each brand's existing objectionHandlers text below
+// is "Respond" (kept as-is -- it's already specific, data-rich); and
+// EXPLORE_QUESTIONS supplies the "Explore"/"Continue" step, which the canned
+// panel was missing entirely before this. See PIPELINE_ERRORS.md
+// "sales-skills-integration" for the full writeup.
 const OBJECTION_PATTERNS=[
   {pattern:/too expensive|cost too much|budget|can't afford|price is high|pricing concern/i, type:'pricing', brand:'auto'},
   {pattern:/already have|already using|current solution|existing system|happy with what we have/i, type:'existing_solution', brand:'auto'},
@@ -7356,6 +7449,33 @@ const OBJECTION_PATTERNS=[
   {pattern:/hipaa|compliance|security|data privacy|audit/i, type:'compliance', brand:'vorro'},
   {pattern:/integration.*complex|too many systems|point.to.point/i, type:'complexity', brand:'vorro'}
 ];
+
+// LAER step 2 (Acknowledge) -- validate the concern is reasonable before any
+// data gets thrown at it. One line per objection type, reused across every
+// brand so this stays consistent without hand-editing 40+ handler strings.
+const ACK_LINES={
+  pricing:"Totally fair to raise cost — let's make sure this actually pencils out for you.",
+  existing_solution:"Makes sense you'd want to protect what's already working.",
+  timing:"Understood — timing matters. Let's see what would actually change that.",
+  stakeholder:"Of course — bringing the right people in is the right move.",
+  competitor:"Smart to compare options. Here's how it actually stacks up.",
+  implementation:"Fair concern — rollout risk is real, let's walk through it.",
+  compliance:"Good instinct to lead with that — compliance should come first, not last.",
+  complexity:"Hear that completely — simplifying this is the whole point."
+};
+// LAER step 3 (Explore) -- a clarifying question that surfaces the real
+// constraint behind the surface objection, per objection-handling's guidance
+// that "early discovery uncovers constraints before they become obstacles."
+const EXPLORE_QUESTIONS={
+  pricing:"What budget range were you working with, so I show the right comparison?",
+  existing_solution:"What's working well today, and where is it actually falling short?",
+  timing:"What would need to be true for this to become a priority sooner?",
+  stakeholder:"Who else needs to be in the room, and what matters most to them?",
+  competitor:"Which other options are on the table, and what's the deciding factor?",
+  implementation:"What's the ideal timeline, and who owns rollout on your side?",
+  compliance:"Which specific requirement is the one you can't compromise on?",
+  complexity:"How many systems are in play today that this would need to replace or connect?"
+};
 
 function checkObjections(text){
   for(const p of OBJECTION_PATTERNS){
@@ -7380,14 +7500,23 @@ async function generateAutoRebuttal(text,objType,brand){
   }
 
   const el=document.getElementById('copilotAutoRebuttal');
+  const ack=ACK_LINES[objType]||"That's a completely fair concern.";
+  const explore=EXPLORE_QUESTIONS[objType]||"What specifically would need to be true for this to be a fit?";
   if(quickRebuttal){
     el.innerHTML=`<div class="copilot-auto-rebuttal">
-      <div class="car-tag">&#9889; Auto-Rebuttal Detected</div>
-      <div class="car-body">${esc(quickRebuttal)}</div>
+      <div class="car-tag">&#9889; Auto-Rebuttal Detected — LAER</div>
+      <div class="car-body">
+        <div><b>Acknowledge:</b> ${esc(ack)}</div>
+        <div style="margin-top:4px"><b>Respond:</b> ${esc(quickRebuttal)}</div>
+        <div style="margin-top:4px"><b>Explore:</b> ${esc(explore)}</div>
+      </div>
     </div>`;
   }
 
-  // Also generate a contextual rebuttal via AI
+  // Also generate a contextual rebuttal via AI, explicitly structured on the
+  // LAER framework (objection-handling) with the ARC anti-pattern guardrails
+  // (objection-recognition): no arguing, no getting defensive, no immediate
+  // discounting -- replace those instincts with curiosity.
   try{
     const ctx=[
       {label:'Objection detected',value:text},
@@ -7397,11 +7526,11 @@ async function generateAutoRebuttal(text,objType,brand){
       {label:'Product knowledge',value:getKnowledgeString()}
     ];
     const aiRebuttal=await ask(
-      `You are a CRO's real-time meeting coach for ${kb.company}. The prospect just raised an objection. Generate a natural, conversational rebuttal that Manish can say immediately. Be specific with data and metrics. Keep it under 80 words. Do NOT use bullet points.`,
+      `You are a CRO's real-time meeting coach for ${kb.company}. The prospect just raised an objection. Use the LAER framework: Acknowledge the concern is reasonable in one short line (no "I understand" cliches); Respond with 1-2 sentences of specific ${kb.company} data/metrics that address the real concern, not a generic reassurance; end with one Explore question that surfaces what's really driving the objection. Do NOT argue, get defensive, or discount/concede anything unprompted. Natural spoken tone, under 90 words total, no bullet points, no labels like "Acknowledge:" in the output -- just the flowing script Manish can say.`,
       ctx
     );
     el.innerHTML=`<div class="copilot-auto-rebuttal">
-      <div class="car-tag">&#9889; AI Rebuttal (${esc(objType)})</div>
+      <div class="car-tag">&#9889; AI Rebuttal (${esc(objType)}) — LAER</div>
       <div class="car-body">${esc(aiRebuttal)}</div>
     </div>`;
   }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
@@ -7462,6 +7591,58 @@ async function generateTasksFromTranscript(){
   }
 }
 
+// 2026-08-06: Deal Review, structured on the Sales-Skills deal-review-win-loss
+// playbook's "priority order" (outcome -> process -> competition ->
+// qualification -> action). On-demand rather than auto-firing on every meeting
+// end, since _finalizeMeetingNotes() is a silent fire-and-forget persistence
+// call with no UI to surface a result into -- this reuses the same
+// ask()/copilotResponseBody pattern as generateTasksFromTranscript() instead
+// of building new plumbing. See PIPELINE_ERRORS.md "sales-skills-integration".
+async function generateDealReview(){
+  const transcript=(typeof getFullTranscript==='function')?getFullTranscript():'';
+  const body=document.getElementById('copilotResponseBody');
+  if(!transcript||transcript.trim().length<20){
+    if(body)body.innerHTML='<div style="padding:12px;color:var(--orange);font-weight:600">Capture or paste meeting conversation first, then run a deal review.</div>';
+    return;
+  }
+  if(body)body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Reviewing the call...</div>';
+  const brand=detectBrandFromContext();
+  const kb=KNOWLEDGE_BASE[brand];
+  const sys=`Analyze this ${kb.company} sales call using the deal-review framework. Output ONLY JSON, no prose, no markdown: {"stage":"<your best guess: Discovery|Demo|Negotiation|Closing|Stalled|Won|Lost, based only on what happened in this call>","outcomeFactor":"<the ONE primary factor driving how this call went, under 25 words>","processExecution":"<was discovery/qualification done well this call -- one specific observation, under 25 words>","competitiveDynamics":"<any competitor mentioned or implied, and how it was handled -- or 'None raised' if none>","qualificationGaps":"<what BANT/MEDDIC info is still missing after this call -- budget, authority, need, timeline, or 'None -- well qualified' if none>","nextAction":"<ONE specific, repeatable next action with a rough timeframe, under 20 words>"}. Base this ONLY on the actual transcript content, not generic advice.`;
+  try{
+    const raw=await ask(sys,[
+      {label:'Full transcript',value:transcript.slice(0,8000)},
+      {label:'Meeting context',value:copilotMeetingContext},
+      {label:'Attendees',value:JSON.stringify(copilotAttendeeData||[])},
+      {label:'Brand',value:brand}
+    ]);
+    let dr=null;
+    try{const txt=(typeof raw==='string'?raw:JSON.stringify(raw));const m=txt.match(/\{[\s\S]*\}/);dr=JSON.parse(m?m[0]:txt);}catch(e){dr=null;}
+    if(!dr||!dr.outcomeFactor){if(body)body.innerHTML='<div style="padding:12px;color:var(--orange)">Could not produce a deal review from this transcript. Try again with more conversation captured.</div>';return;}
+    const headerEl=document.querySelector('.copilot-response .cr-header');
+    if(headerEl)headerEl.innerHTML='<span style="color:#3b3735">&#128203; Deal Review</span>';
+    const rows=[
+      ['Stage', dr.stage||'Unknown', '#3b3735'],
+      ['Outcome Factor', dr.outcomeFactor, '#5e8c45'],
+      ['Process Execution', dr.processExecution, '#3b3735'],
+      ['Competitive Dynamics', dr.competitiveDynamics, '#8c3a2f'],
+      ['Qualification Gaps', dr.qualificationGaps, '#8a6a24'],
+    ];
+    let html='<div style="display:flex;flex-direction:column;gap:8px">';
+    rows.forEach(([label,val,color])=>{
+      html+=`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:${color}">${esc(label)}</div><div style="font-size:12px;color:var(--text-primary);margin-top:2px">${esc(val||'—')}</div></div>`;
+    });
+    if(dr.nextAction){
+      html+=`<div style="margin-top:4px;padding:10px 12px;background:var(--accent-dim);border-radius:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--accent-text)">Next Action</div><div style="font-size:12px;color:var(--text-primary);margin-top:2px">${esc(dr.nextAction)}</div></div>`;
+    }
+    html+='</div>';
+    if(body)body.innerHTML=html;
+    _ttsText=[dr.stage,dr.outcomeFactor,dr.processExecution,dr.competitiveDynamics,dr.qualificationGaps,dr.nextAction].filter(Boolean).join('. ');
+  }catch(e){
+    if(body)body.innerHTML='<div style="padding:12px;color:var(--red)">Deal review failed: '+esc(e.message)+'</div>';
+  }
+}
+
 function assignTask(id,person){
   const t=_findProdTask(id);
   if(t){t.person=person;persistCallTask(t,{assignee:person});}
@@ -7493,13 +7674,32 @@ async function copilotAction(type,_opts){
 
   const fmt=`FORMAT (STRICT): Reply as 3 to 5 short, clean bullet points only. Start every line with "- ". One idea per bullet, max ~18 words each. NO headings, NO bold/markdown, NO preamble, NO sign-off. Do NOT restate the transcript and do NOT repeat or summarize past meeting notes — answer only from the LIVE conversation and the product facts provided. If there isn't enough in the live conversation yet, say so in a single bullet.`;
   const sessionTone=`You are Manish's real-time meeting copilot. Be direct, specific, data-driven. Cite concrete numbers/metrics from the product knowledge when relevant.`;
+  // 2026-08-06: each action below is now explicitly grounded in a named
+  // framework from the Sales-Skills playbook set instead of an ad-hoc
+  // instruction, so the AI's structure is consistent and coachable rather
+  // than whatever shape it happens to pick. See PIPELINE_ERRORS.md
+  // "sales-skills-integration".
   const prompts={
-    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said. Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now.`,
-    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection. Bullets: one that acknowledges the concern; two to three that counter it with specific ${kb.company} data/results; one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say now.`,
-    tone:`${sessionTone}\n${fmt}\n\nTask: read the room. Bullets: overall tone in 1-2 words; two to three citing the exact words/phrases that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
-    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a statement. Bullets: one summarizing what they asked; two to three with the factual answer using ${kb.company} metrics/case studies; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question.`,
-    motivate:`${sessionTone}\n${fmt}\n\nTask: Manish needs a quick confidence/energy boost mid-call. Bullets: one short punchy pep-talk line; one reminder of a concrete win/strength (use ${kb.company} data if relevant); one reframing whatever is happening in the live conversation as an opportunity, not a setback; one closing bullet starting "Say to yourself: " with a one-line mantra under 15 words. Keep it upbeat and genuine, not cheesy corporate-speak.`,
-    humor:`${sessionTone}\n${fmt}\n\nTask: lighten the mood for a second with some clean, work-appropriate humor related to sales calls, the topic just discussed, or the current situation. Bullets: one light joke or witty one-liner; one playful observation about the live conversation; one bullet starting "Say: " with a short, natural, funny-but-professional line Manish could actually say out loud to break tension or build rapport. Keep it tasteful — never at the prospect's expense.`
+    // Active Listening's "Replay" step (HEAR method): restate in plain words
+    // before anything else, which is also how you confirm you understood it.
+    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said (this is the "Replay" step of active listening — restate before reacting). Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now.`,
+    // LAER (Listen/Acknowledge/Explore/Respond) from objection-handling, with
+    // ARC's anti-pattern guardrails (no arguing, no defensiveness, no
+    // unprompted discounting) from objection-recognition.
+    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection. Use the LAER framework. Bullets: one that Acknowledges the concern is reasonable (not a generic "I understand"); two that Respond with specific ${kb.company} data/results addressing the real concern; one that Explores with a clarifying question surfacing what's actually driving the objection; one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say now. Do not argue, get defensive, or concede/discount anything unprompted.`,
+    // Building-rapport's Signal Reading (positive/neutral/negative cues) +
+    // active-listening's "hear the emotion, not just the words."
+    tone:`${sessionTone}\n${fmt}\n\nTask: read the room using signal-reading — classify verbal and implied cues, not just the literal words. Bullets: overall signal in 1-2 words (positive/neutral/negative + why); two to three citing the exact words/phrases/pacing that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
+    // Discovery's "quantify pain" + Active Listening's Replay, applied to
+    // live Q&A moments rather than a scripted discovery call.
+    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a statement. Bullets: one Replaying (summarizing in your own words) what they asked; two to three with the factual answer using ${kb.company} metrics/case studies, quantifying impact where possible; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question that goes one layer deeper (a discovery-style probe, not a closed yes/no).`,
+    // Sales-psychology's status-quo equation (dissatisfaction x vision x
+    // first steps must outweigh resistance) reframed as self-motivation, plus
+    // closing's core philosophy as a confidence anchor.
+    motivate:`${sessionTone}\n${fmt}\n\nTask: Manish needs a quick confidence/energy boost mid-call. Bullets: one short punchy pep-talk line; one reminder of a concrete win/strength (use ${kb.company} data if relevant); one reframing whatever is happening in the live conversation as forward motion, not a setback — "if you've qualified well, this is just the next step"; one closing bullet starting "Say to yourself: " with a one-line mantra under 15 words. Keep it upbeat and genuine, not cheesy corporate-speak.`,
+    // Building-rapport's core premise -- genuine, not manipulative -- applied
+    // to humor: it only works if it's authentic to the actual conversation.
+    humor:`${sessionTone}\n${fmt}\n\nTask: lighten the mood for a second with some clean, work-appropriate humor related to sales calls, the topic just discussed, or the current situation — genuine to what's actually happening in this call, not a generic canned joke. Bullets: one light joke or witty one-liner tied to something specific just said; one playful observation about the live conversation; one bullet starting "Say: " with a short, natural, funny-but-professional line Manish could actually say out loud to break tension or build rapport. Keep it tasteful — never at the prospect's expense.`
   };
 
   const data=[
@@ -7934,6 +8134,70 @@ const ASSET_MAP={
   }
 };
 
+// ── Sales Playbooks (2026-08-06) ──────────────────────────────────────────
+// Original condensed guidance built from named, public sales methodologies
+// (LAER, HEAR, BANT/MEDDIC, etc.), referenced against the louisblythe/
+// Sales-Skills skill library at Manish's request. Full entries live in the
+// Intelligence tab's "Sales Playbooks" section (buildPlaybookLibrary());
+// PLAYBOOK_TOPIC_MAP wires the most relevant ones into the same live
+// topic-detection that already drives Suggested Assets, so the right
+// playbook surfaces automatically mid-call instead of requiring a search.
+// See PIPELINE_ERRORS.md "sales-skills-integration".
+const PLAYBOOK_LIBRARY={
+  laer:{title:'Objection Handling — LAER',framework:'Listen · Acknowledge · Explore · Respond',color:'#8c3a2f',icon:'&#9889;',
+    summary:'Resistance is engagement, not rejection. Structure every objection response as: acknowledge the concern is reasonable, ask one question to find the real constraint underneath it, then respond with specific data — never argue, get defensive, or discount unprompted.',
+    steps:['Listen fully without interrupting — let them finish before you plan a response.','Acknowledge: validate it\'s a fair concern, in your own words, not "I understand."','Explore: ask a clarifying question to find what\'s really driving it (price ≠ always about price).','Respond: address the root concern with specific data, then confirm it landed.'],
+    say:'Say: "Totally fair to raise that — help me understand what\'s driving it, so I can actually address the right thing."'},
+  hear:{title:'Active Listening — HEAR',framework:'Halt · Engage · Anticipate · Replay',color:'#3b3735',icon:'&#128442;',
+    summary:'Your brain plans a response while others talk — that\'s the enemy. Silence is a tool: pauses invite elaboration and usually surface the most important detail. Listen for the emotion under the words, not just the words.',
+    steps:['Halt: stop planning your reply, give full attention.','Engage: acknowledge with body language / verbal cues, not just silence.','Anticipate: approach with genuine curiosity — expect to learn something new.','Replay: paraphrase key points back in their language to confirm understanding.'],
+    say:'Say: "So what I\'m hearing is [paraphrase] — did I get that right?"'},
+  discovery:{title:'Discovery — 7-Phase Diagnostic',framework:'Diagnose before you prescribe',color:'#5e8c45',icon:'&#128269;',
+    summary:'Understand the situation fully before proposing anything. Keep a 70/30 listening-to-talking ratio. One deep topic beats five shallow ones — go deep on the highest-impact pain rather than skimming a checklist.',
+    steps:['Opening: rapport + set the agenda (2-3 min).','Situation: current state and context (5-10 min).','Problem: challenges and pain points (10-15 min) — go deep, not wide.','Impact: quantify the business and personal cost of the problem.','Future State: desired outcome and how they\'d measure success.','Process: decision-makers, stakeholders, timeline.','Close: summarize and agree next steps.'],
+    say:'Ask: "If nothing changes, what does that cost you six months from now?"'},
+  closing:{title:'Closing — Signals & Techniques',framework:'If you\'ve qualified well, closing is just the next step',color:'#3b3735',icon:'&#127919;',
+    summary:'Stop pitching once buying signals appear — recognizing readiness matters more than technique. Watch for implementation questions, ownership language ("when we implement..."), faster replies, and stakeholder introductions.',
+    steps:['Confirm you both understand their situation the same way.','Confirm how the solution delivers the value they need.','Address any remaining concern directly.','Ask: "On a scale of 1-10, how ready do you feel to move forward?"','Ask directly for the commitment — don\'t hint at it.','Lock specific next steps with dates and owners.'],
+    say:'Say: "Sounds like this solves what you came here for — what would it take to get moving this month?"'},
+  negotiation:{title:'Negotiation — Value Exchange',framework:'Value exchange, not combat',color:'#8a6a24',icon:'&#9878;',
+    summary:'Never negotiate against yourself — don\'t offer concessions unprompted or assume a discount is needed. Every concession requires something back, using conditional language: "If you [X], then I can [Y]."',
+    steps:['Know your BATNA and walk-away point before the conversation starts.','Present full price confidently first — justify with ROI and proof points.','Understand their interests before presenting your position.','Trade concessions conditionally — never give something for nothing.','Document agreed terms in writing immediately.'],
+    say:'Say: "If we can get this signed by [date], I can work with procurement on [specific trade]."'},
+  rapport:{title:'Building Rapport — Authentic Connection',framework:'Genuine curiosity, not technique',color:'#3b3735',icon:'&#129309;',
+    summary:'People sense fake interest immediately — rapport has to be earned through real curiosity, not a script. Mirror pace, energy, and formality naturally; read positive/neutral/negative signals and adjust.',
+    steps:['Research genuine connection points before the call.','First 60 seconds: real energy + a clear, honest purpose.','Mirror communication style — pace, formality, technical depth.','Read signals throughout and adjust rather than pushing through resistance.','Follow through on small commitments immediately — trust compounds fast.'],
+    say:'Say: "Before we get into it — how\'s [thing they mentioned last time] going?"'},
+  psychology:{title:'Sales Psychology — Quick Reference',framework:'Status quo equation: dissatisfaction × vision × first step > resistance to change',color:'#7952a6',icon:'&#129504;',
+    summary:'Buyers weigh loss aversion more heavily than equivalent gains, anchor on the first number they hear, and need all three of dissatisfaction, a vision of better, and an easy first step before they\'ll move off the status quo.',
+    steps:['Loss aversion: frame inaction\'s cost, not just the solution\'s benefit.','Anchoring: state your value/price first, on your terms.','Social proof: reference comparable customers, not abstract claims.','Reciprocity: give something useful before asking for commitment.','Status quo equation: if they\'re not moving, one of the three factors is missing — find which one.'],
+    say:'Say: "Companies like yours who waited another quarter on this usually told us they wished they hadn\'t."'},
+  competitive:{title:'Competitive Positioning — Battlecards',framework:'Compete on value, not attacks',color:'#8c3a2f',icon:'&#9876;',
+    summary:'Never disparage a competitor directly. Use "landmine questions" — legitimate discovery questions that naturally surface a competitor\'s gaps without sounding accusatory — then connect your genuine strengths to their stated priorities.',
+    steps:['Acknowledge the competitor respectfully — never trash-talk.','Ask a landmine question tied to a known gap in their approach.','Ask what matters most to the prospect in this decision.','Connect your specific strengths to what they just said mattered.','Back it with a proof point, not just a claim.'],
+    say:'Ask: "How are you handling [known competitor gap] today?"'},
+  pipeline:{title:'Pipeline Management — Deal Health',framework:'Pipeline is a leading indicator; motion is the metric',color:'#5e8c45',icon:'&#128202;',
+    summary:'A deal without a scheduled next step, multiple stakeholders, and forward motion is stalling even if it looks "open." Healthy pipeline runs at roughly 3x coverage of quota.',
+    steps:['Every open deal needs a dated next step before you leave the call.','Multi-thread: is there more than one stakeholder engaged?','Flag anything inactive 2+ weeks for review, not silent decay.','Forecast honestly: Commit / Best Case / Pipeline — don\'t inflate.'],
+    say:'Ask: "What\'s the one thing that needs to happen before [date] for this to move forward?"'},
+  dealreview:{title:'Deal Review & Win/Loss',framework:'Priority order: outcome → process → competition → qualification → action',color:'#3b3735',icon:'&#128203;',
+    summary:'Used after a meeting closes or a deal resolves — captures what drove the outcome (win or loss), how the process was executed, competitive dynamics, and whether qualification was accurate, ending in concrete next-time actions.',
+    steps:['What was the primary factor in the outcome — not the first thing that comes to mind, the real one.','Was the process executed well (discovery depth, stakeholder coverage, timeline)?','What was the competitive dynamic, if any?','Was this qualified accurately from the start (BANT/MEDDIC gaps)?','One specific, repeatable action for next time — not a vague lesson.'],
+    say:null}
+};
+// Maps a detected live-conversation topic (from TOPIC_PATTERNS) to the
+// playbook(s) most relevant to what's happening right now.
+const PLAYBOOK_TOPIC_MAP={
+  pricing:['negotiation','psychology'],
+  competitor:['competitive'],
+  implementation:['discovery'],
+  social_proof:['rapport','psychology'],
+  compliance:['discovery'],
+  integration:['discovery'],
+  closing:['closing'],
+  next_steps:['pipeline']
+};
+
 function toggleAutoCoach(){
   const tog=document.getElementById('autoCoachToggle');
   _autoCoachOn=tog.checked;
@@ -8088,6 +8352,83 @@ function surfaceAssets(topics,brand){
     el.innerHTML=html;
     addCoachFeedItem('topic','Relevant assets surfaced: '+topics.map(t=>t.label).join(', ')+'. See Suggested Assets panel below.','&#128218;');
   }
+  surfacePlaybooks(topics);
+}
+
+// Same trigger as surfaceAssets (live topic detection) -- surfaces the
+// relevant Sales Playbook card(s) instead of a Drive asset. See
+// PLAYBOOK_TOPIC_MAP / PLAYBOOK_LIBRARY above.
+function surfacePlaybooks(topics){
+  const el=document.getElementById('copilotPlaybookPanel');
+  if(!el)return;
+  const seen=new Set();
+  let html='';
+  for(const tp of topics){
+    const ids=PLAYBOOK_TOPIC_MAP[tp.topic];
+    if(!ids)continue;
+    for(const id of ids){
+      if(seen.has(id))continue;
+      seen.add(id);
+      const pb=PLAYBOOK_LIBRARY[id];
+      if(!pb)continue;
+      html+=`<div style="border:1px solid ${pb.color}33;border-radius:8px;background:${pb.color}0d;padding:8px 10px;cursor:pointer" onclick="openPlaybook('${id}')" title="Open full playbook in Intelligence">
+        <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:11px;color:${pb.color}"><span>${pb.icon}</span>${esc(pb.title)}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">${esc(pb.framework)}</div>
+        ${pb.say?`<div style="font-size:10px;color:var(--text-primary);margin-top:4px;font-style:italic">${esc(pb.say)}</div>`:''}
+      </div>`;
+    }
+  }
+  if(html)el.innerHTML=html;
+}
+
+function openPlaybook(id){
+  switchView('intelligence');
+  setTimeout(()=>{
+    const card=document.getElementById('pb-'+id);
+    if(card){
+      card.scrollIntoView({behavior:'smooth',block:'center'});
+      card.classList.add('pb-flash');
+      card.classList.add('pb-expanded');
+      const body=card.querySelector('.pb-body');if(body)body.style.display='block';
+      setTimeout(()=>card.classList.remove('pb-flash'),1500);
+    }
+  },300);
+}
+
+// Renders the full Sales Playbooks library grid once, into the Intelligence
+// tab. Each card is collapsed by default (summary + framework tag) and
+// expands in place on click to show the full step sequence + a ready line.
+function buildPlaybookLibrary(){
+  const grid=document.getElementById('playbookLibraryGrid');
+  if(!grid)return;
+  grid.innerHTML=Object.entries(PLAYBOOK_LIBRARY).map(([id,pb])=>`
+    <div class="card pb-card" id="pb-${id}" onclick="togglePlaybookCard('${id}')" style="cursor:pointer;border-left:3px solid ${pb.color}">
+      <div class="card-header" style="border-bottom:none;padding-bottom:4px">
+        <span style="font-size:15px">${pb.icon}</span>
+        <h3 style="font-size:11px;color:${pb.color}">${esc(pb.title)}</h3>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:6px">${esc(pb.framework)}</div>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${esc(pb.summary)}</div>
+        <div class="pb-body" style="display:none;margin-top:10px">
+          <ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">
+            ${pb.steps.map(s=>`<li style="font-size:11px;color:var(--text-primary);line-height:1.5">${esc(s)}</li>`).join('')}
+          </ol>
+          ${pb.say?`<div style="margin-top:8px;padding:8px 10px;background:${pb.color}11;border-radius:6px;font-size:11px;font-style:italic;color:var(--text-primary)">${esc(pb.say)}</div>`:''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function togglePlaybookCard(id){
+  const card=document.getElementById('pb-'+id);
+  if(!card)return;
+  const body=card.querySelector('.pb-body');
+  if(!body)return;
+  const open=body.style.display==='block';
+  body.style.display=open?'none':'block';
+  card.classList.toggle('pb-expanded',!open);
 }
 
 async function askAiCustom(){
@@ -10190,13 +10531,15 @@ async function scoreProspect(){
   var title=document.getElementById('icpTitle').value.trim();
   var company=document.getElementById('icpCompany').value.trim();
   var location=document.getElementById('icpLocation').value.trim();
+  var employees=document.getElementById('icpEmployees').value.trim();
+  var industry=document.getElementById('icpIndustry').value.trim();
   var brand=document.getElementById('icpBrand').value;
   var resultEl=document.getElementById('icpScoreResult');
   if(!title){resultEl.style.display='block';resultEl.innerHTML='<div style="color:#8c3a2f;padding:10px">Title is required</div>';return;}
   resultEl.style.display='block';
   resultEl.innerHTML='<div class="loading"><div class="spinner"></div> Scoring...</div>';
   try{
-    var res=await fetch('/api/icp/score',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({name:name,title:title,company:company,location:location,brand:brand})});
+    var res=await fetch('/api/icp/score',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({name:name,title:title,company:company,location:location,employees:employees?Number(employees):undefined,industry:industry,brand:brand})});
     var result=await res.json();
     var tierColors={A:'#5e8c45',B:'#3b3735',C:'#8a6a24',DISQUALIFIED:'#8c3a2f'};
     var tierBg={A:'rgba(52,211,153,0.15)',B:'rgba(96,165,250,0.15)',C:'rgba(251,146,60,0.15)',DISQUALIFIED:'rgba(248,113,113,0.15)'};
@@ -10206,6 +10549,10 @@ async function scoreProspect(){
     if(result.matches&&result.matches.length){
       html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Score Breakdown</div>';
       result.matches.forEach(function(m){html+='<div style="font-size:11px;color:#5e8c45;padding:2px 0">+ '+esc(m)+'</div>';});
+    }
+    if(result.firmographics&&result.firmographics.length){
+      html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin:6px 0 4px">Firmographic Fit</div>';
+      result.firmographics.forEach(function(f){var isBonus=/\(\+\d/.test(f);html+='<div style="font-size:11px;color:'+(isBonus?'#5e8c45':'#8a6a24')+';padding:2px 0">'+(isBonus?'+ ':'&#9432; ')+esc(f)+'</div>';});
     }
     if(result.rejects&&result.rejects.length){
       html+='<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin:6px 0 4px">Disqualification Reasons</div>';
