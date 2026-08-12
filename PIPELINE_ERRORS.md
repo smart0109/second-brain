@@ -250,3 +250,34 @@ architecture (a Python module that detects any external attendee domain and
 builds+deploys a page automatically) which is a materially bigger build than what
 was asked for here. Worth revisiting if Manish wants this to scale beyond a
 manually curated list.
+
+## [2026-08-12] (vorro-page-wrong-cro-name-RESOLVED) -- URGENT, prospect-facing
+Manish caught a serious error: the ICE InsureTech and Global Nursing AI Alliance
+Vorro pages (built in the vorro-page-links-added entry above) had the CTA/signoff
+attributed to the WRONG PERSON -- "Manish Chawla" on the ICE page and "Manish
+Patel" on the GNAA page. Manish's real name is Manish Agarwal.
+Root cause: when briefing the 4 parallel research agents for the vorro-vertical-pages
+single-company workflow, the agent prompts referred to him only as "Manish (CRO at
+Basis Vectors Capital...)" without ever stating his surname. The gen_partner_page.py
+profile schema requires a full name for the "signoff"/"cta_who" fields, so two of
+the four agents (ICE, GNAA) invented a plausible-sounding surname to fill the
+field instead of leaving it as "Manish" only (which is what the other two agents,
+ALA and Koning Health, correctly did -- they used "Manish" alone rather than
+guessing a surname, which is why only 2 of 4 pages had this defect).
+Fix: corrected "Manish Chawla" -> "Manish Agarwal" and "Manish Patel" -> "Manish
+Agarwal" in both profile.json files and the rendered HTML (2 occurrences each:
+signoff + cta_who), then re-deployed both pages to the SAME live GitHub Pages
+tokens (overwrite, not new URLs) so the links already shared/wired into Second
+Brain still work and now show the correct name. Verified live via direct curl:
+both /p/37d0fc35bd9b/ (ICE) and /p/a09efda4dc7a/ (GNAA) now show only "Manish
+Agarwal", zero remaining occurrences of the wrong names. Swept PIPELINE_ERRORS.md,
+SECRETS.txt, and all deploy scripts in second-brain-app/ and social-selling-deploy/
+for "Chawla" or "Manish Patel" -- none found, the error was contained to those
+two generated pages only.
+RULE GOING FORWARD: any agent brief (this skill or any other) that asks an agent
+to generate CTA/signoff/attribution text referencing Manish MUST spell out his
+full name explicitly ("Manish Agarwal, CRO, Basis Vectors Capital") in the prompt
+-- never rely on the agent inferring or guessing a surname from partial context,
+even when it seems obvious. This applies to every skill that produces
+prospect-facing collateral (vorro-vertical-pages, vorro-sales-asset,
+hiring-process-audit, and any future ones), not just this one.
