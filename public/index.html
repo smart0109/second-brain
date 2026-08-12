@@ -2151,6 +2151,12 @@ function renderMarkdown(text){
   s=s.replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #d6d3d0;margin:10px 0">');
   s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   s=s.replace(/^- (.+)$/gm,'<div style="padding:1px 0 1px 14px;position:relative"><span style="position:absolute;left:3px;color:#3b3735">&#8226;</span>$1</div>');
+  // "* item" is the other extremely common markdown bullet syntax (alongside
+  // "- item" above) and the one AI-generated summaries often use -- was
+  // rendering as a literal asterisk character before this. Safe to run after
+  // the **bold** pass above since that already consumed any real "**text**".
+  // See PIPELINE_ERRORS.md "granola-card-raw-json-RESOLVED".
+  s=s.replace(/^\* (.+)$/gm,'<div style="padding:1px 0 1px 14px;position:relative"><span style="position:absolute;left:3px;color:#3b3735">&#8226;</span>$1</div>');
   // Numbered list lines ("1. Foo", "2. Bar") -- the most common shape AI/Granola
   // answers come back in -- rendered as a wall of plain-text prose before this;
   // now styled the same as the bullet case above, just keeping the number.

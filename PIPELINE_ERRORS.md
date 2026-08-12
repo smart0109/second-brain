@@ -394,3 +394,39 @@ Verification: sha256-gated patch (2 edits, each asserted exactly 1
 occurrence). Broader page-by-page visual sweep for other raw-dump /
 unhelpful-content issues still in progress -- see follow-up log entry if
 anything else turns up.
+
+
+### granola-card-raw-json-RESOLVED (update, 2026-08-12): asterisk bullets
+Continuing the page-by-page sweep Manish asked for: the Today dashboard's
+"Weekly summary of all meetings and themes" card (Intelligence tab's Weekly
+Summary output, reused on Today) showed literal "* " asterisk characters
+instead of bullets, e.g. "* Key Meeting: ICE Tech services x CV3 on August
+4, 2026...". Same root class of bug as the raw-JSON card, different shape.
+
+Root cause: renderMarkdown() -- the single shared renderer used by ~20
+different cards/panels app-wide -- only recognized "- item" (dash) as a
+bullet marker. "* item" (asterisk) is the other extremely common markdown
+bullet syntax, and it's the one this AI summary actually used, so it fell
+through untouched and rendered as a literal asterisk instead of a bullet.
+
+Fix: added the same bullet-style treatment for "* item" lines, placed right
+after the existing "- item" rule and after the **bold** pass (so a real
+**bold** span, which already got converted to <strong> two lines earlier,
+is never mistaken for two single-asterisk bullets).
+
+Swept the rest of the app for this + the raw-JSON class of issue: Today
+dashboard (Blocking someone else / Prep for next / competitor news),
+Meetings tab (calendar + Granola lists, Prep panel), CRM (deal board +
+detail modal), ICP Finder, Follow-ups drafts, Productivity (Board +
+Memory), Legal Assets, Artifacts, Intelligence tab (company KBs, playbooks,
+Weekly Summary/Open Action Items/Deals Needing Follow-up) -- all read clean
+after this fix. One separate, unrelated finding surfaced during the sweep:
+Productivity > Memory > Key People still lists Gibran Crismatt as Vorro's
+Technical Lead, which Manish's own CLAUDE.md roster note (2026-05-27) says
+is stale (Gibran left, leads to Rashmi now) -- that's a memory-data staleness
+issue, not a front-end rendering bug, so it wasn't touched here; flagged to
+Manish to update via the memory-management tooling directly.
+
+Verification: sha256-gated patch (1 edit, exactly 1 occurrence), then
+re-verified live in-browser via Claude-in-Chrome across every page listed
+above.
