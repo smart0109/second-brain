@@ -6931,6 +6931,28 @@ function getKnowledgeString(){
   return `COMPANY: ${kb.company}\nPRODUCT: ${kb.product}\nMETRICS: ${kb.metrics||''}\nTOOLS: ${(kb.tools||[]).join('; ')}\nPRICING: ${kb.pricing||''}\nINDUSTRIES: ${kb.industries||kb.standards||''}\n\nKEY OBJECTION HANDLERS:\n${objections}`;
 }
 
+// Fast, LOCAL (no network call -- zero added latency) relevance filter: only
+// include objection handlers whose key words actually appear in the live
+// conversation, instead of dumping the whole brand KB into every prompt.
+// This is the "real research" step for explain/rebuttal/advise -- targeted
+// and grounded instead of a big list the model has to guess from, and
+// smaller (faster) than sending everything. See PIPELINE_ERRORS.md
+// "copilot-real-research-fast-RESOLVED".
+function getRelevantKnowledgeString(transcript){
+  const brand=detectBrandFromContext();
+  const kb=KNOWLEDGE_BASE[brand];
+  if(!kb)return 'No company knowledge base found.';
+  const t=(transcript||'').toLowerCase();
+  const allObjections=Object.entries(kb.objectionHandlers||{});
+  const matched=allObjections.filter(([k])=>{
+    if(t.includes(k))return true;
+    return k.split(/\s+/).filter(w=>w.length>3).some(w=>t.includes(w));
+  });
+  const chosen=matched.length?matched:allObjections.slice(0,2);
+  const objections=chosen.map(([k,v])=>`- "${k}" objection: ${v}`).join('\n');
+  return `COMPANY: ${kb.company}\nPRODUCT: ${kb.product}\nMETRICS: ${kb.metrics||''}\nTOOLS: ${(kb.tools||[]).join('; ')}\nPRICING: ${kb.pricing||''}\nINDUSTRIES: ${kb.industries||kb.standards||''}\n\nRELEVANT OBJECTION HANDLERS (matched to what's actually being discussed -- use these over generic ones when applicable):\n${objections}`;
+}
+
 // ── Live Transcription (Deepgram streaming, browser-speech fallback) ──
 let dgSocket=null, dgMediaRecorder=null, dgStreams=[], dgAudioCtx=null;
 let dgSpeakerNames={};
@@ -7740,7 +7762,7 @@ async function copilotAction(type,_opts){
   const brand=detectBrandFromContext();
   const kb=KNOWLEDGE_BASE[brand];
 
-  const fmt=`FORMAT (STRICT): Reply as 3 to 5 short, clean bullet points only. Start every line with "- ". One idea per bullet, max ~18 words each. NO headings, NO bold/markdown, NO preamble, NO sign-off. Do NOT restate the transcript and do NOT repeat or summarize past meeting notes — answer only from the LIVE conversation and the product facts provided. CRITICAL: if the live conversation is empty, a placeholder, or too generic/vague to identify a real, specific thing that was just said, reply with EXACTLY ONE bullet saying so plainly (e.g. "- Not enough live conversation captured yet — try this again once something specific is said.") and STOP THERE. Never invent a generic answer, statistic, or scenario to fill space when the live conversation doesn't actually contain one.`;
+  const fmt=`FORMAT (STRICT): Reply as 3 to 5 short, clean bullet points only. Start every line with "- ". One idea per bullet, max ~18 words each. NO headings, NO markdown EXCEPT one narrow case: wrap a genuine buying-intent/signal phrase (real interest, urgency, budget, timeline, approval/authority, a competitor name, a stated concern) in **double asterisks** if and only if that exact phrase actually appears in what was said -- never bold a whole bullet, never bold something you added yourself, and most bullets will have no bold at all. NO preamble, NO sign-off. Do NOT restate the transcript and do NOT repeat or summarize past meeting notes — answer only from the LIVE conversation and the product facts provided. CRITICAL: if the live conversation is empty, a placeholder, or too generic/vague to identify a real, specific thing that was just said, reply with EXACTLY ONE bullet saying so plainly (e.g. "- Not enough live conversation captured yet — try this again once something specific is said.") and STOP THERE. Never invent a generic answer, statistic, or scenario to fill space when the live conversation doesn't actually contain one.`;
   const sessionTone=`You are Manish's real-time meeting copilot. Be direct, specific, data-driven. Cite concrete numbers/metrics from the product knowledge when relevant.`;
   // 2026-08-06: each action below is now explicitly grounded in a named
   // framework from the Sales-Skills playbook set instead of an ad-hoc
@@ -7750,7 +7772,7 @@ async function copilotAction(type,_opts){
   const prompts={
     // Active Listening's "Replay" step (HEAR method): restate in plain words
     // before anything else, which is also how you confirm you understood it.
-    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said (this is the "Replay" step of active listening — restate before reacting). Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now.`,
+    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said (this is the "Replay" step of active listening — restate before reacting). Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now — check the account & deal research provided (real CRM/deal/past-meeting data for these specific attendees) and ground this bullet in it when relevant, not a generic guess.`,
     // LAER (Listen/Acknowledge/Explore/Respond), verified 2026-08-12 against
     // the actual installed b2b-marketing-engine skill (references/reply-handling.md,
     // "Async LAER for Email/LinkedIn" section) -- the only one of the 6 named
@@ -7763,13 +7785,13 @@ async function copilotAction(type,_opts){
     // quantify-pain do NOT appear in any installed skill's content -- they
     // remain general sales-coaching framings, not literal skill excerpts. See
     // PIPELINE_ERRORS.md "copilot-laer-skill-grounded-RESOLVED".
-    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection in the LIVE CONVERSATION. Quote or closely paraphrase the SPECIFIC objection they raised, do not generalize it into a vague category. Run true LAER order -- Listen is already done via the transcript, so: Acknowledge, then Explore, then Respond (do not respond before exploring). Bullets: one that Acknowledges the concern is reasonable using their own words (not a generic "I understand"); one that Explores with ONE clarifying question surfacing what's actually driving it (the stated objection is rarely the real one -- e.g. "too expensive" often really means "compared to what?" or "not sure it's worth it yet"); two that Respond, only after the explore question, with specific ${kb.company} data/results addressing the real concern (never a discount, never an argument); one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say right now, leading with the Explore question if the real objection is still unclear. Never argue, get defensive, or offer a discount that wasn't asked for. If no real objection is identifiable in the live conversation, use the single-bullet fallback in FORMAT instead of guessing.`,
+    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection in the LIVE CONVERSATION. Quote or closely paraphrase the SPECIFIC objection they raised, do not generalize it into a vague category. Run true LAER order -- Listen is already done via the transcript, so: Acknowledge, then Explore, then Respond (do not respond before exploring). Bullets: one that Acknowledges the concern is reasonable using their own words (not a generic "I understand"); one that Explores with ONE clarifying question surfacing what's actually driving it (the stated objection is rarely the real one -- e.g. "too expensive" often really means "compared to what?" or "not sure it's worth it yet"); two that Respond, only after the explore question, checking the account & deal research for real, this-prospect-specific proof first (a past commitment, their actual deal stage) and falling back to ${kb.company} data/results only when nothing account-specific applies (never a discount, never an argument); one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say right now, leading with the Explore question if the real objection is still unclear. Never argue, get defensive, or offer a discount that wasn't asked for. If no real objection is identifiable in the live conversation, use the single-bullet fallback in FORMAT instead of guessing.`,
     // Building-rapport's Signal Reading (positive/neutral/negative cues) +
     // active-listening's "hear the emotion, not just the words."
     tone:`${sessionTone}\n${fmt}\n\nTask: read the room using signal-reading — classify verbal and implied cues, not just the literal words. Bullets: overall signal in 1-2 words (positive/neutral/negative + why); two to three citing the exact words/phrases/pacing that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
     // Discovery's "quantify pain" + Active Listening's Replay, applied to
     // live Q&A moments rather than a scripted discovery call.
-    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a specific statement in the LIVE CONVERSATION. First, locate the exact thing they said or asked — quote or closely paraphrase it, do not guess or generalize it into a vague category like "discussion about deals". If you can identify it, bullets: one Replaying it using the SPECIFIC words/topic from the transcript (not a generic summary); two to three with the factual answer using ${kb.company} metrics/case studies that are actually RELEVANT to that specific question, quantifying impact where possible; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question that goes one layer deeper (a discovery-style probe, not a closed yes/no). If you cannot identify a real, specific question or statement in the live conversation, use the single-bullet fallback described in FORMAT instead of guessing.`,
+    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a specific statement in the LIVE CONVERSATION. First, locate the exact thing they said or asked — quote or closely paraphrase it, do not guess or generalize it into a vague category like "discussion about deals". If you can identify it, bullets: one Replaying it using the SPECIFIC words/topic from the transcript (not a generic summary); two to three with the factual answer, checking the account & deal research for this specific prospect first (their real deal stage, past commitments, prior meeting notes) and using ${kb.company} metrics/case studies only where nothing account-specific applies, quantifying impact where possible; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question that goes one layer deeper (a discovery-style probe, not a closed yes/no). If you cannot identify a real, specific question or statement in the live conversation, use the single-bullet fallback described in FORMAT instead of guessing.`,
     // Sales-psychology's status-quo equation (dissatisfaction x vision x
     // first steps must outweigh resistance) reframed as self-motivation, plus
     // closing's core philosophy as a confidence anchor.
@@ -7779,8 +7801,24 @@ async function copilotAction(type,_opts){
     humor:`${sessionTone}\n${fmt}\n\nTask: lighten the mood for a second with some clean, work-appropriate humor related to sales calls, the topic just discussed, or the current situation — genuine to what's actually happening in this call, not a generic canned joke. Bullets: one light joke or witty one-liner tied to something specific just said; one playful observation about the live conversation; one bullet starting "Say: " with a short, natural, funny-but-professional line Manish could actually say out loud to break tension or build rapport. Keep it tasteful — never at the prospect's expense.`
   };
 
-  const data=[
-    {label:'Live conversation (most recent, answer ONLY from this)',value:transcript||getFullTranscript()},
+  // explain/rebuttal/advise are grounded in REAL, already-fetched research
+  // (copilotMeetingContext: CRM records, active deals, past meeting history for
+  // these specific attendees -- computed in loadAttendeeContext but previously
+  // never sent to the model) plus a fast local relevance-filtered KB slice,
+  // instead of the whole static brand KB. Zero new network calls -- this data
+  // is already in memory from meeting setup, so nothing gets slower. Other
+  // actions (tone/motivate/humor) are unchanged. See PIPELINE_ERRORS.md
+  // "copilot-real-research-fast-RESOLVED".
+  const _liveTranscriptForData=transcript||getFullTranscript();
+  const _researchGroundedTypes={explain:1,rebuttal:1,advise:1};
+  const data=_researchGroundedTypes[type]?[
+    {label:'Live conversation (most recent, answer ONLY from this)',value:_liveTranscriptForData},
+    {label:'Attendees',value:JSON.stringify(copilotAttendeeData)},
+    {label:'Account & deal research (REAL data already pulled for these specific attendees -- CRM records, active deals, past meeting history; ground your answer in this over generic facts whenever it applies)',value:copilotMeetingContext||'No account research available for these attendees yet.'},
+    {label:'Product facts to cite (pre-filtered to what is actually relevant to the live conversation)',value:getRelevantKnowledgeString(_liveTranscriptForData)},
+    {label:'Brand',value:brand}
+  ]:[
+    {label:'Live conversation (most recent, answer ONLY from this)',value:_liveTranscriptForData},
     {label:'Attendees',value:JSON.stringify(copilotAttendeeData)},
     {label:'Product facts to cite',value:getKnowledgeString()},
     {label:'Brand',value:brand}
@@ -7826,12 +7864,21 @@ function _cleanBullets(text){
   for(let l of raw.split('\n')){
     l=l.trim(); if(!l)continue;
     l=l.replace(/^#{1,6}\s*/,'').replace(/^[-*\u2022\u2013\u2014]\s+/,'').replace(/^\d+[.)]\s+/,'');
-    l=l.replace(/\*\*(.+?)\*\*/g,'$1').replace(/__(.+?)__/g,'$1').replace(/`(.+?)`/g,'$1');
+    // Keep **bold** -- the one allowed markdown case, used only to highlight a
+    // genuine buying-intent/signal phrase (see FORMAT in copilotAction). Strip
+    // any other markdown noise the model might slip in.
+    l=l.replace(/__(.+?)__/g,'$1').replace(/`(.+?)`/g,'$1');
     l=l.trim(); if(l) out.push(l);
   }
   if(!out.length) out.push(raw.trim());
   return '<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px">'+
-    out.map(i=>`<li style="line-height:1.5;color:var(--text-primary)">${esc(i)}</li>`).join('')+'</ul>';
+    out.map(i=>`<li style="line-height:1.5;color:var(--text-primary)">${_boldEsc(i)}</li>`).join('')+'</ul>';
+}
+// Escape HTML first (model output is untrusted), THEN convert the one allowed
+// markdown marker (**text**) into <strong>. Safe order: ** contains no
+// HTML-special characters, so escaping first cannot be bypassed by it.
+function _boldEsc(s){
+  return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong style="color:var(--accent-text,#8a6a24)">$1</strong>');
 }
 
 function renderCopilotResponse(type,text){
@@ -8056,9 +8103,28 @@ async function loadCopilotStripMeeting(idx){
   // Highlight active strip item
   const strip=document.getElementById('copilotMeetingStrip');
   if(strip){strip.querySelectorAll('div[onclick]').forEach((d,i)=>{d.style.borderColor=i===idx?'var(--accent)':'var(--border)';d.style.opacity=i===idx?'1':events[i]?._tag==='past'?'0.5':'1'});}
+  // Manually switching meetings must clear the PREVIOUS meeting's live-caption
+  // buffer -- pollMeetCaptions() re-renders every 1.5s from copilotTranscriptLines
+  // regardless of which meeting is selected, so without this a stale transcript
+  // from an earlier, unrelated (possibly already-ended) meeting silently
+  // overwrites whatever loadMeetTranscriptFromDrive shows for the newly
+  // selected meeting. The automatic calendar-switch path already had this
+  // protection (restartCaptionsForMeeting / the freshMeeting flag on
+  // _startMeetCaptions) -- this manual path never got it. See
+  // PIPELINE_ERRORS.md "copilot-stale-transcript-on-meeting-switch-RESOLVED".
+  const _wasCapturingLive=!!_meetCapTimer;
+  if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
+  copilotTranscriptLines=[];
+  try{renderCopilotTranscript();}catch(e){}
   // Populate speakers + load context
   populateSpeakersFromAttendees(attendees);
   if(attendees.length)await loadAttendeeContext(attendees);
+  // If captions were actively running and this isn't a past meeting, restart
+  // them fresh (freshMeeting=true skips replaying old buffered lines) so the
+  // new meeting's live capture starts clean instead of bleeding together.
+  if(_wasCapturingLive && m._tag!=='past'){
+    await _startMeetCaptions(true);
+  }
   // Pull THIS meeting's real transcript (with speaker names) from Google Drive (Meet/Gemini),
   // falling back to Granola notes if no Drive transcript exists.
   loadMeetTranscriptFromDrive(true);
