@@ -6813,6 +6813,24 @@ let copilotLastActionType='';
 let _lastCopilotMeetingId=null;
 function _meetingKey(m){ return m?(m.id||((m.summary||'')+'|'+(m.start?.dateTime||m.start?.date||''))):null; }
 
+// Vorro prospect/partner collateral pages built via the vorro-vertical-pages
+// skill, keyed by attendee email domain (or exact email, for accounts whose
+// only known contact uses a personal address rather than a company domain).
+// loadAttendeeContext() checks incoming attendees against this map and
+// surfaces a "View prospect page" card when there's a match, instead of
+// staying silent about pages that already exist. Manually maintained for
+// now -- see PIPELINE_ERRORS.md "vorro-page-links-added".
+const VORRO_PAGE_LINKS_BY_DOMAIN = {
+  'iceinsuretech.com': {company:'ICE InsureTech', url:'https://smart0109.github.io/p/37d0fc35bd9b/'},
+  'innotelerad.com': {company:'Koning Health', url:'https://smart0109.github.io/p/c0d1970b317c/'},
+  'lung.org': {company:'American Lung Association', url:'https://smart0109.github.io/p/bc98cc97c199/'},
+};
+// Global Nursing AI Alliance's only known contact uses a personal pm.me
+// address (not a real org domain), so it's keyed by exact email instead.
+const VORRO_PAGE_LINKS_BY_EMAIL = {
+  'robylin.tweetie.diya@pm.me': {company:'Global Nursing AI Alliance', url:'https://smart0109.github.io/p/a09efda4dc7a/'},
+};
+
 // Knowledge base (embedded for zero-latency)
 const KNOWLEDGE_BASE = {
   cadient: {
@@ -8156,6 +8174,16 @@ async function loadAttendeeContext(attendees){
   const emails=attendees.map(a=>a.email).filter(Boolean);
   const names=attendees.map(a=>a.displayName||a.email?.split('@')[0]).filter(Boolean);
 
+  // Vorro prospect/partner page link, if this meeting's attendees match a
+  // known external account built via the vorro-vertical-pages skill. Checked
+  // by domain first, falling back to an exact-email match for accounts whose
+  // only known contact uses a personal address (e.g. Global Nursing AI
+  // Alliance's pm.me contact). See PIPELINE_ERRORS.md "vorro-page-links-added".
+  const _vorroLink=emails.map(e=>{
+    const d=(e.split('@')[1]||'').toLowerCase();
+    return VORRO_PAGE_LINKS_BY_DOMAIN[d]||VORRO_PAGE_LINKS_BY_EMAIL[e.toLowerCase()];
+  }).find(Boolean);
+
   // Parallel context fetch
   const promises=[];
   emails.forEach(email=>{
@@ -8214,6 +8242,9 @@ async function loadAttendeeContext(attendees){
   }
 
   copilotMeetingContext=contextStr;
+  if(_vorroLink){
+    contextHtml='<div class="copilot-ctx-card" style="border-color:var(--accent)"><div class="ccc-title">Vorro Prospect Page</div><div class="ccc-body">Personalized collateral page built for <strong>'+esc(_vorroLink.company)+'</strong>. <a href="'+esc(_vorroLink.url)+'" target="_blank" rel="noopener" style="color:var(--accent-text,#8a6a24);font-weight:600">Open page &rarr;</a></div></div>'+contextHtml;
+  }
   contextCards.innerHTML=contextHtml||'<div class="empty-state">No context data found for attendees</div>';
 }
 
