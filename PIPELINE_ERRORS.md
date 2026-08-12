@@ -281,3 +281,41 @@ full name explicitly ("Manish Agarwal, CRO, Basis Vectors Capital") in the promp
 even when it seems obvious. This applies to every skill that produces
 prospect-facing collateral (vorro-vertical-pages, vorro-sales-asset,
 hiring-process-audit, and any future ones), not just this one.
+
+
+### vorro-repo-wide-name-audit-RESOLVED (2026-08-12)
+Full-repo sweep of smart0109.github.io (948 HTML files, all historical Vorro
+collateral pages, not just this session's 4) for the same wrong-CRO-name
+defect found on the ICE and GNAA pages (see vorro-page-wrong-cro-name-RESOLVED).
+
+Method: shallow-cloned the entire repo into WSL-native /tmp (fast git grep,
+no VirtioFS), ran case-insensitive `git grep` for "manish [a-z]+" (1039 raw
+hits, 9 genuine "Manish Agarwal" -- all correct, rest were false-positive
+word-boundary matches like "Manish booking") and separately for
+"chawla|patel" (6 files hit, beyond the 2 already-fixed pages).
+
+Findings on the 6 files:
+- 014bf6ccb2be/index.html, cd53fa0d20ca/index.html (+ p/ duplicate + .txt
+  sibling), dd074c048fe7/index.html: false positives -- "patel" appeared as
+  a coincidental substring inside base64-encoded binary blobs (fonts/images),
+  not text at all.
+- 76cf2cbcdac3/index.html (+ p/ duplicate + .txt sibling): legitimate --
+  "Manish, Chief Revenue Officer, Vorro | for Umesh Patel, President/Owner"
+  -- Umesh Patel is a real prospect contact, not a Manish-name error.
+- p/fe6150b48a7c/index.html: legitimate -- "Manish, Chief Revenue Officer,
+  Vorro | for Kalpesh Patel, Co-COO, Meditab Software" -- real prospect
+  contact.
+- fc1bcdfc6e9e/index.html: legitimate -- "Attri AI... founded by CTO Ayush
+  Patel" -- unrelated background fact about a different company, not
+  Manish's name at all.
+
+Also re-ran `git grep -ic chawla` across the full repo post-fix: zero
+matches anywhere -- confirms the ICE page fix eliminated the only instance
+and no other page ever had it.
+
+Conclusion: the ICE and GNAA pages were the ONLY two pages across the
+entire 948-file repo with the wrong-CRO-name defect. Both already fixed and
+redeployed live (see vorro-page-wrong-cro-name-RESOLVED). No further action
+needed. Root cause and preventive rule (always state "Manish Agarwal, CRO,
+Basis Vectors Capital" explicitly in agent briefs, never leave the surname
+to be inferred) already logged there and applies going forward.
