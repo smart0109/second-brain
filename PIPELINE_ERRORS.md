@@ -356,3 +356,41 @@ esprima was tried instead but doesn't support this codebase's optional-
 chaining syntax at all (confirmed against a trivial `a?.b` snippet, unrelated
 to this patch) so it wasn't a usable validator here -- relying on the
 sha-gated exact-match patch mechanism plus a live in-browser check instead.
+
+
+### granola-card-raw-json-RESOLVED (2026-08-12)
+Manish flagged: the "Past Meetings (Granola)" card in the Meeting Context
+panel (AI Transcription tab / loadAttendeeContext) showed raw JSON on
+screen: `{"answer":"[8/4/2026] ICE Tech services x CV3 with ..."}` instead
+of readable text.
+
+Root cause: this file has ~6 near-identical call sites that unwrap a
+Granola/mnQuery response before rendering it (expandMeeting's "Previous
+Meeting History", the Intel tab's Granola card, etc.). Every one of them
+extracts the answer text first: `x?.answer||x?.text||JSON.stringify(x)`.
+This ONE card (loadAttendeeContext's Granola card) was copy-pasted without
+that extraction step -- it just did
+`typeof x==='string'?x:JSON.stringify(x)`, so a normal `{answer:"..."}`
+response from the query tool rendered as its raw JSON wrapper instead of
+the text inside it.
+
+Fix: added the missing `.answer||.text||.content` extraction, matching the
+other 5+ call sites, plus a guard that skips rendering the card entirely if
+what's left still looks like raw JSON (starts with `{` and ends with `}`)
+rather than showing a fallback dump.
+
+Also, separately: Manish asked for "bullets or summary" formatting and to
+check other pages for the same class of issue. The AI/Granola text in his
+example was already numbered-list prose ("1. ... 2. ... 3. ..."), and
+renderMarkdown() -- the ONE shared renderer used by ~20 different
+cards/panels across the whole app (CRM records, deal notes, AI briefs,
+action items, past meeting notes, Intel answers) -- already turned "- item"
+bullet lines into a styled list but left "1. item" numbered lines as plain
+prose. Added the same bullet-style treatment for numbered lines directly
+inside renderMarkdown(), so the fix applies everywhere it's called instead
+of needing 20 separate patches.
+
+Verification: sha256-gated patch (2 edits, each asserted exactly 1
+occurrence). Broader page-by-page visual sweep for other raw-dump /
+unhelpful-content issues still in progress -- see follow-up log entry if
+anything else turns up.

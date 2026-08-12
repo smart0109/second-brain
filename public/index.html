@@ -2151,6 +2151,11 @@ function renderMarkdown(text){
   s=s.replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #d6d3d0;margin:10px 0">');
   s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   s=s.replace(/^- (.+)$/gm,'<div style="padding:1px 0 1px 14px;position:relative"><span style="position:absolute;left:3px;color:#3b3735">&#8226;</span>$1</div>');
+  // Numbered list lines ("1. Foo", "2. Bar") -- the most common shape AI/Granola
+  // answers come back in -- rendered as a wall of plain-text prose before this;
+  // now styled the same as the bullet case above, just keeping the number.
+  // See PIPELINE_ERRORS.md "granola-card-raw-json-RESOLVED".
+  s=s.replace(/^(\d{1,2})\. (.+)$/gm,'<div style="padding:1px 0 1px 20px;position:relative"><span style="position:absolute;left:0;color:#3b3735;font-weight:600">$1.</span>$2</div>');
   s=s.replace(/\n\n/g,'<div style="height:6px"></div>');
   s=s.replace(/\n/g,'<br>');
   return s;
@@ -8267,14 +8272,21 @@ async function loadAttendeeContext(attendees){
     copilotAttendeeData.crm=crmRecords;
   }
 
-  // Granola meeting history
+  // Granola meeting history. See PIPELINE_ERRORS.md
+  // "granola-card-raw-json-RESOLVED" -- this card used to dump the raw
+  // {"answer":"..."} object on screen instead of the extracted text, the
+  // only one of several near-identical call sites in this file that missed
+  // the .answer/.text unwrap.
   const granolaIdx=emails.length*2;
   const granolaR=results[granolaIdx];
   if(granolaR&&granolaR.status==='fulfilled'&&granolaR.value){
-    const gText=typeof granolaR.value==='string'?granolaR.value:JSON.stringify(granolaR.value);
-    contextStr+=`PAST MEETING NOTES: ${gText.slice(0,500)}. `;
-    contextHtml+=`<div class="copilot-ctx-card"><div class="ccc-title">Past Meetings (Granola)</div><div class="ccc-body" style="max-height:120px;overflow-y:auto">${renderMarkdown(gText)}</div></div>`;
-    copilotAttendeeData.meetings=gText;
+    const gVal=granolaR.value;
+    const gText=typeof gVal==='string'?gVal:(gVal?.answer||gVal?.text||gVal?.content||JSON.stringify(gVal));
+    if(gText&&gText.trim()&&!/^\{.*\}$/s.test(gText.trim())){
+      contextStr+=`PAST MEETING NOTES: ${gText.slice(0,500)}. `;
+      contextHtml+=`<div class="copilot-ctx-card"><div class="ccc-title">Past Meetings (Granola)</div><div class="ccc-body" style="max-height:120px;overflow-y:auto">${renderMarkdown(gText)}</div></div>`;
+      copilotAttendeeData.meetings=gText;
+    }
   }
 
   // Active deals
