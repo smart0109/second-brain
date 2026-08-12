@@ -319,3 +319,40 @@ redeployed live (see vorro-page-wrong-cro-name-RESOLVED). No further action
 needed. Root cause and preventive rule (always state "Manish Agarwal, CRO,
 Basis Vectors Capital" explicitly in agent briefs, never leave the surname
 to be inferred) already logged there and applies going forward.
+
+
+### vorro-page-links-added (update, 2026-08-12): visibility fix
+Manish's feedback: the "Vorro Prospect Page" card was invisible in practice --
+it only rendered as one more card at the bottom of the scrollable Meeting
+Context panel on the right, below Live Coaching Feed / Suggested Assets /
+Playbook Coach, so it never appeared "on screen" without deliberate
+scrolling. He asked for it (1) on the left side or as a button, and (2) in
+the Meetings tab under the Prep button too.
+
+Fix:
+1. Added a persistent `#vorroPageBanner` element at the TOP of the left
+   column (above Ask AI, so above Live Transcript too) in the AI
+   Transcription tab -- always visible, no scrolling. Hidden by default;
+   shown/populated by the new `renderVorroBanner(link)` helper.
+2. Extracted the domain/email lookup that used to be inlined in
+   loadAttendeeContext() into a shared `getVorroLink(emails)` function so
+   both surfaces use one source of truth.
+3. loadAttendeeContext() now calls `renderVorroBanner(_vorroLink)` as soon
+   as the match is known (not gated behind the slower parallel CRM/deal
+   fetch), and the manual-meeting-switch handler calls
+   `renderVorroBanner(null)` up front so a switch to a non-matching meeting
+   clears the banner instead of leaving the previous meeting's link showing.
+4. Wired the same lookup into `expandMeeting()` (the function behind the
+   Meetings tab's "Prep" button/pill) -- computed once near the top of the
+   function (before its early-return branches for an existing Drive prep doc
+   or Gmail prep draft) as `_vorroBannerHtml`, then prepended into all three
+   of its render paths (Drive doc, Gmail draft, live-built fallback) so the
+   link shows no matter which prep path fires for that meeting.
+
+Verification: sha256-gated patch (8 edits, each asserted to match exactly 1
+occurrence) applied cleanly to the live public/index.html
+(06b9af37... -> fca029c0...). node was unavailable in WSL to --check syntax;
+esprima was tried instead but doesn't support this codebase's optional-
+chaining syntax at all (confirmed against a trivial `a?.b` snippet, unrelated
+to this patch) so it wasn't a usable validator here -- relying on the
+sha-gated exact-match patch mechanism plus a live in-browser check instead.

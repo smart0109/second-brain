@@ -1185,6 +1185,22 @@ button { text-align: left; }
             <span id="meetCapStatus" style="margin-left:auto;color:var(--text-muted)"></span>
           </div>
 
+          <!-- VORRO PROSPECT PAGE BANNER -- added 2026-08-12 per Manish's request. The
+               link originally only showed as a card buried at the bottom of the scrollable
+               Meeting Context panel and he couldn't find it there. This puts it at the very
+               top of the left column instead (always visible, no scrolling), and
+               expandMeeting() below surfaces the same link in the Meetings tab's Prep panel
+               too. Hidden by default; shown/populated by renderVorroBanner(), called from
+               loadAttendeeContext() whenever this meeting's attendees match a known account.
+               See PIPELINE_ERRORS.md "vorro-page-links-added". -->
+          <div id="vorroPageBanner" style="display:none;margin-bottom:10px">
+            <a id="vorroPageBannerLink" href="#" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px;text-decoration:none;color:var(--accent-text,#8a6a24);font-size:12px;font-weight:700">
+              <span style="font-size:14px">&#128279;</span>
+              <span id="vorroPageBannerText">Vorro Prospect Page</span>
+              <span style="margin-left:auto;font-size:11px">Open &rarr;</span>
+            </a>
+          </div>
+
           <!-- ASK AI -- moved to the left column 2026-08-12 per Manish's request, so it's
                visible without scrolling through the whole right-side coaching column. -->
           <div style="margin-bottom:10px">
@@ -5361,6 +5377,16 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   expView.style.display='block';
   const el=document.getElementById('meetingExpandedContent');
 
+  // Vorro prospect/partner page link for this meeting's attendees, if any --
+  // surfaced here too (not just the AI Transcription left-column banner) so
+  // it shows up wherever Manish opens meeting prep from, per his request.
+  // Computed up front (before the early-return branches below) so it can be
+  // prepended into all three render paths. See PIPELINE_ERRORS.md
+  // "vorro-page-links-added".
+  const _vorroEmails=(emailsStr||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const _vorroLink=getVorroLink(_vorroEmails);
+  const _vorroBannerHtml=_vorroLink?`<div style="margin-bottom:12px"><a href="${esc(_vorroLink.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:8px;text-decoration:none;color:var(--accent-text,#8a6a24);font-size:12px;font-weight:700"><span style="font-size:14px">&#128279;</span><span>Open ${esc(_vorroLink.company)} prospect page</span><span style="margin-left:auto;font-size:11px">Open &rarr;</span></a></div>`:'';
+
   // Check for pre-generated prep draft first (match by exact title, normalized title, or substring)
   const titleLow=(title||'').toLowerCase();
   const titleNorm=(titleLow||'').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
@@ -5370,7 +5396,7 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const _pdm=window._prepDocMap||{};
   const docMatch2=(window._prepDocById&&meetingId&&window._prepDocById[meetingId])||_pdm[titleLow]||_pdm[titleNorm]||null;
   if(docMatch2&&docMatch2.driveUrl){
-    el.innerHTML=`<div style="background:#eae8e6;border-radius:8px;border:1px solid rgba(52,211,153,0.3);padding:16px;margin-bottom:12px">
+    el.innerHTML=_vorroBannerHtml+`<div style="background:#eae8e6;border-radius:8px;border:1px solid rgba(52,211,153,0.3);padding:16px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:20px">&#128221;</span>
         <div><h2 style="font-size:16px;margin:0">${esc(title)}</h2>
@@ -5385,7 +5411,7 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   if(prepDraft&&prepDraft.body&&prepDraft.body.length>100){
     // Show pre-generated prep directly (no loading spinner, instant)
     const draftLink=draftUrl(prepDraft.draftId||prepDraft.id);
-    el.innerHTML=`<div style="background:#eae8e6;border-radius:8px;border:1px solid rgba(52,211,153,0.3);padding:16px;margin-bottom:12px">
+    el.innerHTML=_vorroBannerHtml+`<div style="background:#eae8e6;border-radius:8px;border:1px solid rgba(52,211,153,0.3);padding:16px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:20px">&#9989;</span>
         <div>
@@ -5431,7 +5457,7 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   const hasVorro=allEmails.some(e=>vorroTeam.includes(e))||title.toLowerCase().includes('vorro')||title.toLowerCase().includes('bridgegate')||title.toLowerCase().includes('integration')||title.toLowerCase().includes('fhir');
   const hasCV3=allEmails.some(e=>cv3Team.includes(e))||title.toLowerCase().includes('cv3')||title.toLowerCase().includes('commercev3')||title.toLowerCase().includes('ecommerce');
   const brandLabel=hasCadient?'Cadient':hasVorro?'Vorro':hasCV3?'CV3':'';
-  let html=`<div style="background:#eae8e6;border-radius:8px;border:1px solid #d6d3d0;padding:16px;margin-bottom:12px">
+  let html=_vorroBannerHtml+`<div style="background:#eae8e6;border-radius:8px;border:1px solid #d6d3d0;padding:16px;margin-bottom:12px">
     <h2 style="font-size:16px;margin-bottom:4px">${esc(title)}</h2>
     <div style="font-size:12px;color:#3b3735">${esc(dateStr)} &middot; ${esc(names.join(', '))}${companyGuess?' &middot; <strong>'+esc(companyGuess)+'</strong>':''}${brandLabel?' &middot; <span style="color:#8a6a24;font-weight:600">'+esc(brandLabel)+'</span>':''}</div>
   </div>`;
@@ -6830,6 +6856,28 @@ const VORRO_PAGE_LINKS_BY_DOMAIN = {
 const VORRO_PAGE_LINKS_BY_EMAIL = {
   'robylin.tweetie.diya@pm.me': {company:'Global Nursing AI Alliance', url:'https://smart0109.github.io/p/a09efda4dc7a/'},
 };
+// Shared lookup used by both the AI Transcription left-column banner
+// (renderVorroBanner, via loadAttendeeContext) and the Meetings tab's Prep
+// button (expandMeeting) -- keeps both surfaces in sync off one map.
+function getVorroLink(emails){
+  return (emails||[]).map(e=>{
+    const d=(e.split('@')[1]||'').toLowerCase();
+    return VORRO_PAGE_LINKS_BY_DOMAIN[d]||VORRO_PAGE_LINKS_BY_EMAIL[e.toLowerCase()];
+  }).find(Boolean);
+}
+// Shows/hides the always-visible left-column banner in the AI Transcription
+// tab. Added 2026-08-12 -- the original placement (a card buried at the
+// bottom of the scrollable Meeting Context panel) was easy to miss.
+function renderVorroBanner(link){
+  const b=document.getElementById('vorroPageBanner');
+  if(!b)return;
+  if(!link){b.style.display='none';return;}
+  const a=document.getElementById('vorroPageBannerLink');
+  const t=document.getElementById('vorroPageBannerText');
+  if(a)a.href=link.url;
+  if(t)t.textContent='Open '+link.company+' prospect page';
+  b.style.display='block';
+}
 
 // Knowledge base (embedded for zero-latency)
 const KNOWLEDGE_BASE = {
@@ -8145,6 +8193,7 @@ async function loadCopilotStripMeeting(idx){
   // manual strip-click one. See PIPELINE_ERRORS.md
   // "copilot-context-stale-on-meeting-switch-RESOLVED".
   copilotAttendeeData={};
+  renderVorroBanner(null);
   const _ccc=document.getElementById('copilotContextCards');if(_ccc)_ccc.innerHTML='';
   const _pmb=document.getElementById('preMeetingBriefCard');if(_pmb)_pmb.innerHTML='';
   // Populate speakers + load context
@@ -8179,10 +8228,8 @@ async function loadAttendeeContext(attendees){
   // by domain first, falling back to an exact-email match for accounts whose
   // only known contact uses a personal address (e.g. Global Nursing AI
   // Alliance's pm.me contact). See PIPELINE_ERRORS.md "vorro-page-links-added".
-  const _vorroLink=emails.map(e=>{
-    const d=(e.split('@')[1]||'').toLowerCase();
-    return VORRO_PAGE_LINKS_BY_DOMAIN[d]||VORRO_PAGE_LINKS_BY_EMAIL[e.toLowerCase()];
-  }).find(Boolean);
+  const _vorroLink=getVorroLink(emails);
+  renderVorroBanner(_vorroLink);
 
   // Parallel context fetch
   const promises=[];
