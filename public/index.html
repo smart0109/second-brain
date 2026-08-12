@@ -7751,10 +7751,19 @@ async function copilotAction(type,_opts){
     // Active Listening's "Replay" step (HEAR method): restate in plain words
     // before anything else, which is also how you confirm you understood it.
     explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said (this is the "Replay" step of active listening — restate before reacting). Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now.`,
-    // LAER (Listen/Acknowledge/Explore/Respond) from objection-handling, with
-    // ARC's anti-pattern guardrails (no arguing, no defensiveness, no
-    // unprompted discounting) from objection-recognition.
-    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection. Use the LAER framework. Bullets: one that Acknowledges the concern is reasonable (not a generic "I understand"); two that Respond with specific ${kb.company} data/results addressing the real concern; one that Explores with a clarifying question surfacing what's actually driving the objection; one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say now. Do not argue, get defensive, or concede/discount anything unprompted.`,
+    // LAER (Listen/Acknowledge/Explore/Respond), verified 2026-08-12 against
+    // the actual installed b2b-marketing-engine skill (references/reply-handling.md,
+    // "Async LAER for Email/LinkedIn" section) -- the only one of the 6 named
+    // frameworks in this file with real skill-sourced content. Two corrections
+    // made from that source: (1) true LAER order is Explore BEFORE Respond --
+    // the old prompt had Manish responding before exploring, which skips
+    // straight past finding the real objection; (2) "the stated objection is
+    // rarely the real one," directly from the skill. HEAR method, ARC
+    // anti-patterns, Signal Reading (below), status-quo equation, and
+    // quantify-pain do NOT appear in any installed skill's content -- they
+    // remain general sales-coaching framings, not literal skill excerpts. See
+    // PIPELINE_ERRORS.md "copilot-laer-skill-grounded-RESOLVED".
+    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection in the LIVE CONVERSATION. Quote or closely paraphrase the SPECIFIC objection they raised, do not generalize it into a vague category. Run true LAER order -- Listen is already done via the transcript, so: Acknowledge, then Explore, then Respond (do not respond before exploring). Bullets: one that Acknowledges the concern is reasonable using their own words (not a generic "I understand"); one that Explores with ONE clarifying question surfacing what's actually driving it (the stated objection is rarely the real one -- e.g. "too expensive" often really means "compared to what?" or "not sure it's worth it yet"); two that Respond, only after the explore question, with specific ${kb.company} data/results addressing the real concern (never a discount, never an argument); one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say right now, leading with the Explore question if the real objection is still unclear. Never argue, get defensive, or offer a discount that wasn't asked for. If no real objection is identifiable in the live conversation, use the single-bullet fallback in FORMAT instead of guessing.`,
     // Building-rapport's Signal Reading (positive/neutral/negative cues) +
     // active-listening's "hear the emotion, not just the words."
     tone:`${sessionTone}\n${fmt}\n\nTask: read the room using signal-reading — classify verbal and implied cues, not just the literal words. Bullets: overall signal in 1-2 words (positive/neutral/negative + why); two to three citing the exact words/phrases/pacing that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
