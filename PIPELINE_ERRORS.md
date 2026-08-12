@@ -217,3 +217,36 @@ update, confirm Ask AI is now top-left) is still worth doing to catch
 anything a byte-level check can't. Next session should pick up: Manish's
 answer on vorro-vertical-pages scope, and whether to extend Playbook
 Coach/Suggested Assets to retroactive transcript scanning.
+
+## [2026-08-12] vorro-page-links-added
+Manish's follow-up to the earlier "prep isn't created using the vorro-vertical-pages
+skill" report: identified the skill (already installed, enabled), scoped it to the
+4 real Vorro accounts on his Aug 13-14 calendar (ICE, Koning Health, American Lung
+Association, Global Nursing AI Alliance -- CV3 prospect and Trident Seafoods held
+back since they're Cadient/CV3 accounts, not Vorro, and this skill is hard-wired
+Vorro-only branding), ran the skill's single-company "bespoke partner page"
+workflow for each via 4 parallel research agents, deployed all 4 to GitHub Pages
+(smart0109/smart0109.github.io) at /p/<token>/, then wired the resulting URLs into
+Second Brain's meeting prep.
+Deployed pages (real research, no fabricated metrics -- see each agent's report for
+what was confirmed vs. flagged as unconfirmed):
+- ICE InsureTech: https://smart0109.github.io/p/37d0fc35bd9b/
+- Koning Health: https://smart0109.github.io/p/c0d1970b317c/
+- American Lung Association: https://smart0109.github.io/p/bc98cc97c199/
+- Global Nursing AI Alliance: https://smart0109.github.io/p/a09efda4dc7a/ (NOTE:
+  the org itself was confidently identified, but the specific pm.me contact
+  Manish has been emailing could not be verified against GNAA's public team page
+  -- worth a gut-check before the Aug 14 call)
+Second Brain change: added VORRO_PAGE_LINKS_BY_DOMAIN / VORRO_PAGE_LINKS_BY_EMAIL
+(public/index.html, near KNOWLEDGE_BASE) and a check inside loadAttendeeContext()
+that surfaces a "Vorro Prospect Page" card with a link when a meeting's attendees
+match a known account -- domain match for 3 of the 4, exact-email match for GNAA
+since its only known contact is a personal pm.me address, not a company domain.
+Commit: dee31db8ca23. Verified live via exact sha256 match on served index.html
+after Render's rollout (~70s this time).
+This mapping is manually maintained for now, not auto-generated -- the skill's
+meeting-prep-second-brain.md reference describes a fuller auto-generate-on-demand
+architecture (a Python module that detects any external attendee domain and
+builds+deploys a page automatically) which is a materially bigger build than what
+was asked for here. Worth revisiting if Manish wants this to scale beyond a
+manually curated list.
