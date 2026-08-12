@@ -173,3 +173,47 @@ content) via run_wsl_bash. Rule going forward: NEVER heredoc file content
 containing backticks or code identifiers over run_wsl_bash -- always route
 through a Python script file instead, matching the existing wsl-var-eating
 rule.
+
+## Session Log - 2026-08-12 (meeting-switch staleness pt.2 + Ask AI move)
+**Accomplished:** Deployed the two fixes left staged from the prior round: (1)
+`/api/brief` (Pre-Meeting Brief) now falls back Groq -> Anthropic -> Gemini
+instead of hard-requiring ANTHROPIC_API_KEY -- fixes the live "HTTP 503"
+error Manish screenshotted. (2) Meeting Context cards and the Pre-Meeting
+Brief now clear and regenerate correctly on a manual meeting switch (same
+staleness bug class as the transcript fix from earlier this session, just in
+two places that fix didn't reach). (3) Moved the Ask AI box from the bottom
+of the right coaching column to the top of the left column, per Manish's
+explicit request. All three shipped together as commit 1a8226c9e4ba
+(server.js + public/index.html), verified live via exact sha256 match on the
+served index.html and HTTP 200 on / and /api/health.
+**Pending:** (1) Manish asked about "the skill I asked for external
+companies/vorro-vertical-pages" for generating meeting prep -- grepped the
+entire codebase (public/index.html, server.js, PIPELINE_ERRORS.md) for
+"vorro-vertical-pages"/"vorro_vertical" and found zero matches; this
+integration doesn't exist anywhere yet. Asked Manish directly what he wants
+built rather than guessing/fabricating an integration. (2) Explained to
+Manish (in-chat, not yet a code change) that Playbook Coach and Suggested
+Assets are architecturally live-caption-triggered only (surfaceAssets/
+surfacePlaybooks fire exclusively from the 1.5s live-caption poll's
+topic-keyword matching) -- they don't populate from a loaded past transcript
+or on meeting selection, so being blank on a quiet/no-live-conversation
+meeting is expected, not a defect. Open question for Manish: does he want
+this extended to also scan a loaded past transcript retroactively?
+**Decisions made:** Route ALL future file-append operations with backticks/
+code identifiers through a Python script (write_file, no shell involved)
+rather than a bash heredoc over run_wsl_bash -- see the
+wsl-heredoc-backtick-strip entry above for why.
+**New rules/learnings added:** meeting-brief-no-fallback-RESOLVED,
+copilot-context-stale-on-meeting-switch-RESOLVED, ask-ai-moved-to-left-column,
+wsl-heredoc-backtick-strip (all logged above).
+**Handoff note:** Production is live on commit beedc77524cb (PIPELINE_ERRORS.md
+log commit; app code is on 1a8226c9e4ba). Browser-based visual verification
+via Claude-in-Chrome was attempted but blocked by repeated "script injection
+timed out" errors on this page even after multiple reloads/waits -- fell back
+to server-side verification (sha256 exact match + HTTP 200 health checks)
+instead, which is solid evidence the code is live and correct, but a live
+human click-through by Manish (switch meetings, confirm context cards/brief
+update, confirm Ask AI is now top-left) is still worth doing to catch
+anything a byte-level check can't. Next session should pick up: Manish's
+answer on vorro-vertical-pages scope, and whether to extend Playbook
+Coach/Suggested Assets to retroactive transcript scanning.
