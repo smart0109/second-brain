@@ -977,7 +977,7 @@ app.get('/auth/status', (req, res) => {
       google: !!process.env.GOOGLE_REFRESH_TOKEN,
       zoho: !!process.env.ZOHO_REFRESH_TOKEN,
       vorroZoho: !!process.env.VORRO_ZOHO_REFRESH_TOKEN,
-      granola: !!(process.env.GRANOLA_API_KEY || meetingsCache),
+      granola: false, // retired 2026-08-12 -- replaced by the AI Transcription capture store
       claude: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY,
     },
   });
@@ -2059,6 +2059,29 @@ function _hydrateBriefMemory() {
 // here was removed 2026-07-03. Express first-match routing meant it shadowed the
 // newer org-aware two-tier memory system further down, which is now live.
 
+// Build a text blob of past-meeting context, sourced from our own AI
+// Transcription capture store (server-side MEETING_NOTES_KEY) instead of
+// Granola (retired 2026-08-12 -- see PIPELINE_ERRORS.md granola-removed entry).
+function _meetingNotesContext(attendees, title, days) {
+  const store = kvStore.get(MEETING_NOTES_KEY, { entries: [] });
+  const since = Date.now() - (days || 30) * 24 * 60 * 60 * 1000;
+  const needles = (attendees || []).map(a => String(a).toLowerCase()).filter(Boolean);
+  const titleNeedle = (title || '').toLowerCase();
+  let entries = (store.entries || []).filter(e => e.startTs >= since);
+  if (needles.length || titleNeedle) {
+    entries = entries.filter(e => {
+      const hay = ((e.title || '') + ' ' + (e.company || '') + ' ' + (e.attendees || []).join(' ')).toLowerCase();
+      return needles.some(n => hay.includes(n)) || (titleNeedle && hay.includes(titleNeedle));
+    });
+  }
+  entries = entries.sort((a, b) => b.startTs - a.startTs).slice(0, 5);
+  return entries.map(e =>
+    `[${new Date(e.startTs).toLocaleDateString()}] ${e.title}` +
+    (e.attendees && e.attendees.length ? ' with ' + e.attendees.slice(0, 4).join(', ') : '') +
+    (e.summary ? '\n' + e.summary : '')
+  ).join('\n\n');
+}
+
 // ── Meeting Brief Generator ──────────────────────────────────────────────────
 // Reusable brief generator -- used by POST /api/brief (on-demand) and the
 // hourly pre-brief sweep below (ahead-of-time). Returns the brief text or throws.
@@ -2070,9 +2093,8 @@ async function _generateMeetingBrief({ eventId, title, startTime, attendees = []
     ? '(' + attendees.slice(0, 3).map(a => `from:${a} OR to:${a}`).join(' OR ') + ') newer_than:30d'
     : `"${title.slice(0, 40)}" newer_than:30d`;
 
-  const [emailR, granolaR] = await Promise.allSettled([
-    handleGmail('search_threads', { query: emailQuery, pageSize: 8 }),
-    handleGranola('query_granola_meetings', { query: (attendees.slice(0, 2).join(' ') || title).slice(0, 80) })
+  const [emailR] = await Promise.allSettled([
+    handleGmail('search_threads', { query: emailQuery, pageSize: 8 })
   ]);
 
   const emailCtx = emailR.status === 'fulfilled'
@@ -2082,18 +2104,16 @@ async function _generateMeetingBrief({ eventId, title, startTime, attendees = []
       }).join('\n')
     : '';
 
-  const granolaCtx = granolaR.status === 'fulfilled'
-    ? (typeof granolaR.value === 'string'
-        ? granolaR.value
-        : JSON.stringify(granolaR.value)).slice(0, 2000)
-    : '';
+  // Past-meeting context now comes from our own AI Transcription capture
+  // store (Google Meet/Teams/Zoom captions we captured), not Granola.
+  const pastNotesCtx = _meetingNotesContext(attendees, title, 60).slice(0, 2000);
 
   const prompt = [
     `Pre-meeting brief for: "${title}"`,
     `Start: ${startTime || 'soon'}`,
     `Attendees: ${attendees.join(', ') || 'unknown'}`,
     emailCtx ? `\nRecent email threads:\n${emailCtx}` : '',
-    granolaCtx ? `\nPast meeting notes:\n${granolaCtx}` : '',
+    pastNotesCtx ? `\nPast meeting notes (from AI Transcription captures):\n${pastNotesCtx}` : '',
     `\nCreate a tight brief with these sections:
 **Context** (2 sentences on what this meeting is about)
 **Objectives** (2-3 bullets: specific outcomes to achieve)

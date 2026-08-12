@@ -1886,7 +1886,75 @@ function _lsSetRaw(k,v){try{localStorage.setItem(k,v);}catch(e){_eBus.capture(e,
 // ── MCP IDs ──
 const GMAIL='mcp__9561144e-87f0-4ebc-b6ce-79cb22df9c27';
 const CAL='mcp__3df8d99f-29e6-4b72-aff5-d20c243cd8cc';
-const GRAN='mcp__71e0cfca-ad84-47ab-9d34-6b8b20c1f749';
+// ===========================================================================
+// AI Transcription meeting-notes store (replaces Granola, retired 2026-08-12).
+// Backed by GET /api/meeting-notes -- durable notes/transcripts captured from
+// the Live Captions (Meet/Teams/Zoom) pipeline. Shim functions below mimic the
+// old Granola tool shapes (list_meetings/query_granola_meetings/
+// get_meeting_transcript/get_meetings) so every call site downstream keeps
+// working unchanged.
+// ===========================================================================
+async function mnFetch(params){
+  try{
+    const qs=new URLSearchParams(params||{}).toString();
+    const r=await fetch('/api/meeting-notes'+(qs?'?'+qs:''),{credentials:'same-origin'});
+    if(!r.ok)return {entries:[]};
+    return await r.json();
+  }catch(e){return {entries:[]};}
+}
+function mnSinceForRange(range){
+  const now=Date.now();
+  if(range==='today')return now-86400000;
+  if(range==='this_week'){const d=new Date();const dow=d.getDay()||7;return now-(dow-1)*86400000;}
+  if(range==='last_week')return now-14*86400000;
+  return now-30*86400000; // last_30_days default
+}
+function mnExtractDays(q){
+  const m=/last\s+(\d+)\s+day/i.exec(q||'');
+  if(m)return parseInt(m[1],10);
+  if(/last\s+week/i.test(q||''))return 7;
+  return null;
+}
+function mnExtractPerson(q){
+  const m=/(?:with|involving)\s+([A-Z][\w.'-]+(?:\s+[A-Z][\w.'-]+)?)/.exec(q||'');
+  return m?m[1]:'';
+}
+async function mnListMeetings(opts){
+  opts=opts||{};
+  const range=opts.time_range||opts.period||'last_30_days';
+  const since=mnSinceForRange(range);
+  const d=await mnFetch({since:String(since),limit:'200'});
+  const meetings=(d.entries||[]).map(e=>({id:e.id,title:e.title,date:new Date(e.startTs).toISOString(),attendees:e.attendees||[],summary:e.summary||''}));
+  return {meetings};
+}
+async function mnQuery(opts){
+  const q=(opts&&opts.query)||'';
+  const days=mnExtractDays(q)||30;
+  const since=Date.now()-days*86400000;
+  const person=mnExtractPerson(q);
+  const params={since:String(since),limit:'20'};
+  if(person)params.company=person;
+  const d=await mnFetch(params);
+  const entries=d.entries||[];
+  if(!entries.length)return {answer:'No AI Transcription meeting notes found'+(person?' for '+person:'')+' in that window.'};
+  const answer=entries.slice(0,8).map(e=>'['+new Date(e.startTs).toLocaleDateString()+'] '+e.title+(e.attendees&&e.attendees.length?' with '+e.attendees.slice(0,4).join(', '):'')+(e.summary?'\n'+e.summary.slice(0,600):'')).join('\n\n');
+  return {answer};
+}
+async function mnGetTranscript(opts){
+  const id=(opts&&(opts.meeting_id||opts.meetingId))||'';
+  const d=await mnFetch({limit:'200',full:'1'});
+  const e=(d.entries||[]).find(x=>x.id===id||x.meetingId===id);
+  if(!e)return {error:'No transcript found for meeting '+id};
+  return {transcript:e.transcript||e.summary||'',text:e.transcript||e.summary||''};
+}
+async function mnGetMeetings(opts){
+  const ids=(opts&&opts.meeting_ids)||[];
+  const d=await mnFetch({limit:'200'});
+  let entries=d.entries||[];
+  if(ids.length)entries=entries.filter(e=>ids.includes(e.id)||ids.includes(e.meetingId));
+  const meetings=entries.map(e=>({id:e.id,title:e.title,date:new Date(e.startTs).toISOString(),attendees:e.attendees||[],summary:e.summary||''}));
+  return {meetings};
+}
 const ZOHO='mcp__ebef5225-9c03-4cba-9a7a-d6093b72e70d';
 const VORRO_ZOHO=null; // Set to Vorro Zoho MCP prefix once connected
 const DRIVE='mcp__30527659-94cd-40e2-94f3-2d183a4d50bb';
@@ -2937,7 +3005,7 @@ async function loadDashboard(){
   if(!window._socialPostingLoaded){window._socialPostingLoaded=true;loadSocialPosting().catch(e=>dbg('Social Posting failed: '+e.message,'err'));}
   // Pre-load cached meetings for calendar prep notes
   if(!window._cachedMeetings){
-    call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}).then(r=>{
+    mnListMeetings({time_range:'last_30_days'}).then(r=>{
       const parsed=parseMeetings(r);
       window._cachedMeetings=parsed;
       dbg('Cached '+parsed.length+' meetings for calendar prep','ok');
@@ -3316,7 +3384,7 @@ async function toggleThreadContext(ctxId,threadId,sender,subject,lastMsgId){
     const senderDomain=sender.split('@')[1]||'';
     const [threadR,granolaR]=await Promise.allSettled([
       call(`${GMAIL}__get_thread`,{threadId:threadId}),
-      call(`${GRAN}__query_granola_meetings`,{query:'All meetings and notes involving '+senderName+' from '+senderDomain+'. Key topics, decisions, action items, relationship context, commitments made.'}).catch(()=>null)
+      mnQuery({query:'All meetings and notes involving '+senderName+' from '+senderDomain+'. Key topics, decisions, action items, relationship context, commitments made.'}).catch(()=>null)
     ]);
 
     const thread=threadR.status==='fulfilled'?threadR.value:null;
@@ -3741,7 +3809,7 @@ async function loadContact(name,email){
     call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner,Lead_Source,Mailing_City,Mailing_State'}}),
     call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company,Lead_Source,Lead_Status'}}),
     call(`${ZOHO}__searchRecords`,{path_variables:{module:'Deals'},query_params:{word:name.split(' ')[0],fields:'Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name,Owner,Probability'}}),
-    call(`${GRAN}__query_granola_meetings`,{query:`meetings with ${name} - what was discussed, decisions made, and action items`}),
+    mnQuery({query:`meetings with ${name} - what was discussed, decisions made, and action items`}),
     call(`${DRIVE}__search_files`,{query:`fullText contains '${name.split(' ')[0]}'`,pageSize:10})
   ]);
 
@@ -4898,7 +4966,7 @@ function renderGranolaMeetings(raw,targetId){
 async function probeTranscript(notesId,meetingId){
   if(!meetingId){greyOutNotes(notesId);return;}
   try{
-    const t=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId});
+    const t=await mnGetTranscript({meeting_id:meetingId});
     const text=t?(typeof t==='string'?t:(t?.transcript||t?.text||'')):'' ;
     if(!text||text.length<20)greyOutNotes(notesId);
   }catch(e){greyOutNotes(notesId);}
@@ -4918,7 +4986,7 @@ async function toggleMeetingNotes(notesId,meetingId){
   contentEl.style.display='block';
   contentEl.innerHTML='<div class="loading" style="padding:6px"><div class="spinner"></div> Loading transcript...</div>';
   try{
-    const t=await call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId});
+    const t=await mnGetTranscript({meeting_id:meetingId});
     const text=t?(typeof t==='string'?t:(t?.transcript||t?.text||JSON.stringify(t))):'';
     if(text&&text.length>20){
       contentEl.innerHTML='<div class="notes-content">'+renderMarkdown(text.slice(0,3000))+'</div>';
@@ -4954,8 +5022,8 @@ async function toggleMeetingContext(uid,title,emailsStr,namesStr,meetingId){
   // Fetch email threads, meeting transcript, and past history in parallel
   const [emailR,transcriptR,historyR]=await Promise.allSettled([
     gmailQ?call(`${GMAIL}__search_threads`,{query:gmailQ,pageSize:5}).catch(()=>null):Promise.resolve(null),
-    call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null),
-    names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, relationship context.'}).catch(()=>null):Promise.resolve(null)
+    mnGetTranscript({meeting_id:meetingId}).catch(()=>null),
+    names.length?mnQuery({query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, relationship context.'}).catch(()=>null):Promise.resolve(null)
   ]);
 
   let html='';
@@ -5164,8 +5232,8 @@ async function loadMeetingsView(){
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+7);
   const [calR,wR,mR,prepDraftsR,prepDocsR]=await Promise.allSettled([
     call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime',pageSize:250}),
-    call(`${GRAN}__list_meetings`,{time_range:'this_week'}),
-    call(`${GRAN}__list_meetings`,{time_range:'last_30_days'}),
+    mnListMeetings({time_range:'this_week'}),
+    mnListMeetings({time_range:'last_30_days'}),
     call(`${GMAIL}__search_threads`,{query:'subject:(Prep:) newer_than:7d in:draft',pageSize:30}),
     fetch('/api/prep',{credentials:'same-origin'}).then(r=>r.ok?r.json():{entries:[]}).catch(()=>({entries:[]}))
   ]);
@@ -5342,13 +5410,13 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   // Use Granola query for meeting-specific notes (works even without meetingId)
   const granolaQuery=`Notes and summary for the meeting "${title}" with ${names.join(', ')}. Include key decisions, action items, and outcomes.`;
   const [transcriptR,meetingDetailR,historyR,emailR,crmR,driveR,granolaQueryR]=await Promise.allSettled([
-    meetingId?call(`${GRAN}__get_meeting_transcript`,{meeting_id:meetingId}).catch(()=>null):Promise.resolve(null),
-    meetingId?call(`${GRAN}__get_meetings`,{meeting_ids:[meetingId]}).catch(()=>null):Promise.resolve(null),
-    names.length?call(`${GRAN}__query_granola_meetings`,{query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, and outcomes.'}).catch(()=>null):Promise.resolve(null),
+    meetingId?mnGetTranscript({meeting_id:meetingId}).catch(()=>null):Promise.resolve(null),
+    meetingId?mnGetMeetings({meeting_ids:[meetingId]}).catch(()=>null):Promise.resolve(null),
+    names.length?mnQuery({query:'Past meetings with '+names.join(' and ')+'. Key decisions, action items, and outcomes.'}).catch(()=>null):Promise.resolve(null),
     emails.length?call(`${GMAIL}__search_threads`,{query:emails.map(e=>'from:'+e+' OR to:'+e).join(' OR ')+' newer_than:30d',pageSize:10}).catch(()=>null):Promise.resolve(null),
     names[0]?call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:names[0],per_page:5,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner'}}).catch(()=>null):Promise.resolve(null),
     companyGuess?call(`${DRIVE}__search_files`,{query:`fullText contains '${companyGuess}'`,pageSize:10}).catch(()=>null):Promise.resolve(null),
-    call(`${GRAN}__query_granola_meetings`,{query:granolaQuery}).catch(()=>null)
+    mnQuery({query:granolaQuery}).catch(()=>null)
   ]);
 
   const isExternal=domains.length>0;
@@ -6433,7 +6501,7 @@ async function runIntelSearch(){
   // Gather context from all data sources in parallel
   const [emailR,granolaR,dealR,crmR]=await Promise.allSettled([
     call(`${GMAIL}__search_threads`,{query:`${(searchTerm||q)} newer_than:30d`,pageSize:10}),
-    call(`${GRAN}__query_granola_meetings`,{query:q}),
+    mnQuery({query:q}),
     // Only run a Deal-name LIKE when we have a real keyword; conversational questions
     // pull recent open deals instead (so "deals needing follow-up" returns deals).
     call(`${ZOHO}__executeCOQLQuery`,{body:{select_query: (searchTerm && !isQuestion)
@@ -7106,7 +7174,7 @@ async function loadMeetTranscriptFromDrive(silentFallback){
 
 async function _meetTranscriptFallback(m, silent, msg){
   try{
-    const gR=await call(`${GRAN}__query_granola_meetings`,{query:'Meeting: '+((m&&m.summary)||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
+    const gR=await mnQuery({query:'Meeting: '+((m&&m.summary)||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
     const gText=typeof gR==='string'?gR:(gR&&(gR.answer||gR.text||gR.content))||'';
     const tEl=document.getElementById('copilotTranscript');
     if(gText&&gText.length>20){ if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "${esc((m&&m.summary)||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`; return; }
@@ -8002,7 +8070,7 @@ async function loadAttendeeContext(attendees){
     promises.push(call(`${ZOHO}__searchRecords`,{path_variables:{module:'Leads'},query_params:{email:email,fields:'Full_Name,Email,Title,Phone,Company,Lead_Source,Lead_Status'}}).catch(()=>null));
   });
   if(names.length){
-    promises.push(call(`${GRAN}__query_granola_meetings`,{query:`Summary of past meetings with ${names.join(' and ')}. Key decisions, action items, and relationship context.`}).catch(()=>null));
+    promises.push(mnQuery({query:`Summary of past meetings with ${names.join(' and ')}. Key decisions, action items, and relationship context.`}).catch(()=>null));
   }
   // Deals
   promises.push(call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' order by Amount desc limit 20`}}).catch(()=>null));
@@ -8463,7 +8531,7 @@ async function searchCopilotProspect(){
   const [crmR,emailR,granolaR]=await Promise.allSettled([
     call(`${ZOHO}__searchRecords`,{path_variables:{module:'Contacts'},query_params:{word:q,per_page:5,fields:'Full_Name,Email,Title,Phone,Company_Name,Owner'}}),
     call(`${GMAIL}__search_threads`,{query:q+' newer_than:30d',pageSize:5}),
-    call(`${GRAN}__query_granola_meetings`,{query:'All meetings and discussions with '+q+'. Key points, decisions, action items.'})
+    mnQuery({query:'All meetings and discussions with '+q+'. Key points, decisions, action items.'})
   ]);
 
   const contacts=(crmR.status==='fulfilled'?(crmR.value?.data||[]):[]);
@@ -8529,8 +8597,8 @@ async function loadCopilotMeetingFromFilter(){
     if(tEl)tEl.innerHTML='<div class="loading"><div class="spinner"></div> Loading meeting notes...</div>';
     let loaded=false;
     const [transcriptR,granolaR]=await Promise.allSettled([
-      meeting.id?call(`${GRAN}__get_meeting_transcript`,{meeting_id:meeting.id}).catch(()=>null):Promise.resolve(null),
-      call(`${GRAN}__query_granola_meetings`,{query:'Notes and summary for meeting: '+(meeting.title||'recent meeting')+'. Key decisions, action items, and outcomes.'}).catch(()=>null)
+      meeting.id?mnGetTranscript({meeting_id:meeting.id}).catch(()=>null):Promise.resolve(null),
+      mnQuery({query:'Notes and summary for meeting: '+(meeting.title||'recent meeting')+'. Key decisions, action items, and outcomes.'}).catch(()=>null)
     ]);
     if(transcriptR.status==='fulfilled'&&transcriptR.value){
       const t=transcriptR.value;
@@ -8566,7 +8634,7 @@ async function populateCopilotMeetings(){
     ((r&&r.files)||[]).forEach(f=>opts.push({src:'drive',id:f.id,title:f.title,date:f.modifiedTime||'',parts:''}));
   }catch(e){}
   try{
-    const gr=await call(`${GRAN}__list_meetings`,{time_range:'last_30_days'});
+    const gr=await mnListMeetings({time_range:'last_30_days'});
     parseMeetings(gr).forEach(m=>opts.push({src:'granola',id:m.id,title:m.title,date:m.date,parts:m.parts}));
   }catch(e){}
   const seen=new Set();
@@ -8674,7 +8742,7 @@ async function loadEmailTasks(){
 
 async function loadGranolaTasks(){
   try{
-    const r=await call(`${GRAN}__query_granola_meetings`,{query:'Action items and follow-ups from meetings in the last 3 days. List each task separately.'});
+    const r=await mnQuery({query:'Action items and follow-ups from meetings in the last 3 days. List each task separately.'});
     if(r){
       const text=typeof r==='string'?r:JSON.stringify(r);
       // Use AI to parse action items
@@ -8887,7 +8955,7 @@ async function loadWeeklyReview(){
     const [calR,emailR,granR,dealsR]=await Promise.allSettled([
       call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
       call(`${GMAIL}__search_threads`,{query:'newer_than:7d',pageSize:50}),
-      call(`${GRAN}__list_meetings`,{period:'this_week'}),
+      mnListMeetings({period:'this_week'}),
       call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Deal_Name,Stage,Amount,Modified_Time from Deals where Modified_Time >= '${weekStart.toISOString().slice(0,10)}' order by Modified_Time desc limit 30`}})
     ]);
     const events=calR.status==='fulfilled'?(calR.value?.events||[]):[];
@@ -9218,7 +9286,7 @@ async function loadMemoryView(){
 
   // Recent decisions from Granola
   try{
-    const r=await call(`${GRAN}__query_granola_meetings`,{query:'Key decisions made in the last 7 days. Strategy decisions, architecture choices, business commitments.'});
+    const r=await mnQuery({query:'Key decisions made in the last 7 days. Strategy decisions, architecture choices, business commitments.'});
     if(r){
       const text=typeof r==='string'?r:JSON.stringify(r);
       const parsed=await ask('Extract the top 5 most important business decisions from these meeting notes. Return as JSON array: [{"decision":"...","date":"...","context":"who/what meeting"}]. ONLY valid JSON.',
@@ -9304,7 +9372,7 @@ async function prodScanActivity(){
     const [emailR,calR,granolaR]=await Promise.allSettled([
       call(`${GMAIL}__search_threads`,{query:'is:inbox newer_than:3d',pageSize:20}),
       call(`${CAL}__list_events`,{startTime:new Date(Date.now()-3*86400000).toISOString(),endTime:new Date(Date.now()+7*86400000).toISOString(),timeZone:'America/New_York'}),
-      call(`${GRAN}__query_granola_meetings`,{query:'All action items, follow-ups, commitments, deadlines from the last 5 days. Include who is responsible and any dates mentioned.'})
+      mnQuery({query:'All action items, follow-ups, commitments, deadlines from the last 5 days. Include who is responsible and any dates mentioned.'})
     ]);
 
     // Use AI to extract action items from all sources
