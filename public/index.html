@@ -1184,6 +1184,17 @@ button { text-align: left; }
             <span style="color:var(--text-secondary)">One-time: paste this code into the Meet Captions extension. It never changes, so you won't need to do it again. Then just turn on captions (CC) in Meet.</span>
             <span id="meetCapStatus" style="margin-left:auto;color:var(--text-muted)"></span>
           </div>
+
+          <!-- ASK AI -- moved to the left column 2026-08-12 per Manish's request, so it's
+               visible without scrolling through the whole right-side coaching column. -->
+          <div style="margin-bottom:10px">
+            <div class="section-header">Ask AI</div>
+            <div style="display:flex;gap:6px">
+              <input id="askAiInput" type="text" placeholder="Ask anything about this meeting, prospect, or deal..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);font-size:12px;outline:none" onkeydown="if(event.key==='Enter')askAiCustom()">
+              <button onclick="askAiCustom()" style="padding:8px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Ask</button>
+            </div>
+          </div>
+
           <div class="section-header">Live Transcript</div>
           <div id="copilotTranscript" class="copilot-transcript">
             <div class="empty-state">Type or paste meeting conversation below to get real-time AI analysis, rebuttals, and coaching.</div>
@@ -1275,15 +1286,6 @@ button { text-align: left; }
             </div>
             <div id="coachingFeed" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg-card)">
               <div class="empty-state" style="padding:16px;font-size:11px">Enable Auto-Coach to get real-time rebuttals, suggested talking points, and content recommendations as the conversation progresses.</div>
-            </div>
-          </div>
-
-          <!-- ASK AI -->
-          <div style="margin-top:10px">
-            <div class="section-header">Ask AI</div>
-            <div style="display:flex;gap:6px">
-              <input id="askAiInput" type="text" placeholder="Ask anything about this meeting, prospect, or deal..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);font-size:12px;outline:none" onkeydown="if(event.key==='Enter')askAiCustom()">
-              <button onclick="askAiCustom()" style="padding:8px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Ask</button>
             </div>
           </div>
 
@@ -8116,9 +8118,25 @@ async function loadCopilotStripMeeting(idx){
   if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
   copilotTranscriptLines=[];
   try{renderCopilotTranscript();}catch(e){}
+  // The CRM/deal context cards and the pre-meeting brief had the exact same
+  // staleness problem as the transcript above: neither was cleared or
+  // regenerated on a manual meeting switch, so both kept showing the
+  // PREVIOUS meeting's data. preMeetingBriefCard in particular was never
+  // even asked to regenerate here -- _maybeGeneratePreBrief() was only wired
+  // into the automatic calendar-switch and initial-load paths, never this
+  // manual strip-click one. See PIPELINE_ERRORS.md
+  // "copilot-context-stale-on-meeting-switch-RESOLVED".
+  copilotAttendeeData={};
+  const _ccc=document.getElementById('copilotContextCards');if(_ccc)_ccc.innerHTML='';
+  const _pmb=document.getElementById('preMeetingBriefCard');if(_pmb)_pmb.innerHTML='';
   // Populate speakers + load context
   populateSpeakersFromAttendees(attendees);
-  if(attendees.length)await loadAttendeeContext(attendees);
+  if(attendees.length){
+    await loadAttendeeContext(attendees);
+  } else {
+    const _ccc2=document.getElementById('copilotContextCards');if(_ccc2)_ccc2.innerHTML='<div class="empty-state">No context data found for attendees</div>';
+  }
+  _maybeGeneratePreBrief(m,attendees);
   // If captions were actively running and this isn't a past meeting, restart
   // them fresh (freshMeeting=true skips replaying old buffered lines) so the
   // new meeting's live capture starts clean instead of bleeding together.

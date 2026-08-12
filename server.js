@@ -2086,8 +2086,9 @@ function _meetingNotesContext(attendees, title, days) {
 // Reusable brief generator -- used by POST /api/brief (on-demand) and the
 // hourly pre-brief sweep below (ahead-of-time). Returns the brief text or throws.
 async function _generateMeetingBrief({ eventId, title, startTime, attendees = [], userId }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
+  if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    throw new Error('No AI provider configured (need GROQ_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY)');
+  }
 
   const emailQuery = attendees.length
     ? '(' + attendees.slice(0, 3).map(a => `from:${a} OR to:${a}`).join(' OR ') + ') newer_than:30d'
@@ -2124,24 +2125,30 @@ async function _generateMeetingBrief({ eventId, title, startTime, attendees = []
 Under 200 words total. Manish reads this in under 60 seconds.`
   ].filter(Boolean).join('\n');
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 800,
-      system: "You are Manish's executive assistant. Manish is CRO at Basis Vectors Capital managing Cadient (AI hiring platform) and Vorro (healthcare integration). Be direct, specific, no fluff.",
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-
-  if (!resp.ok) throw new Error(`Claude API error: ${resp.status}`);
-  const result = await resp.json();
-  const brief = result.content?.[0]?.text || '';
+  // Provider fallback, same order as /api/ask: Groq (free, fast) -> Anthropic
+  // (paid) -> Gemini (free). This used to hard-require ANTHROPIC_API_KEY with
+  // a raw single-provider fetch and no fallback at all -- so pre-meeting
+  // briefs always 503'd whenever that one key wasn't set/valid, even though
+  // the rest of the app's AI calls kept working fine via Groq the whole time.
+  // See PIPELINE_ERRORS.md "meeting-brief-no-fallback-RESOLVED".
+  const briefSystemPrompt = "You are Manish's executive assistant. Manish is CRO at Basis Vectors Capital managing Cadient (AI hiring platform) and Vorro (healthcare integration). Be direct, specific, no fluff.";
+  const briefProviders = [
+    { name: 'Groq', fn: () => askGroq(briefSystemPrompt, prompt, 800) },
+    { name: 'Anthropic', fn: () => askAnthropic(briefSystemPrompt, prompt, 800) },
+    { name: 'Gemini', fn: () => askGemini(briefSystemPrompt, prompt, 800) },
+  ];
+  let brief = '';
+  let briefLastErr = null;
+  for (const p of briefProviders) {
+    try {
+      const result = await p.fn();
+      if (result) { console.log(`Meeting brief served by ${p.name}`); brief = result; break; }
+    } catch (err) {
+      briefLastErr = err;
+      console.warn(`Meeting brief: ${p.name} failed: ${err.message}`);
+    }
+  }
+  if (!brief) throw new Error(briefLastErr ? `All AI providers failed: ${briefLastErr.message}` : 'All AI providers failed or returned empty');
 
   // Auto-store brief in memory (unchanged behavior from the old inline route)
   const uid = userId || process.env.ALLOWED_EMAIL || 'manish';
@@ -2159,7 +2166,7 @@ Under 200 words total. Manish reads this in under 60 seconds.`
 app.post('/api/brief', requireAuth, async (req, res) => {
   const { eventId, attendees = [], title, startTime } = req.body;
   if (!title) return res.status(400).json({ error: 'title required' });
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  if (!process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) return res.status(503).json({ error: 'No AI provider configured' });
 
   try {
     const brief = await _generateMeetingBrief({
