@@ -2941,6 +2941,71 @@ app.post('/api/memory/backups/:index/restore', requireAuth, (req, res) => {
   res.json({ success: true, org: orgId, restored_from: snaps[idx].created_at, size: snaps[idx].snapshot.length });
 });
 
+
+// ============================================================
+// Research Notes -- durable notes/research library (own store key)
+// ============================================================
+const NOTES_KEY = 'research_notes';
+
+app.get('/api/notes', requireAuth, (req, res) => {
+  const notes = kvStore.get(NOTES_KEY, []);
+  const list = notes.slice().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).map(n => ({
+    id: n.id, title: n.title, tags: n.tags || [], source_url: n.source_url || '',
+    created_at: n.created_at, updated_at: n.updated_at, excerpt: (n.content || '').slice(0, 220)
+  }));
+  res.json({ notes: list, total: list.length });
+});
+
+app.get('/api/notes/:id', requireAuth, (req, res) => {
+  const notes = kvStore.get(NOTES_KEY, []);
+  const note = notes.find(n => n.id === req.params.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  res.json({ note });
+});
+
+app.post('/api/notes', requireAuth, (req, res) => {
+  const { title, content, tags, source_url } = req.body || {};
+  if (!title || !content) return res.status(400).json({ error: 'title and content are required' });
+  const notes = kvStore.get(NOTES_KEY, []);
+  const now = new Date().toISOString();
+  const note = {
+    id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+    title, content,
+    tags: Array.isArray(tags) ? tags : (tags ? String(tags).split(',').map(t => t.trim()).filter(Boolean) : []),
+    source_url: source_url || '',
+    created_by: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown',
+    created_at: now, updated_at: now
+  };
+  notes.push(note);
+  kvStore.set(NOTES_KEY, notes);
+  res.json({ success: true, note });
+});
+
+app.put('/api/notes/:id', requireAuth, (req, res) => {
+  const notes = kvStore.get(NOTES_KEY, []);
+  const idx = notes.findIndex(n => n.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Note not found' });
+  const { title, content, tags, source_url } = req.body || {};
+  const note = notes[idx];
+  if (title !== undefined) note.title = title;
+  if (content !== undefined) note.content = content;
+  if (tags !== undefined) note.tags = Array.isArray(tags) ? tags : String(tags).split(',').map(t => t.trim()).filter(Boolean);
+  if (source_url !== undefined) note.source_url = source_url;
+  note.updated_at = new Date().toISOString();
+  notes[idx] = note;
+  kvStore.set(NOTES_KEY, notes);
+  res.json({ success: true, note });
+});
+
+app.delete('/api/notes/:id', requireAuth, (req, res) => {
+  const notes = kvStore.get(NOTES_KEY, []);
+  const idx = notes.findIndex(n => n.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Note not found' });
+  const [removed] = notes.splice(idx, 1);
+  kvStore.set(NOTES_KEY, notes);
+  res.json({ success: true, removed });
+});
+
 // GET /api/audit-log — admin: full exhaustive log
 app.get('/api/audit-log', requireAuth, (req, res) => {
   const uid = _uid(req), orgId = _org(req);

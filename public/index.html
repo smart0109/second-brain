@@ -722,6 +722,7 @@ button { text-align: left; }
 
     <div class="sidebar-group-title">Market &amp; Distribution</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="font-weight:600">Artifacts</div>
+    <div class="tab" data-view="notes" data-org="sales" onclick="switchView('notes')" style="font-weight:600">Notes</div>
     <!-- Intelligence is reachable from Marketing's own sidebar entry, and from
          Sales via the AI Transcription > Intelligence sub-tab (see view-copilot). -->
     <div class="tab" data-view="intelligence" data-org="marketing" onclick="switchView('intelligence')" style="display:none">Intelligence</div>
@@ -1629,6 +1630,28 @@ button { text-align: left; }
         </div>
       </div>
       <div id="artifactsContent"><div class="loading"><div class="spinner"></div><br>Loading artifacts...</div></div>
+    </div>
+
+    <!-- RESEARCH NOTES -->
+    <div id="view-notes" class="view">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <h2 style="font-size:16px;font-weight:700;flex:1;color:#3b3735">Research Notes</h2>
+        <button class="prod-btn primary" onclick="toggleNoteForm()" style="background:#3b3735;border-color:#3b3735;color:#fff">+ New Note</button>
+      </div>
+      <div id="noteFormPanel" class="card" style="display:none;margin-bottom:14px">
+        <div class="card-body" style="padding:14px;display:grid;gap:8px">
+          <input type="text" id="noteTitleInput" placeholder="Title" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit">
+          <input type="text" id="noteTagsInput" placeholder="Tags (comma separated)" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit">
+          <input type="text" id="noteSourceInput" placeholder="Source URL (optional)" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit">
+          <textarea id="noteContentInput" rows="8" placeholder="Note content (markdown ok)" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+          <div style="display:flex;gap:8px">
+            <button class="prod-btn primary" onclick="saveNote()" style="background:#3b3735;border-color:#3b3735;color:#fff">Save Note</button>
+            <button class="prod-btn" onclick="toggleNoteForm()">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="notesContent"><div class="loading"><div class="spinner"></div><br>Loading notes...</div></div>
+      <div id="noteDetailPanel" style="display:none"></div>
     </div>
 
     <!-- NEWS FEED -->
@@ -2983,6 +3006,7 @@ function switchView(v){
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
   if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
   if(v==='artifacts'&&!window._artifactsLoaded)safeLoad(loadArtifacts,'Artifacts');
+  if(v==='notes'&&!window._notesLoaded)safeLoad(loadNotes,'Notes');
   // Marketing views
   if(v==='mktCampaigns'&&!window._mktCampaignsLoaded){window._mktCampaignsLoaded=true;safeLoad(loadMktCampaigns,'Campaigns');}
   if(v==='mktLeads'&&!window._mktLeadsLoaded){window._mktLeadsLoaded=true;safeLoad(loadMktLeads,'Lead Analytics');}
@@ -10349,6 +10373,87 @@ const ARTIFACTS_DATA={
     ]
   }
 };
+
+let _notesCache=[];
+async function loadNotes(){
+  dbg('loadNotes() started');
+  window._notesLoaded=true;
+  const r=await fetch('/api/notes',{credentials:'same-origin'});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const data=await r.json();
+  _notesCache=data.notes||[];
+  renderNotesList();
+  dbg('loadNotes() done','ok');
+}
+function renderNotesList(){
+  const el=document.getElementById('notesContent');
+  if(!el)return;
+  if(!_notesCache.length){el.innerHTML='<div class="empty-state" style="padding:24px;color:var(--text-secondary)">No notes yet. Click "+ New Note" to add one.</div>';return;}
+  let html='<div style="display:grid;gap:10px">';
+  for(const n of _notesCache){
+    const tags=(n.tags||[]).map(t=>'<span style="display:inline-block;background:rgba(232,121,249,0.15);color:#3b3735;border-radius:4px;padding:2px 8px;font-size:10px;margin-right:4px">'+esc(t)+'</span>').join('');
+    html+='<div class="card" style="cursor:pointer" onclick="viewNote(\''+n.id+'\')"><div class="card-body" style="padding:12px 14px">';
+    html+='<div style="font-weight:700;font-size:13px;color:#3b3735;margin-bottom:4px">'+esc(n.title)+'</div>';
+    html+='<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">'+esc(n.excerpt)+(n.excerpt&&n.excerpt.length>=220?'...':'')+'</div>';
+    html+='<div style="display:flex;align-items:center;justify-content:space-between">';
+    html+='<div>'+tags+'</div>';
+    html+='<div style="font-size:10px;color:var(--text-secondary)">'+new Date(n.updated_at).toLocaleDateString()+'</div>';
+    html+='</div></div></div>';
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
+async function viewNote(id){
+  const r=await fetch('/api/notes/'+encodeURIComponent(id),{credentials:'same-origin'});
+  if(!r.ok){dbg('viewNote failed','err');return;}
+  const data=await r.json();
+  const n=data.note;
+  const panel=document.getElementById('noteDetailPanel');
+  const listEl=document.getElementById('notesContent');
+  if(!panel||!n)return;
+  const tags=(n.tags||[]).map(t=>'<span style="display:inline-block;background:rgba(232,121,249,0.15);color:#3b3735;border-radius:4px;padding:2px 8px;font-size:10px;margin-right:4px">'+esc(t)+'</span>').join('');
+  let html='<div class="card"><div class="card-body" style="padding:16px">';
+  html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h3 style="font-size:15px;font-weight:700;flex:1;color:#3b3735">'+esc(n.title)+'</h3><button class="prod-btn" onclick="closeNoteDetail()">Close</button><button class="prod-btn" onclick="deleteNote(\''+n.id+'\')" style="color:#8c3a2f">Delete</button></div>';
+  html+='<div style="margin-bottom:10px">'+tags+'</div>';
+  if(n.source_url)html+='<div style="margin-bottom:10px;font-size:11px"><a href="'+esc(n.source_url)+'" target="_blank" rel="noopener">'+esc(n.source_url)+'</a></div>';
+  html+='<div style="white-space:pre-wrap;font-size:12px;line-height:1.6;color:#3b3735">'+esc(n.content)+'</div>';
+  html+='</div></div>';
+  panel.innerHTML=html;
+  panel.style.display='block';
+  if(listEl)listEl.style.display='none';
+}
+function closeNoteDetail(){
+  const panel=document.getElementById('noteDetailPanel');
+  const listEl=document.getElementById('notesContent');
+  if(panel)panel.style.display='none';
+  if(listEl)listEl.style.display='block';
+}
+async function deleteNote(id){
+  if(!confirm('Delete this note?'))return;
+  const r=await fetch('/api/notes/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin'});
+  if(r.ok){closeNoteDetail();await loadNotes();}
+}
+function toggleNoteForm(){
+  const panel=document.getElementById('noteFormPanel');
+  if(!panel)return;
+  panel.style.display=panel.style.display==='none'?'block':'none';
+}
+async function saveNote(){
+  const title=(document.getElementById('noteTitleInput')||{}).value||'';
+  const content=(document.getElementById('noteContentInput')||{}).value||'';
+  const tags=(document.getElementById('noteTagsInput')||{}).value||'';
+  const source_url=(document.getElementById('noteSourceInput')||{}).value||'';
+  if(!title.trim()||!content.trim()){alert('Title and content are required');return;}
+  const r=await fetch('/api/notes',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,tags,source_url})});
+  if(r.ok){
+    document.getElementById('noteTitleInput').value='';
+    document.getElementById('noteContentInput').value='';
+    document.getElementById('noteTagsInput').value='';
+    document.getElementById('noteSourceInput').value='';
+    toggleNoteForm();
+    await loadNotes();
+  }else{alert('Failed to save note');}
+}
 
 async function loadArtifacts(){
   dbg('loadArtifacts() started');
