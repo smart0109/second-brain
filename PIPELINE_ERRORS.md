@@ -430,3 +430,25 @@ Manish to update via the memory-management tooling directly.
 Verification: sha256-gated patch (1 edit, exactly 1 occurrence), then
 re-verified live in-browser via Claude-in-Chrome across every page listed
 above.
+
+
+### key-people-stale-roster-RESOLVED (2026-08-12)
+Manish flagged during the page-quality sweep: Productivity > Memory > Key
+People listed "Gibran Crismatt -- Technical Lead @ Vorro (Weekly)". Per
+Manish's own global CLAUDE.md roster note (2026-05-27): "Gibran left Vorro
+(leads to Rashmi)" -- this was stale org data being shown as current fact.
+
+Found the source: hardcoded in public/index.html's `people` array (the data
+behind the Key People card), NOT in server.js and NOT in the mem0/company-
+memory API (a separate, unrelated memory system). Confirmed the successor's
+full name against social-selling-deploy/configs/team-config.json -- Rashmi
+Kanjwani, rkanjwani@vorro.net.
+
+Fix: swapped the name only (Gibran Crismatt -> Rashmi Kanjwani), kept
+"Technical Lead @ Vorro (Weekly)" as-is -- team-config.json's "role" field
+for both people is a generic CRM routing tag ("BDR"), not the descriptive
+job-title convention this array uses elsewhere, and no replacement title was
+given; "leads to Rashmi" reads as her inheriting the same responsibility.
+
+Verification: sha256-gated patch (1 edit, exactly 1 occurrence), deployed
+and confirmed live.
