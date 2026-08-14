@@ -587,3 +587,116 @@ handoff instructions.
 deploy output / GitHub main). Verify at second-brain-iida.onrender.com that
 the served index.html contains 'legalBasePanel' after Render's auto-deploy
 completes.
+
+### qa-followup-fixes (update, 2026-08-14): two post-deploy QA fixes
+
+**Context:** After the 2026-08-14 df9604ee deploy, a second independent QA pass
+(cloud Cowork session, 143 assertions incl. live server boot + extracted-function
+tests) found two bugs the first QA missed. Both fixed in public/index.html only;
+server.js and content.js unchanged from df9604ee.
+
+1. **legal-fillbase-placeholder-leak (RESOLVED):** `legalFillBase()` fell back to
+   the literal placeholder string when a prospect address (or other field) was
+   blank, so generated/previewed legal docs — and the base block injected into the
+   AI prompt — contained raw `{{PROSPECT_ADDRESS}}`. Fix: final sweep
+   `.replace(/\{\{[A-Z_]+\}\}/g,'________________')` converts any unresolved token
+   into a visible fill-in blank (legal-doc convention).
+
+2. **meetings-week-utc-day-bucketing (RESOLVED):** `loadMeetingsView()` bucketed
+   events and day headers with `toISOString().slice(0,10)` (UTC), so a 10pm-ET
+   meeting rendered under the NEXT day's header, and an evening event on day 7 of
+   the rolling window vanished. Fix: `_localDayKey()` (local Y-M-D) used for both
+   event keys and day headers; bare `YYYY-MM-DD` all-day dates passed through
+   untouched (parsing them would shift a day in negative-UTC zones).
+
+**Verification:** node --check on server.js/content.js + both extracted inline
+script blocks OK; jsdom container checks OK; 143/143 QA assertions green after
+fixes; repro cases (blank address → blanks not tokens; 22:00 ET event → correct
+local day header) covered by the qa harness in the cloud session.
+
+
+## [2026-08-14] (home-awaiting-reply-revenue-held): Item 11 part 1 (B1+B2+F1+F2,
+approved by Manish). The home page's "awaiting your reply" banner was guesswork:
+a hardcoded 7-address VIP list queried client-side with `older_than:5d`, so
+non-VIP threads never surfaced and nothing was revenue-aware. Rebuilt server-side:
+new GET /api/home/awaiting-reply pulls recent inbox threads via the existing
+handleGmail search lane and keeps only threads whose LATEST non-draft message is
+inbound (sender not in ALLOWED_EMAILS, not SENT-labeled, bulk/no-reply senders
+filtered) - real B1 detection over the whole inbox. B2: the endpoint joins those
+threads to open deals (Cadient Zoho COQL via handleZoho + Vorro India-DC COQL,
+same query as /api/crm/vorro/deals) with a conservative matcher (sender domain
+root vs Account/Deal name, contact-name match, account-in-subject) and returns
+per-thread deal amounts plus a deduped totalHeld; the banner now shows "$ held"
+overall and per-thread badges, and band1Sub gets the total. F1: new GET
+/api/home/followups (starred threads + unsent drafts via existing search_threads
+/ list_drafts ops, graceful per-lane errors) rendered as a "Follow-ups" card in
+band 3. F2: follow-up items reuse the existing toggleThreadContext AI-draft lane;
+fixed the long-standing threadId bug in createDraftFromThread - it sent only
+replyToMessageId, which the server's create_draft ignores (it destructures
+threadId), so "reply" drafts were created detached from their thread. One added
+line passes threadId so drafts attach + get proper reply headers/quoting. F3 was
+mentioned in the original investigation but never specified in surviving notes -
+SKIPPED, explicitly out of scope this session.
+
+## [2026-08-14] (icp-finder-hybrid-bridge): Item 11 part 2 (approved hybrid
+rebuild). The ICP Finder's headline stats were hardcoded ('19,843' etc.) and the
+page had no view of the actual scored prospect universe living in the Windows
+pipeline's prospects.db. Built the hybrid bridge cloned from the social-bridge
+pattern: server.js gains /api/icp/prospects POST (bridgeGuard: same
+SOCIAL_BRIDGE_TOKEN x-bridge-token mechanism, no new secrets) storing a
+normalized snapshot in kvStore key 'icp-prospects' (fields capped/trimmed,
+max 2000), GET (requireAuth, optional ?brand= filter, score-sorted) and the same
+refresh handshake social-bridge uses (POST /refresh requireAuth, GET /refresh +
+POST /refresh/done bridgeGuard; a successful push auto-completes a pending
+request). Frontend: ICP Finder view rebuilt around ranked signal cards
+(name/title/company, score, tier, brand chip, and intent-signal chips: KOL/
+competitor engagement, intent post w/ hover text, current ATS, open jobs,
+hiring/new-role/open-to-work) with brand + tier filters and a Request-refresh
+button; universe stats now come from the pushed snapshot's stats block; the old
+score-form/CRM-find/personas sections were kept below the new hero section since
+their endpoints still work. Windows side: social-selling-deploy/
+push_icp_prospects.py (sb_social_bridge.py conventions: env-then-SECRETS.txt
+config, x-bridge-token auth) reads master_records tier A/B joined to
+enrichment_cache (one row per slug via MAX(rowid)) and pushes top-N per brand by
+icp_score with a --dry-run mode and --if-pending handshake polling. Delegated
+defaults applied: brands cadient/vorro/revengineer, snapshot top 500/brand
+(~1.0MB payload, fits the existing express 2mb limit), manual refresh via the
+push script + handshake, reuse SOCIAL_BRIDGE_TOKEN, NO Apollo integration,
+outreach stays in the existing CC lane (cards only link out to LinkedIn/mailto),
+ICP config stays on the Windows pipeline side.
+
+## Session Log - 2026-08-14 (item 11: home page B1+B2+F1+F2 + ICP hybrid bridge)
+**Accomplished:** Both approved item-11 features built, QA'd and deployed. Home
+page: real server-side awaiting-reply detection with revenue-weighted $-held
+deal join (B1+B2), follow-ups card fed by starred emails + unsent drafts (F1),
+one-click AI draft-reply reusing the existing lane with the threadId attach fix
+(F2). ICP Finder: hybrid bridge (POST/GET /api/icp/prospects + refresh handshake
+cloned from social-bridge, kvStore snapshot), ranked signal-card UI with brand
+filter, push_icp_prospects.py on the pipeline side (validated with --dry-run
+against the real prospects.db: 500/500/500 prospects for cadient/vorro/
+revengineer, universe stats 27,969 total / 5,359 A / 11,243 B / 11,367
+discarded). QA: node --check on staged server.js + both extracted inline script
+blocks; staged server booted on :3996 with stub env - 23/23 checks green (auth
+401s on all new endpoints incl. wrong bridge token, push validation 400,
+snapshot store/read/brand-filter/sort/stats/legacy-field normalization, full
+refresh handshake incl. push auto-complete, home endpoints degrade gracefully
+without Google creds, server stays alive). Test server killed, port freed.
+**Pending:** (1) MANUAL - run the first real push:
+`python push_icp_prospects.py` in social-selling-deploy (or --dry-run first);
+until then the ICP Finder shows 'No snapshot pushed yet'. Optionally schedule
+`--if-pending` polling next to the social-bridge poller. (2) F3 remains
+unspecified/skipped - re-scope with Manish if it mattered. (3) Carry-overs from
+the earlier 2026-08-14 session: reload the meet-captions extension; fill the
+glossary pricing TODOs.
+**Decisions made:** All delegated ICP defaults logged in the entry above. Kept
+the legacy Score-a-Prospect/CRM sections under the new signal-cards hero rather
+than deleting working features. /api/home/followups returns 200 with per-lane
+error strings (graceful) rather than 500 when Google creds are absent. Mid-
+session drift handled: a parallel cloud QA session shipped two index.html fixes
+(legalFillBase placeholder sweep, _localDayKey meetings bucketing) at 07:42 -
+re-staged from the new live file and re-applied patches (anchored, no overlap)
+instead of overwriting their work; drift gate re-armed on the new sha.
+**Handoff note:** Deployed via deploy_to_github.py (server.js, public/index.html,
+PIPELINE_ERRORS.md). Verify second-brain-iida.onrender.com serves index.html
+containing 'icpProspectCards' and 'loadHomeFollowUps'. Render env already has
+SOCIAL_BRIDGE_TOKEN (shared with social bridge) - nothing new to configure.

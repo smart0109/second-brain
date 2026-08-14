@@ -812,6 +812,8 @@ button { text-align: left; }
           <span class="band-sub">Late-stage deals and threads going quiet.</span>
         </div>
         <div id="staleAlerts" style="display:none"></div>
+        <div class="section-header" style="margin-top:8px">Follow-ups &middot; Starred &amp; Unsent Drafts</div>
+        <div class="card" style="margin-bottom:12px"><div class="card-body scroll-panel" id="homeFollowUps" data-snooze="1"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
         <div class="card"><div class="card-body scroll-panel" id="closingDeals" data-snooze="1"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
       </div>
 
@@ -1570,6 +1572,28 @@ button { text-align: left; }
         <div class="card" style="text-align:center;padding:16px"><div style="font-size:28px;font-weight:800;color:#5e8c45" id="icpStatATier">--</div><div style="font-size:11px;color:var(--text-muted)">A-Tier (Score 6+)</div></div>
         <div class="card" style="text-align:center;padding:16px"><div style="font-size:28px;font-weight:800;color:#3b3735" id="icpStatBTier">--</div><div style="font-size:11px;color:var(--text-muted)">B-Tier (Score 3-5)</div></div>
         <div class="card" style="text-align:center;padding:16px"><div style="font-size:28px;font-weight:800;color:#8c3a2f" id="icpStatDiscard">--</div><div style="font-size:11px;color:var(--text-muted)">Non-ICP Discarded</div></div>
+      </div>
+
+      <!-- Scored Prospects: ranked signal cards pushed from the Windows pipeline (hybrid ICP bridge, 2026-08-14) -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-header" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h3 style="color:#3b3735;flex:1">Scored Prospects &middot; Signal Cards</h3>
+          <select id="icpProspectBrand" onchange="renderIcpProspects()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:12px">
+            <option value="all">All brands</option>
+            <option value="cadient">Cadient</option>
+            <option value="vorro">Vorro</option>
+            <option value="revengineer">RevEngineer</option>
+          </select>
+          <select id="icpProspectTier" onchange="renderIcpProspects()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:12px">
+            <option value="AB">Tier A + B</option>
+            <option value="A">Tier A only</option>
+          </select>
+          <button class="prod-btn" onclick="icpRequestRefresh(this)" title="Ask the Windows pipeline for a fresh prospect push">Request refresh</button>
+        </div>
+        <div class="card-body" style="padding:14px">
+          <div id="icpProspectMeta" style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Loading snapshot...</div>
+          <div id="icpProspectCards" class="scroll-panel" style="max-height:620px"><div class="loading"><div class="spinner"></div><br>Loading scored prospects...</div></div>
+        </div>
       </div>
 
       <!-- Score a Prospect -->
@@ -2957,6 +2981,7 @@ async function loadDashboard(){
   // Fire stale thread checks + meeting cache in parallel with main dashboard data.
   // (Automation Status now lives under Admin / AI Sync, loaded from loadAiSync() instead.)
   loadStaleThreads().catch(e=>dbg('StaleThreads failed: '+e.message,'err'));
+  loadHomeFollowUps().catch(e=>dbg('HomeFollowUps failed: '+e.message,'err'));
   // News and Social Posting are now Today sub-sections — load them here instead of on tab switch.
   if(!window._newsLoaded){window._newsLoaded=true;loadNewsFeed().catch(e=>dbg('News failed: '+e.message,'err'));}
   if(!window._socialPostingLoaded){window._socialPostingLoaded=true;loadSocialPosting().catch(e=>dbg('Social Posting failed: '+e.message,'err'));}
@@ -3432,6 +3457,7 @@ async function createDraftFromThread(btnEl,evt){
     const reSubject=subject.startsWith('Re:')?subject:'Re: '+subject;
     const draftParams={subject:reSubject,body:body,to:[toAddr]};
     if(replyMsgId)draftParams.replyToMessageId=replyMsgId;
+    if(threadId)draftParams.threadId=threadId; // F2 fix: attach the draft to the original Gmail thread
     await call(`${GMAIL}__create_draft`,draftParams);
     btnEl.textContent='Draft Created!';btnEl.style.background='#5e8c45';btnEl.style.borderColor='#5e8c45';
     dbg('Gmail draft created for thread '+threadId+' (reply to msg '+replyMsgId+')','ok');
@@ -5275,11 +5301,16 @@ async function loadMeetingsView(){
   if(calR.status==='fulfilled'){
     const events=calR.value?.events||[];
     {
-      // Group events by ISO day key for 7-day rendering
+      // Group events by LOCAL day key for 7-day rendering. (toISOString() is
+      // UTC: an evening ET meeting used to bucket under the NEXT day's header,
+      // and one on the window's last day dropped out of the list entirely.)
+    const _localDayKey=dd=>dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');
     const eventsByDay={};
     events.forEach((e,i)=>{
       const startDt=e.start?.dateTime||e.start?.date||'';
-      const dayKey=startDt?new Date(startDt).toISOString().slice(0,10):'unknown';
+      // All-day events arrive as a bare YYYY-MM-DD date string: use it as-is
+      // (parsing it via new Date() would shift it a day in negative-UTC zones).
+      const dayKey=!startDt?'unknown':(/^\d{4}-\d{2}-\d{2}$/.test(startDt)?startDt:_localDayKey(new Date(startDt)));
       if(!eventsByDay[dayKey])eventsByDay[dayKey]=[];
       eventsByDay[dayKey].push({e,i});
     });
@@ -5289,7 +5320,7 @@ async function loadMeetingsView(){
     let calHtml='';
     for(let _d=0;_d<7;_d++){
       const _dayDate=new Date(weekStart);_dayDate.setDate(_dayDate.getDate()+_d);
-      const _dayKey=_dayDate.toISOString().slice(0,10);
+      const _dayKey=_localDayKey(_dayDate); // local key, must match event bucketing above
       const items=eventsByDay[_dayKey]||[];
       const _dayDate0=new Date(_dayDate);_dayDate0.setHours(0,0,0,0);
       const dateKey=_dayDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
@@ -10319,7 +10350,11 @@ function legalFillBase(t){
           .split('{{PROSPECT_NAME}}').join(prospect)
           .split('{{CORPORATION}}').join(prospect)
           .split('{{PROSPECT_ADDRESS}}').join(paddr)
-          .split('{{DATE}}').join(nice);
+          .split('{{DATE}}').join(nice)
+          // Any placeholder that couldn't be resolved (blank form field, or a
+          // token this fill doesn't know) becomes a visible fill-in blank
+          // instead of leaking a raw {{TOKEN}} into the final legal document.
+          .replace(/\{\{[A-Z_]+\}\}/g,'________________');
 }
 function previewLegalBase(id){const b=legalBases.find(x=>x.id===id);if(b)legalRenderPreview(b);}
 function legalRenderPreview(b){
@@ -10415,41 +10450,23 @@ async function loadAutomationStatus(){
 async function loadStaleThreads(){
   const el=document.getElementById('staleAlerts');
   if(!el)return;
-  dbg('loadStaleThreads() started');
-
-  // Search for threads from VIPs and key prospects where last message is >5 days old
-  // Look for threads where Manish was the recipient (from:VIP) and may not have replied
-  const vips=['ambarish@basisvectors.com','bmastin@cadienttalent.com','abaker@vorro.net','ssirdevan@vorro.net',
-    'prateek@cadienttalent.com','scott@vorro.net','terry@vorro.net'];
-  const query=vips.map(e=>'from:'+e).join(' OR ')+' older_than:5d newer_than:30d -in:draft';
-
+  dbg('loadStaleThreads() started (server-side awaiting-reply)');
   try{
-    const r=await call(`${GMAIL}__search_threads`,{query:query,pageSize:20});
-    const threads=(r?.threads||[]);
-    if(!threads.length){el.style.display='none';return;}
-
-    // Filter: only threads where the LAST message is FROM the VIP (meaning Manish hasn't replied)
-    const stale=[];
-    for(const t of threads){
-      const msgs=t.messages||[];
-      const last=msgs[msgs.length-1];
-      if(!last)continue;
-      const fromEmail=(last.sender||'').toLowerCase();
-      const isFromVip=vips.some(v=>fromEmail.includes(v.split('@')[0]));
-      if(!isFromVip)continue;
-      const daysSince=Math.floor((Date.now()-new Date(last.date).getTime())/(1000*60*60*24));
-      if(daysSince>=5){
-        stale.push({thread:t,last,daysSince,sender:last.sender});
-      }
-    }
-
-    if(!stale.length){el.style.display='none';return;}
-
-    stale.sort((a,b)=>b.daysSince-a.daysSince);
-    // Persist dismissed stale threads
+    // B1: real awaiting-your-reply detection, computed server-side over the
+    // whole recent inbox (latest message inbound + unanswered), replacing the
+    // old hardcoded-VIP guess list.
+    const res=await fetch('/api/home/awaiting-reply?days=21',{credentials:'same-origin'});
+    if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
+    const data=await res.json();
+    const all=data.threads||[];
+    if(!all.length){el.style.display='none';return;}
     const _staleDismissed=_lsGet('sb_stale_dismissed',[]);
-    const visibleStale=stale.filter(s=>!_staleDismissed.includes(s.thread.id));
+    const visibleStale=all.filter(s=>!_staleDismissed.includes(s.threadId));
     if(!visibleStale.length){el.style.display='none';return;}
+    // B2: revenue-weighted "$ held" behind unanswered threads
+    const held=data.totalHeld||0;
+    const b1sub=document.getElementById('band1Sub');
+    if(b1sub&&held>0)b1sub.textContent='Someone is waiting on your reply. '+fmtMoney(held)+' is held behind unanswered threads.';
     window._staleDismiss=function(threadId,evt){
       evt.preventDefault();evt.stopPropagation();
       const arr=_lsGet('sb_stale_dismissed',[]);
@@ -10467,22 +10484,23 @@ async function loadStaleThreads(){
     };
     el.style.display='block';
     el.innerHTML=`<div class="stale-banner">
-      <div class="sb-title">&#9888; ${visibleStale.length} thread${visibleStale.length>1?'s':''} awaiting your reply</div>
+      <div class="sb-title">&#9888; ${visibleStale.length} thread${visibleStale.length>1?'s':''} awaiting your reply${held>0?' &middot; '+fmtMoney(held)+' held':''}</div>
       ${visibleStale.slice(0,8).map(s=>{
-        const name=s.sender.split('@')[0].replace(/[._]/g,' ');
-        const safeId=s.thread.id.replace(/[^a-zA-Z0-9]/g,'');
+        const name=(s.from||'').split('<')[0].trim()||(s.fromEmail||'').split('@')[0].replace(/[._]/g,' ');
+        const safeId=s.threadId.replace(/[^a-zA-Z0-9]/g,'');
+        const dealTag=s.deal&&s.deal.amount?`<span class="stale-days" style="background:rgba(94,140,69,0.18);color:#5e8c45" title="${escAttr((s.deal.name||'')+(s.deal.stage?' - '+s.deal.stage:''))}">${fmtMoney(s.deal.amount)}</span>`:'';
         return `<div class="stale-item" id="stale_${safeId}" style="display:flex;align-items:center;gap:6px">
-          <span class="stale-days">${s.daysSince}d</span>
-          <a href="${gmailUrl(s.thread.id)}" target="_blank" style="color:var(--text-primary);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            <strong>${esc(name)}</strong>: ${esc(truncate(s.last.subject||'(no subject)',45))}
+          <span class="stale-days">${s.daysSince}d</span>${dealTag}
+          <a href="${gmailUrl(s.threadId)}" target="_blank" style="color:var(--text-primary);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <strong>${esc(truncate(name,24))}</strong>: ${esc(truncate(s.subject||'(no subject)',45))}
           </a>
-          <span onclick="_staleDismiss('${escAttr(s.thread.id)}',event)" style="cursor:pointer;color:var(--text-muted);font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
+          <span onclick="_staleDismiss('${escAttr(s.threadId)}',event)" style="cursor:pointer;color:var(--text-muted);font-size:14px;padding:0 4px;border-radius:3px;line-height:1" title="Dismiss">&times;</span>
         </div>`;
       }).join('')}
       ${visibleStale.length>8?`<div style="font-size:10px;color:#8a6a24;margin-top:4px">+ ${visibleStale.length-8} more</div>`:''}
       ${_staleDismissed.length?`<div style="text-align:right;margin-top:4px"><a href="#" onclick="_staleRestoreAll();return false" style="font-size:10px;color:#3b3735">Restore ${_staleDismissed.length} dismissed</a></div>`:''}
     </div>`;
-    dbg('Stale threads: '+stale.length+' awaiting reply','ok');
+    dbg('Awaiting-reply: '+all.length+' threads, '+fmtMoney(held)+' held ('+(data.matched||0)+' matched to deals)','ok');
   }catch(e){
     dbg('Stale threads failed: '+e.message,'err');
     el.style.display='none';
@@ -11162,11 +11180,9 @@ async function loadICPChecker(forceRefresh){
   if(window._icpLoaded&&!forceRefresh)return;
   window._icpLoaded=true;
 
-  // Universe stats
-  document.getElementById('icpStatProspects').textContent='19,843';
-  document.getElementById('icpStatATier').textContent='372';
-  document.getElementById('icpStatBTier').textContent='305';
-  document.getElementById('icpStatDiscard').textContent='13,878';
+  // Universe stats + ranked signal cards now come from the snapshot the
+  // Windows pipeline pushes to /api/icp/prospects (was hardcoded numbers).
+  loadIcpProspects().catch(e=>dbg('ICP prospects failed: '+e.message,'err'));
 
   // Load ICP config and render personas
   try{
@@ -11333,6 +11349,150 @@ async function addICPLead(p){
     alert('Added "'+p.name+'" to Zoho CRM as a new Lead.');
   }catch(e){
     alert('Failed to add lead: '+e.message);
+  }
+}
+
+// == HOME FOLLOW-UPS (F1+F2, 2026-08-14): starred emails + unsent drafts ==
+async function loadHomeFollowUps(){
+  const el=document.getElementById('homeFollowUps');
+  if(!el)return;
+  try{
+    const res=await fetch('/api/home/followups',{credentials:'same-origin'});
+    if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
+    const data=await res.json();
+    const starred=data.starred||[];const drafts=data.drafts||[];
+    if(!starred.length&&!drafts.length){el.innerHTML='<div class="empty-state">No starred emails or unsent drafts.</div>';return;}
+    let html='';
+    if(starred.length){
+      html+='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Starred ('+starred.length+')</div>';
+      html+=starred.slice(0,10).map(s=>{
+        const ctxId='fuctx_'+s.threadId.replace(/[^a-zA-Z0-9]/g,'');
+        return `<div class="item" style="position:relative;padding-bottom:0">
+          <div style="cursor:pointer;padding-bottom:8px" onclick="toggleThreadContext('${ctxId}','${escAttr(s.threadId)}','${escAttr(s.from)}','${escAttr(s.subject)}','${escAttr(s.lastMsgId)}')">
+            <div class="item-row">
+              <div class="item-icon mail">&#9733;</div>
+              <div class="item-content"><div class="item-title">${esc(truncate(s.subject,50))}</div>
+              <div class="item-sub">${esc((s.fromEmail||'').split('@')[0])} &middot; ${s.msgCount||1} msgs</div>
+              <div class="item-snippet">${esc(truncate(s.snippet||'',80))}</div></div>
+              <div class="item-time">${fmtDate(s.date)}</div>
+            </div>
+          </div>
+          <div style="position:absolute;top:4px;right:4px;display:flex;gap:4px;z-index:5;align-items:center">
+            <button class="draft-btn" onclick="event.stopPropagation();toggleThreadContext('${ctxId}','${escAttr(s.threadId)}','${escAttr(s.from)}','${escAttr(s.subject)}','${escAttr(s.lastMsgId)}')" style="font-size:10px;padding:2px 8px" title="AI-draft a reply attached to this thread">Draft reply</button>
+            <a href="${gmailUrl(s.threadId)}" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail" style="font-size:11px;opacity:0.5;padding:2px 4px;text-decoration:none;color:var(--text-primary)">&#8599;</a>
+          </div>
+          <div id="${ctxId}" class="thread-context" style="display:none"></div>
+        </div>`;
+      }).join('');
+    }
+    if(drafts.length){
+      html+='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">Unsent drafts ('+drafts.length+')</div>';
+      html+=drafts.slice(0,10).map(d=>`<div class="item"><div class="item-row">
+        <div class="item-icon mail">&#9998;</div>
+        <div class="item-content"><div class="item-title">${esc(truncate(d.subject,50))}</div>
+        <div class="item-sub">to ${esc(truncate(d.to||'(no recipient)',40))}</div>
+        <div class="item-snippet">${esc(truncate(d.snippet||'',80))}</div></div>
+        <div class="item-time"><a href="${draftUrl(d.draftId)}" target="_blank" style="color:#3b3735;text-decoration:none;font-size:11px">Open draft &#8599;</a></div>
+      </div></div>`).join('');
+    }
+    if(data.errors&&(data.errors.starred||data.errors.drafts)){html+='<div style="font-size:10px;color:#8a6a24;padding:4px 0">Partial load: '+esc(data.errors.starred||data.errors.drafts)+'</div>';}
+    el.innerHTML=html;
+    dbg('Home follow-ups: '+starred.length+' starred, '+drafts.length+' drafts','ok');
+  }catch(e){
+    el.innerHTML='<div class="empty-state" style="color:#8c3a2f">Follow-ups failed: '+esc(e.message)+'</div>';
+    dbg('Home follow-ups failed: '+e.message,'err');
+  }
+}
+
+// == ICP PROSPECT SIGNAL CARDS (hybrid bridge, 2026-08-14) ==
+let _icpProspects=[];let _icpProspectsMeta=null;
+async function loadIcpProspects(){
+  try{
+    const res=await fetch('/api/icp/prospects',{credentials:'same-origin'});
+    if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
+    const data=await res.json();
+    _icpProspects=data.prospects||[];
+    _icpProspectsMeta={updatedAt:data.updatedAt,counts:data.counts||{},total:data.total||0,source:data.source,stats:data.stats||null};
+    const st=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+    const stats=data.stats;
+    if(stats){
+      st('icpStatProspects',stats.universe!=null?Number(stats.universe).toLocaleString():'--');
+      st('icpStatATier',stats.aTier!=null?Number(stats.aTier).toLocaleString():'--');
+      st('icpStatBTier',stats.bTier!=null?Number(stats.bTier).toLocaleString():'--');
+      st('icpStatDiscard',stats.discarded!=null?Number(stats.discarded).toLocaleString():'--');
+    }else{
+      st('icpStatProspects',_icpProspectsMeta.total?String(_icpProspectsMeta.total):'--');
+      st('icpStatATier',String(_icpProspects.filter(p=>p.tier==='A').length||'--'));
+      st('icpStatBTier',String(_icpProspects.filter(p=>p.tier==='B').length||'--'));
+      st('icpStatDiscard','--');
+    }
+    renderIcpProspects();
+  }catch(e){
+    const el=document.getElementById('icpProspectCards');
+    if(el)el.innerHTML='<div class="empty-state" style="color:#8c3a2f">Failed to load prospects: '+esc(e.message)+'</div>';
+    throw e;
+  }
+}
+
+function renderIcpProspects(){
+  const el=document.getElementById('icpProspectCards');if(!el)return;
+  const meta=document.getElementById('icpProspectMeta');
+  const brand=(document.getElementById('icpProspectBrand')||{value:'all'}).value||'all';
+  const tierSel=(document.getElementById('icpProspectTier')||{value:'AB'}).value||'AB';
+  let list=_icpProspects.slice();
+  if(brand!=='all')list=list.filter(p=>(p.brand||'')===brand);
+  if(tierSel==='A')list=list.filter(p=>p.tier==='A');
+  list.sort((a,b)=>(b.score||0)-(a.score||0));
+  if(meta){
+    if(!_icpProspectsMeta||!_icpProspectsMeta.updatedAt){
+      meta.textContent='No snapshot pushed yet. Run push_icp_prospects.py on the Windows pipeline (social-selling-deploy) to load scored prospects.';
+    }else{
+      const cts=Object.entries(_icpProspectsMeta.counts||{}).map(([k,v])=>k+': '+v).join(' &middot; ');
+      meta.innerHTML='Snapshot: <strong>'+_icpProspectsMeta.total+'</strong> prospects ('+cts+') &middot; pushed '+fmtFull(_icpProspectsMeta.updatedAt)+' &middot; showing '+list.length;
+    }
+  }
+  if(!list.length){el.innerHTML='<div class="empty-state">No scored prospects for this filter yet. Use "Request refresh", then run the push script on the Windows machine.</div>';return;}
+  const brandColors={cadient:'#3b3735',vorro:'#5e8c45',revengineer:'#8a6a24'};
+  const chipS='font-size:10px;padding:2px 7px;border-radius:5px;white-space:nowrap;';
+  el.innerHTML=list.slice(0,200).map(p=>{
+    const sig=p.signals||{};
+    const tc=p.tier==='A'?'#5e8c45':'#3b3735';
+    const bc=brandColors[p.brand]||'#6e6864';
+    const chips=[];
+    if(sig.kol_engaged)chips.push('<span style="'+chipS+'background:rgba(167,139,250,0.12);color:#3b3735" title="Engaged with KOL/competitor content'+(sig.kol_post_url?' - '+escAttr(sig.kol_post_url):'')+'">KOL: '+esc(truncate(sig.kol_engaged,24))+'</span>');
+    if(sig.intent_post)chips.push('<span style="'+chipS+'background:rgba(96,165,250,0.12);color:#3b3735;cursor:help" title="'+escAttr(sig.intent_post)+'">Intent post</span>');
+    if(sig.current_ats)chips.push('<span style="'+chipS+'background:rgba(251,146,60,0.12);color:#8a6a24">ATS: '+esc(truncate(sig.current_ats,20))+'</span>');
+    if(sig.open_positions)chips.push('<span style="'+chipS+'background:rgba(52,211,153,0.12);color:#5e8c45" title="'+escAttr(sig.open_positions)+'">Open jobs</span>');
+    if(sig.is_hiring)chips.push('<span style="'+chipS+'background:rgba(52,211,153,0.12);color:#5e8c45">Hiring</span>');
+    if(sig.has_new_position)chips.push('<span style="'+chipS+'background:rgba(251,146,60,0.12);color:#8a6a24">New role</span>');
+    if(sig.open_to_work)chips.push('<span style="'+chipS+'background:rgba(248,113,113,0.12);color:#8c3a2f">Open to work</span>');
+    const liBtn=p.linkedin_url?'<a href="'+esc(p.linkedin_url)+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:#3b3735;text-decoration:none;white-space:nowrap;border:1px solid var(--border);border-radius:6px;padding:3px 8px">LinkedIn &#8599;</a>':'';
+    const mailBtn=p.email?'<a href="mailto:'+escAttr(p.email)+'" onclick="event.stopPropagation()" style="font-size:10px;color:#3b3735;text-decoration:none;white-space:nowrap;border:1px solid var(--border);border-radius:6px;padding:3px 8px" title="Outreach stays in the existing CC lane - this just opens your mail composer">Email</a>':'';
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,0.02);margin-bottom:8px;border-left:3px solid '+tc+'">'
+      +'<div style="width:34px;height:34px;border-radius:8px;background:'+tc+'18;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:'+tc+';flex-shrink:0">'+esc(p.tier||'?')+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:13px;font-weight:700;color:var(--text-primary)">'+esc(p.name||'(no name)')+'</span><span style="font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:'+bc+'18;color:'+bc+'">'+esc(p.brand||'')+'</span></div>'
+        +'<div style="font-size:11px;color:var(--text-secondary);margin:2px 0 6px">'+esc(truncate(p.title||sig.headline||'',70))+(p.company?' &middot; '+esc(truncate(p.company,40)):'')+(p.location?' &middot; '+esc(truncate(p.location,24)):'')+'</div>'
+        +(chips.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+chips.join('')+'</div>':'<div style="font-size:10px;color:var(--text-muted)">No live intent signals in snapshot</div>')
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0"><div style="font-size:20px;font-weight:800;color:'+tc+'">'+(p.score!=null?p.score:'-')+'</div><div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">'+liBtn+mailBtn+'</div></div>'
+      +'</div>';
+  }).join('')+(list.length>200?'<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:6px">Showing top 200 of '+list.length+'</div>':'');
+}
+
+async function icpRequestRefresh(btn){
+  if(btn){btn.disabled=true;btn.textContent='Requesting...';}
+  try{
+    const res=await fetch('/api/icp/prospects/refresh',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({kind:'prospects'})});
+    if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
+    const data=await res.json();
+    if(btn)btn.textContent='Refresh requested';
+    const meta=document.getElementById('icpProspectMeta');
+    if(meta)meta.innerHTML='Refresh requested at '+fmtFull(data.requestedAt)+'. The Windows pipeline will push on its next run (or run push_icp_prospects.py now).'+(_icpProspectsMeta&&_icpProspectsMeta.updatedAt?' Current snapshot from '+fmtFull(_icpProspectsMeta.updatedAt)+'.':'');
+    setTimeout(()=>{if(btn){btn.disabled=false;btn.textContent='Request refresh';}},4000);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Request refresh';}
+    dbg('ICP refresh request failed: '+e.message,'err');
   }
 }
 

@@ -3520,6 +3520,263 @@ app.post('/api/social/refresh/done', bridgeGuard, (req, res) => {
   res.json({ ok: true });
 });
 
+// ============================================================================
+// ICP PROSPECT BRIDGE (hybrid rebuild, 2026-08-14)
+// The Windows social-selling pipeline scores prospects locally (prospects.db)
+// and pushes a ranked snapshot here; the ICP Finder page reads it. Cloned from
+// the social-bridge pattern above: POST push guarded by bridgeGuard
+// (x-bridge-token, same SOCIAL_BRIDGE_TOKEN mechanism the social bridge uses),
+// GET read for the signed-in frontend, plus the same refresh handshake
+// (page requests -> local push script sees pending -> pushes -> auto-done).
+// Snapshot is durable in kvStore key 'icp-prospects'.
+// ============================================================================
+const ICP_PROSPECTS_KEY = 'icp-prospects';
+const ICP_REFRESH_KEY = 'icp-refresh';
+
+app.get('/api/icp/prospects', requireAuth, (req, res) => {
+  const snap = kvStore.get(ICP_PROSPECTS_KEY, { updatedAt: null, prospects: [] });
+  const brand = String(req.query.brand || '').toLowerCase();
+  let prospects = Array.isArray(snap.prospects) ? snap.prospects : [];
+  if (brand && brand !== 'all') prospects = prospects.filter((p) => String(p.brand || '').toLowerCase() === brand);
+  prospects = [...prospects].sort((a, b) => (b.score || 0) - (a.score || 0));
+  res.json({
+    updatedAt: snap.updatedAt || null,
+    source: snap.source || null,
+    counts: snap.counts || {},
+    stats: snap.stats || null,
+    total: Array.isArray(snap.prospects) ? snap.prospects.length : 0,
+    prospects,
+  });
+});
+
+app.post('/api/icp/prospects', bridgeGuard, (req, res) => {
+  const b = req.body || {};
+  const raw = Array.isArray(b.prospects) ? b.prospects : [];
+  if (!raw.length) return res.status(400).json({ error: 'prospects array required' });
+  const norm = raw.slice(0, 2000).map((p) => {
+    const sig = p.signals || {};
+    return {
+      slug: String(p.slug || ''),
+      name: String(p.name || '').slice(0, 80),
+      title: String(p.title || '').slice(0, 160),
+      company: String(p.company || '').slice(0, 120),
+      brand: String(p.brand || '').toLowerCase(),
+      tier: String(p.tier || ''),
+      score: Number(p.score) || 0,
+      linkedin_url: String(p.linkedin_url || ''),
+      email: String(p.email || ''),
+      location: String(p.location || '').slice(0, 80),
+      industry: String(p.industry || '').slice(0, 60),
+      employee_count: String(p.employee_count || ''),
+      signals: {
+        kol_engaged: String(sig.kol_engaged || p.kol_name || ''),
+        kol_post_url: String(sig.kol_post_url || p.kol_post_url || ''),
+        intent_post: String(sig.intent_post || p.post_content || '').slice(0, 240),
+        current_ats: String(sig.current_ats || p.current_ats || p.ats_type || ''),
+        open_positions: String(sig.open_positions || p.open_positions || '').slice(0, 120),
+        has_new_position: !!(sig.has_new_position != null ? sig.has_new_position : p.has_new_position),
+        open_to_work: !!(sig.open_to_work != null ? sig.open_to_work : p.open_to_work),
+        is_hiring: !!(sig.is_hiring != null ? sig.is_hiring : p.is_hiring),
+        headline: String(sig.headline || p.headline || '').slice(0, 200),
+      },
+    };
+  });
+  const counts = {};
+  norm.forEach((p) => { const k = p.brand || 'unknown'; counts[k] = (counts[k] || 0) + 1; });
+  kvStore.set(ICP_PROSPECTS_KEY, {
+    updatedAt: new Date().toISOString(),
+    source: String(b.source || 'windows-pipeline'),
+    counts,
+    stats: (b.stats && typeof b.stats === 'object') ? b.stats : null,
+    prospects: norm,
+  });
+  // A successful push also completes any pending refresh handshake.
+  const s = kvStore.get(ICP_REFRESH_KEY, {});
+  if (s.requestedAt && s.requestedAt !== s.doneAt) {
+    s.doneAt = s.requestedAt;
+    kvStore.set(ICP_REFRESH_KEY, s);
+  }
+  res.json({ ok: true, count: norm.length, counts });
+});
+
+// "Request refresh" button -> ask the local pipeline for an on-demand push
+// (same handshake shape as /api/social/refresh above).
+app.post('/api/icp/prospects/refresh', requireAuth, (req, res) => {
+  const store = kvStore.get(ICP_REFRESH_KEY, {});
+  store.requestedAt = new Date().toISOString();
+  store.kind = (req.body && req.body.kind) || 'prospects';
+  kvStore.set(ICP_REFRESH_KEY, store);
+  res.json({ ok: true, requestedAt: store.requestedAt });
+});
+app.get('/api/icp/prospects/refresh', bridgeGuard, (_req, res) => {
+  const s = kvStore.get(ICP_REFRESH_KEY, {});
+  res.json({ pending: !!(s.requestedAt && s.requestedAt !== s.doneAt), requestedAt: s.requestedAt || null, kind: s.kind || 'prospects' });
+});
+app.post('/api/icp/prospects/refresh/done', bridgeGuard, (req, res) => {
+  const s = kvStore.get(ICP_REFRESH_KEY, {});
+  s.doneAt = (req.body && req.body.requestedAt) || s.requestedAt || new Date().toISOString();
+  kvStore.set(ICP_REFRESH_KEY, s);
+  res.json({ ok: true });
+});
+
+// ============================================================================
+// HOME PAGE DATA (2026-08-14): real "awaiting your reply" detection (B1) with
+// revenue-weighted "$ held" via a thread->deal join (B2), plus the follow-up
+// feed (starred threads + unsent drafts, F1). Computed server-side so the
+// home page stops guessing from a hardcoded VIP list.
+// ============================================================================
+function _sbEmailAddr(s) {
+  const m = String(s || '').match(/<([^>]+)>/);
+  return (m ? m[1] : String(s || '')).trim().toLowerCase();
+}
+const _SB_FREEMAIL = new Set(['gmail', 'yahoo', 'outlook', 'hotmail', 'aol', 'icloud', 'proton', 'protonmail', 'live', 'msn', 'googlemail', 'me', 'mail']);
+function _sbDomainRoot(email) {
+  const dom = String(email || '').split('@')[1] || '';
+  const root = (dom.split('.')[0] || '').toLowerCase();
+  return _SB_FREEMAIL.has(root) ? '' : root;
+}
+function _sbNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+async function _sbFetchOpenDealsForJoin() {
+  const deals = [];
+  // Cadient (US DC) via the shared Zoho handler
+  try {
+    const r = await handleZoho('executeCOQLQuery', { body: { select_query:
+      "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200" } });
+    (r.data || []).forEach((d) => deals.push({
+      key: 'cad_' + (d.id || d.Deal_Name), name: d.Deal_Name || '', amount: Number(d.Amount) || 0,
+      stage: d.Stage || '', account: (d.Account_Name && d.Account_Name.name) || '',
+      contact: (d.Contact_Name && d.Contact_Name.name) || '', brand: 'cadient',
+    }));
+  } catch (e) { console.warn('[home] Cadient deal fetch failed:', e.message); }
+  // Vorro (India DC) - same COQL the /api/crm/vorro/deals endpoint runs
+  try {
+    if (process.env.VORRO_ZOHO_REFRESH_TOKEN) {
+      const token = await getVorroZohoAccessToken();
+      const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v5/coql`, {
+        method: 'POST',
+        headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ select_query: "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200" }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        (data.data || []).forEach((d) => deals.push({
+          key: 'vor_' + (d.id || d.Deal_Name), name: d.Deal_Name || '', amount: Number(d.Amount) || 0,
+          stage: d.Stage || '', account: (d.Account_Name && d.Account_Name.name) || '',
+          contact: (d.Contact_Name && d.Contact_Name.name) || '', brand: 'vorro',
+        }));
+      }
+    }
+  } catch (e) { console.warn('[home] Vorro deal fetch failed:', e.message); }
+  return deals;
+}
+
+// Conservative thread->deal matcher: sender domain root vs account/deal name,
+// contact-name match, or account name appearing in the subject.
+function _sbMatchThreadToDeal(fromEmail, fromDisplay, subject, deals) {
+  const root = _sbDomainRoot(fromEmail);
+  const fromName = _sbNorm(String(fromDisplay || '').replace(/<[^>]*>/g, ''));
+  const subj = _sbNorm(subject);
+  let best = null; let bestScore = 0;
+  for (const d of deals) {
+    const acct = _sbNorm(d.account); const dname = _sbNorm(d.name); const contact = _sbNorm(d.contact);
+    let score = 0;
+    if (root && root.length >= 4 && (acct.replace(/ /g, '').includes(root) || dname.replace(/ /g, '').includes(root))) score += 3;
+    if (contact && fromName && contact.length >= 6 && fromName.includes(contact)) score += 3;
+    if (acct && acct.length >= 5 && subj.includes(acct)) score += 2;
+    else if (dname && dname.length >= 8 && subj.includes(dname)) score += 2;
+    if (score > bestScore) { bestScore = score; best = d; }
+  }
+  return bestScore >= 2 ? best : null;
+}
+
+app.get('/api/home/awaiting-reply', requireAuth, async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 21, 3), 60);
+    // B1: real detection - pull recent inbox threads, keep only those whose
+    // LATEST non-draft message is inbound (not from Manish) with no later reply.
+    const q = `in:inbox -category:promotions -category:social -category:updates -category:forums newer_than:${days}d`;
+    const r = await handleGmail('search_threads', { query: q, pageSize: 25 });
+    const mine = ALLOWED_EMAILS.filter(Boolean);
+    const awaiting = [];
+    for (const t of (r.threads || [])) {
+      const msgs = (t.messages || []).filter((m) => !(m.labelIds || []).includes('DRAFT'));
+      if (!msgs.length) continue;
+      const last = msgs[msgs.length - 1];
+      const lastFrom = _sbEmailAddr(last.sender);
+      if (!lastFrom || mine.includes(lastFrom)) continue;
+      if ((last.labelIds || []).includes('SENT')) continue;
+      if (/no-?reply|donotreply|notifications?@|mailer|newsletter|billing@|receipts?@|updates@|alerts?@/i.test(lastFrom)) continue;
+      const ts = new Date(last.date).getTime();
+      const daysSince = isFinite(ts) ? Math.max(0, Math.floor((Date.now() - ts) / 86400000)) : 0;
+      awaiting.push({
+        threadId: t.id, lastMsgId: last.id || '', subject: last.subject || '(no subject)',
+        from: last.sender || '', fromEmail: lastFrom, date: last.date || '', daysSince,
+        snippet: String(last.snippet || '').slice(0, 140), msgCount: msgs.length, deal: null,
+      });
+    }
+    // B2: revenue-weighted "$ held" - join awaiting threads to open deals
+    let deals = [];
+    let dealJoinError = null;
+    try { deals = await _sbFetchOpenDealsForJoin(); } catch (e) { dealJoinError = e.message; }
+    let totalHeld = 0; const counted = new Set();
+    for (const th of awaiting) {
+      const d = _sbMatchThreadToDeal(th.fromEmail, th.from, th.subject, deals);
+      if (d) {
+        th.deal = { name: d.name, amount: d.amount, stage: d.stage, brand: d.brand };
+        if (!counted.has(d.key)) { counted.add(d.key); totalHeld += d.amount; }
+      }
+    }
+    awaiting.sort((a, b) => ((b.deal ? b.deal.amount : 0) - (a.deal ? a.deal.amount : 0)) || (b.daysSince - a.daysSince));
+    res.json({
+      updatedAt: new Date().toISOString(), threads: awaiting,
+      totalHeld, matched: awaiting.filter((t) => t.deal).length,
+      dealsScanned: deals.length, dealJoinError,
+    });
+  } catch (err) {
+    console.error('awaiting-reply error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// F1: follow-up feed = starred threads + unsent drafts (existing Gmail ops)
+app.get('/api/home/followups', requireAuth, async (_req, res) => {
+  try {
+    const [starredR, draftsR] = await Promise.allSettled([
+      handleGmail('search_threads', { query: 'is:starred -in:trash newer_than:90d', pageSize: 15 }),
+      handleGmail('list_drafts', { pageSize: 20 }),
+    ]);
+    const starred = (starredR.status === 'fulfilled' ? (starredR.value.threads || []) : []).map((t) => {
+      const msgs = t.messages || [];
+      const last = msgs[msgs.length - 1] || {};
+      return {
+        threadId: t.id, lastMsgId: last.id || '', subject: last.subject || '(no subject)',
+        from: last.sender || '', fromEmail: _sbEmailAddr(last.sender), to: last.to || '',
+        date: last.date || '', snippet: String(last.snippet || '').slice(0, 140), msgCount: msgs.length,
+      };
+    });
+    const drafts = (draftsR.status === 'fulfilled' ? (draftsR.value.drafts || []) : []).map((d) => ({
+      draftId: d.id,
+      messageId: (d.message && d.message.id) || '',
+      subject: (d.message && d.message.subject) || '(no subject)',
+      to: (d.message && d.message.to) || '',
+      date: (d.message && d.message.date) || '',
+      snippet: String((d.message && d.message.snippet) || '').slice(0, 140),
+    }));
+    res.json({
+      updatedAt: new Date().toISOString(), starred, drafts,
+      errors: {
+        starred: starredR.status === 'rejected' ? String(starredR.reason && starredR.reason.message) : null,
+        drafts: draftsR.status === 'rejected' ? String(draftsR.reason && draftsR.reason.message) : null,
+      },
+    });
+  } catch (err) {
+    console.error('followups error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // ===========================================================================
 // AI SYNC — pending review queue & approved memory
