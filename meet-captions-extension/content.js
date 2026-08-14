@@ -49,6 +49,7 @@
   const platform = detectPlatform();
   let cfg = PLATFORMS[platform], appUrl = '', code = '';
   let queue = [];
+  let nextCid = 1;
   const sent = new Set();
   const rowState = new WeakMap();
   let emittedAny = false, captionsConfirmedOnAt = 0, warnedNoCaptions = false;
@@ -72,12 +73,19 @@
     if (cfg.toggleKey) { try { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: cfg.toggleKey, code: 'Key' + cfg.toggleKey.toUpperCase(), bubbles: true })); } catch (e) {} }
   }
 
-  function emit(speaker, text) {
+  // cid = caption row id: interim emits of a growing caption row carry the same
+  // cid so the server (and dashboard) can update the line in place instead of
+  // appending near-duplicates. final=!interim; the exact-dup guard only applies
+  // to finals (interims legitimately repeat as the row grows).
+  function emit(speaker, text, cid, interim) {
     text = (text || '').trim(); if (text.length < 2) return;
-    const key = (speaker || '') + '|' + text;
-    if (sent.has(key)) return;
-    sent.add(key); if (sent.size > 6000) sent.clear();
-    queue.push({ speaker: speaker || '', text, ts: Date.now() });
+    if (!interim) {
+      const key = (speaker || '') + '|' + text;
+      if (sent.has(key)) return;
+      sent.add(key); if (sent.size > 6000) sent.clear();
+    }
+    if (cid) queue = queue.filter((q) => q.cid !== cid);
+    queue.push({ speaker: speaker || '', text, ts: Date.now(), cid: cid || undefined, final: !interim });
     emittedAny = true;
   }
 
@@ -114,9 +122,9 @@
         const parsed = semanticRowParse(row);
         speaker = parsed.speaker; text = parsed.text;
       }
-      const prev = rowState.get(row) || { text: '', stable: 0 };
-      if (text && text === prev.text) { prev.stable++; if (prev.stable === 2 && !prev.emitted) { emit(speaker, text); prev.emitted = true; } }
-      else if (text) { prev.text = text; prev.stable = 0; prev.emitted = false; }
+      const prev = rowState.get(row) || { text: '', stable: 0, cid: 'c' + (nextCid++) };
+      if (text && text === prev.text) { prev.stable++; if (prev.stable === 1 && !prev.emitted) { emit(speaker, text, prev.cid, false); prev.emitted = true; } }
+      else if (text) { emit(speaker, text, prev.cid, true); prev.text = text; prev.stable = 0; prev.emitted = false; }
       rowState.set(row, prev);
     });
   }
@@ -124,7 +132,7 @@
   async function flush() {
     if (!queue.length || !code || !appUrl) return;
     const batch = queue.splice(0, queue.length);
-    try { await fetch(appUrl + '/api/live-captions?code=' + encodeURIComponent(code), { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines: batch }) }); }
+    try { await fetch(appUrl + '/api/live-captions?code=' + encodeURIComponent(code), { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines: batch, meetUrl: location.href }) }); }
     catch (e) { queue = batch.concat(queue); }
   }
 
@@ -162,8 +170,8 @@
     })));
     mo.observe(document.body, { childList: true, subtree: true });
     let tries = 0; const t = setInterval(() => { enableCaptions(); if (captionsOn()) captionsConfirmedOnAt = captionsConfirmedOnAt || Date.now(); if (++tries >= 8) clearInterval(t); }, 2500);
-    setInterval(scan, 700);
-    setInterval(flush, 1500);
+    setInterval(scan, 500);
+    setInterval(flush, 500);
     setInterval(() => {
       if (!warnedNoCaptions && captionsConfirmedOnAt && !emittedAny && Date.now() - captionsConfirmedOnAt > 20000) {
         warnedNoCaptions = true; showNoCaptionsWarning();

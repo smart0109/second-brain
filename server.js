@@ -270,6 +270,16 @@ function extractPlainBody(payload) {
   return '';
 }
 
+function collectAttachments(payload, out) {
+  out = out || [];
+  if (!payload) return out;
+  if (payload.filename && payload.body && payload.body.attachmentId) {
+    out.push({ filename: payload.filename, mimeType: payload.mimeType || '', size: payload.body.size || 0, attachmentId: payload.body.attachmentId });
+  }
+  if (payload.parts) for (const p of payload.parts) collectAttachments(p, out);
+  return out;
+}
+
 function formatGmailMessage(msg) {
   const headers = msg.payload ? msg.payload.headers : [];
   return {
@@ -281,6 +291,7 @@ function formatGmailMessage(msg) {
     date: getHeader(headers, 'Date'),
     snippet: msg.snippet || '',
     plaintextBody: extractPlainBody(msg.payload),
+    attachments: collectAttachments(msg.payload),
     labelIds: msg.labelIds || [],
   };
 }
@@ -449,6 +460,27 @@ async function handleGmail(toolName, args) {
 
     const resp = await gmail.users.drafts.create({ userId: 'me', requestBody: draftBody });
     return { id: resp.data.message.id, draftId: resp.data.id };
+  }
+
+  if (toolName === 'get_attachment') {
+    const { messageId, attachmentId, mimeType, filename } = args || {};
+    if (!messageId || !attachmentId) throw new Error('messageId and attachmentId are required');
+    const resp = await gmail.users.messages.attachments.get({ userId: 'me', messageId, id: attachmentId });
+    const b64url = resp.data.data || '';
+    const buf = Buffer.from(b64url.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    let text = null;
+    const mt = (mimeType || '').toLowerCase();
+    const fn = (filename || '').toLowerCase();
+    try {
+      if (mt.startsWith('text/plain')) text = buf.toString('utf-8');
+      else if (mt.startsWith('text/html')) text = buf.toString('utf-8').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+      else if (mt.includes('pdf') || fn.endsWith('.pdf')) {
+        try { const pdfParse = require('pdf-parse'); text = (await pdfParse(buf)).text || null; } catch (e) {}
+      } else if (mt.includes('wordprocessingml') || fn.endsWith('.docx')) {
+        try { const mammoth = require('mammoth'); text = (await mammoth.extractRawText({ buffer: buf })).value || null; } catch (e) {}
+      }
+    } catch (e) { console.warn('get_attachment text extraction failed:', e.message); }
+    return { filename: filename || '', mimeType: mimeType || '', size: buf.length, data: b64url, text };
   }
 
   throw new Error(`Unknown Gmail tool: ${toolName}`);
@@ -935,7 +967,7 @@ function routeTool(fullToolName) {
   }
 
   // Try matching by operation name alone (for simplified tool names)
-  const gmailOps = ['search_threads', 'list_drafts', 'get_thread', 'create_draft', 'label_message', 'label_thread', 'list_labels', 'create_label'];
+  const gmailOps = ['search_threads', 'list_drafts', 'get_thread', 'create_draft', 'get_attachment', 'label_message', 'label_thread', 'list_labels', 'create_label'];
   const calendarOps = ['list_events', 'create_event', 'get_event', 'update_event', 'delete_event', 'list_calendars', 'suggest_time'];
   const granolaOps = ['query_granola_meetings', 'list_meetings', 'get_meeting_transcript', 'list_meeting_folders', 'get_meetings', 'get_account_info'];
   const driveOps = ['search_files', 'list_recent_files', 'get_file_metadata', 'read_file_content', 'download_file_content'];
@@ -2002,7 +2034,7 @@ app.post('/api/ask', requireAuth, async (req, res) => {
     userContent += '\n\n--- DATA CONTEXT ---\n' + contextParts.join('\n\n');
   }
 
-  const maxTokens = 512;
+  const maxTokens = Math.min(Math.max(parseInt(req.body.max_tokens, 10) || 512, 256), 1500);
   const { company } = req.body;
   const companyContext = {
     cadient: 'FOCUS: Cadient Talent — SmartSuite ATS platform. Products: SmartSource (sourcing), SmartMatch (AI matching), SmartScreen (screening), SmartHire (AI optimization). Key metrics: 60% faster hiring, 45% lower cost-per-hire, 80% recruiter productivity lift. Main competitors: Greenhouse, iCIMS, Workday Recruiting, Lever.',
@@ -2012,7 +2044,7 @@ app.post('/api/ask', requireAuth, async (req, res) => {
     arista: 'FOCUS: Arista Networks — EOS (Extensible OS), CloudVision (AI NetOps), Etherlink AI networking. Key: single-binary EOS, Sysdb architecture, ISSU (zero planned downtime), per-second telemetry. Main competitors: Cisco, Juniper, NVIDIA InfiniBand.'
   };
   const companyFocus = companyContext[company] || 'Manish manages 5 companies: Cadient (HR/ATS), Vorro (healthcare integration), CV3 (ecommerce), RevEngineer (GTM intelligence), Arista (networking).';
-  const systemPrompt = `You are Manish's real-time meeting intelligence assistant. Manish is CRO at Basis Vectors Capital. ${companyFocus} Be direct, data-driven, cite specific metrics. Never generic. Concise — immediately usable in a live meeting. 3-5 bullets max.`;
+  const systemPrompt = `You are Manish's real-time meeting intelligence assistant. Manish is CRO at Basis Vectors Capital. ${companyFocus} Be direct, data-driven, cite specific metrics. Never generic. Immediately usable in a live meeting. If the user prompt specifies an answer FORMAT, follow it exactly (including any required "Terms & acronyms" section); otherwise default to 3-5 concise bullets.`;
 
   // Provider order: Groq (free, fast, confirmed working) → Anthropic (paid, reliable) → Gemini (free but credits may be depleted)
   const providers = [
@@ -2941,71 +2973,6 @@ app.post('/api/memory/backups/:index/restore', requireAuth, (req, res) => {
   res.json({ success: true, org: orgId, restored_from: snaps[idx].created_at, size: snaps[idx].snapshot.length });
 });
 
-
-// ============================================================
-// Research Notes -- durable notes/research library (own store key)
-// ============================================================
-const NOTES_KEY = 'research_notes';
-
-app.get('/api/notes', requireAuth, (req, res) => {
-  const notes = kvStore.get(NOTES_KEY, []);
-  const list = notes.slice().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).map(n => ({
-    id: n.id, title: n.title, tags: n.tags || [], source_url: n.source_url || '',
-    created_at: n.created_at, updated_at: n.updated_at, excerpt: (n.content || '').slice(0, 220)
-  }));
-  res.json({ notes: list, total: list.length });
-});
-
-app.get('/api/notes/:id', requireAuth, (req, res) => {
-  const notes = kvStore.get(NOTES_KEY, []);
-  const note = notes.find(n => n.id === req.params.id);
-  if (!note) return res.status(404).json({ error: 'Note not found' });
-  res.json({ note });
-});
-
-app.post('/api/notes', requireAuth, (req, res) => {
-  const { title, content, tags, source_url } = req.body || {};
-  if (!title || !content) return res.status(400).json({ error: 'title and content are required' });
-  const notes = kvStore.get(NOTES_KEY, []);
-  const now = new Date().toISOString();
-  const note = {
-    id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-    title, content,
-    tags: Array.isArray(tags) ? tags : (tags ? String(tags).split(',').map(t => t.trim()).filter(Boolean) : []),
-    source_url: source_url || '',
-    created_by: req.session?.email || process.env.ALLOWED_EMAIL || 'unknown',
-    created_at: now, updated_at: now
-  };
-  notes.push(note);
-  kvStore.set(NOTES_KEY, notes);
-  res.json({ success: true, note });
-});
-
-app.put('/api/notes/:id', requireAuth, (req, res) => {
-  const notes = kvStore.get(NOTES_KEY, []);
-  const idx = notes.findIndex(n => n.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Note not found' });
-  const { title, content, tags, source_url } = req.body || {};
-  const note = notes[idx];
-  if (title !== undefined) note.title = title;
-  if (content !== undefined) note.content = content;
-  if (tags !== undefined) note.tags = Array.isArray(tags) ? tags : String(tags).split(',').map(t => t.trim()).filter(Boolean);
-  if (source_url !== undefined) note.source_url = source_url;
-  note.updated_at = new Date().toISOString();
-  notes[idx] = note;
-  kvStore.set(NOTES_KEY, notes);
-  res.json({ success: true, note });
-});
-
-app.delete('/api/notes/:id', requireAuth, (req, res) => {
-  const notes = kvStore.get(NOTES_KEY, []);
-  const idx = notes.findIndex(n => n.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Note not found' });
-  const [removed] = notes.splice(idx, 1);
-  kvStore.set(NOTES_KEY, notes);
-  res.json({ success: true, removed });
-});
-
 // GET /api/audit-log — admin: full exhaustive log
 app.get('/api/audit-log', requireAuth, (req, res) => {
   const uid = _uid(req), orgId = _org(req);
@@ -3159,8 +3126,22 @@ app.post('/api/live-captions', (req, res) => {
     _capCodes.set(code, { userId: 'unverified', exp: Date.now() + 2*60*60*1000 });
   }
   const buf = _capBuffers.get(code) || { lines: [], updated: 0 };
+  if (req.body && req.body.meetUrl) buf.meetUrl = String(req.body.meetUrl).slice(0, 300);
   const incoming = (req.body && req.body.lines) || [];
-  for (const l of incoming) { if (l && l.text) buf.lines.push({ speaker: String(l.speaker||'').slice(0,80), text: String(l.text).slice(0,2000), ts: Number(l.ts)||Date.now() }); }
+  // Lines carrying a cid are interim/final revisions of the SAME caption row --
+  // update the existing buffered line in place (recent tail only) instead of
+  // appending a near-duplicate for every growth step of the caption.
+  for (const l of incoming) {
+    if (!l || !l.text) continue;
+    const line = { speaker: String(l.speaker||'').slice(0,80), text: String(l.text).slice(0,2000), ts: Number(l.ts)||Date.now(), cid: l.cid ? String(l.cid).slice(0,32) : undefined, final: l.final !== false };
+    let replaced = false;
+    if (line.cid) {
+      for (let i = buf.lines.length - 1; i >= 0 && i >= buf.lines.length - 50; i--) {
+        if (buf.lines[i].cid === line.cid) { buf.lines[i] = line; replaced = true; break; }
+      }
+    }
+    if (!replaced) buf.lines.push(line);
+  }
   if (buf.lines.length > 4000) buf.lines = buf.lines.slice(-4000);
   buf.updated = Date.now(); _capBuffers.set(code, buf);
   const meta = _capCodes.get(code); if (meta) meta.exp = Date.now()+12*60*60*1000;
@@ -3172,7 +3153,10 @@ app.get('/api/live-captions', requireAuth, (req, res) => {
   const meta=_capCodes.get(code); if(meta)meta.exp=Date.now()+24*60*60*1000;
   const buf = _capBuffers.get(code);
   if (!buf) return res.json({ lines: [], now: Date.now() });
-  res.json({ lines: buf.lines.filter((l)=>l.ts>since), now: Date.now() });
+  // Include session identity + the Meet URL the extension is scraping so the
+  // dashboard can gate rendering to the currently selected meeting only.
+  const sess = _capSessions.get(code) || null;
+  res.json({ lines: buf.lines.filter((l)=>l.ts>since), now: Date.now(), session: sess?{meetingId:sess.meetingId,title:sess.title,startTs:sess.startTs}:null, meetUrl: buf.meetUrl||null });
 });
 
 // ===========================================================================
@@ -3205,7 +3189,7 @@ function _finalizeCapSession(code, endTs) {
   const buf = _capBuffers.get(code);
   const lines = buf ? buf.lines.filter((l) => l.ts >= sess.startTs && l.ts <= (endTs || Date.now())) : [];
   if (!lines.length) return null; // nothing captured -> no empty notes
-  const transcript = lines.map((l) => (l.speaker ? l.speaker + ': ' : '') + l.text).join('\\n').slice(0, 120000);
+  const transcript = lines.map((l) => (l.speaker ? l.speaker + ': ' : '') + l.text).join('\n').slice(0, 120000);
   const store = kvStore.get(MEETING_NOTES_KEY, { entries: [] });
   const entry = {
     id: 'mn_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -3226,7 +3210,7 @@ async function _summarizeMeetingEntry(entryId) {
   const entry = (store.entries || []).find((e) => e.id === entryId);
   if (!entry || !entry.transcript) return;
   const sys = 'You summarize sales meeting transcripts for a CRO. Return plain text with these sections: 1) Two to three sentence summary. 2) Decisions made. 3) Commitments with owner and date, both sides. 4) Open questions. 5) Next step. Be specific, use the names in the transcript, no preamble.';
-  const out = await _aiSummarize(sys, 'Meeting: ' + entry.title + '\\nAttendees: ' + (entry.attendees || []).join(', ') + '\\n\\nTranscript:\\n' + entry.transcript.slice(0, 30000), 700);
+  const out = await _aiSummarize(sys, 'Meeting: ' + entry.title + '\nAttendees: ' + (entry.attendees || []).join(', ') + '\n\nTranscript:\n' + entry.transcript.slice(0, 30000), 700);
   if (!out) return;
   entry.summary = String(out).slice(0, 4000);
   kvStore.set(MEETING_NOTES_KEY, store);
@@ -3283,11 +3267,15 @@ app.get('/api/meeting-notes', requireAuth, (req, res) => {
       (e.title || '').toLowerCase().includes(needle) ||
       (e.attendees || []).some((a) => String(a).toLowerCase().includes(needle)));
   }
+  if (q.meetingId) entries = entries.filter((e) => e.meetingId === String(q.meetingId));
   if (q.since) entries = entries.filter((e) => e.startTs >= Number(q.since));
   const lim = Math.min(Number(q.limit) || 50, 200);
   const full = q.full === '1';
   entries = entries.slice(-lim).reverse();
-  res.json({ entries: full ? entries : entries.map((e) => ({
+  // Legacy entries were stored with a literal two-char "\n" between transcript
+  // lines (the _finalizeCapSession join('\\n') bug, fixed above) -- normalize
+  // them to real newlines on read so clients can parse speaker lines.
+  res.json({ entries: full ? entries.map((e) => ({ ...e, transcript: String(e.transcript || '').replace(/\\n/g, '\n') })) : entries.map((e) => ({
     id: e.id, meetingId: e.meetingId, title: e.title, company: e.company, brand: e.brand,
     attendees: e.attendees, startTs: e.startTs, endTs: e.endTs, lineCount: e.lineCount, summary: e.summary,
   })) });
@@ -3465,6 +3453,37 @@ app.post('/api/social/posts/:id/result', bridgeGuard, (req, res) => {
   job.postedAt = new Date().toISOString();
   kvStore.set(SOCIAL_POSTS_KEY, store);
   res.json({ ok: true, job });
+});
+
+// --- Legal Asset Generator: base-version library (durable via kvStore) ------
+const LEGAL_BASES_KEY = 'legal-base-versions';
+app.get('/api/legal/bases', requireAuth, (_req, res) => {
+  res.json(kvStore.get(LEGAL_BASES_KEY, { versions: [] }));
+});
+app.post('/api/legal/bases', requireAuth, (req, res) => {
+  const b = req.body || {};
+  if (!b.text || !String(b.text).trim()) return res.status(400).json({ error: 'Missing base text' });
+  const store = kvStore.get(LEGAL_BASES_KEY, { versions: [] });
+  const v = {
+    id: 'lb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    name: String(b.name || 'Untitled base').slice(0, 120),
+    docType: b.docType || '',
+    sourceThreadId: b.sourceThreadId || null,
+    sourceSubject: String(b.sourceSubject || '').slice(0, 200),
+    text: String(b.text).slice(0, 400000),
+    createdAt: new Date().toISOString(),
+  };
+  store.versions = store.versions || [];
+  store.versions.push(v);
+  kvStore.set(LEGAL_BASES_KEY, store);
+  res.json({ ok: true, version: v });
+});
+app.delete('/api/legal/bases/:id', requireAuth, (req, res) => {
+  const store = kvStore.get(LEGAL_BASES_KEY, { versions: [] });
+  const before = (store.versions || []).length;
+  store.versions = (store.versions || []).filter(v => v.id !== req.params.id);
+  kvStore.set(LEGAL_BASES_KEY, store);
+  res.json({ ok: true, removed: before - store.versions.length });
 });
 
 // --- Breaking-source "be first" monitor + refresh + super-viral email alert ----

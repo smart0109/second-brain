@@ -241,7 +241,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 
 /* CRM Kanban Board */
 .crm-kanban { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; min-height: 400px; }
-.crm-kanban::-webkit-scrollbar { height: 6px; }
+.crm-kanban::-webkit-scrollbar { height: 12px; }
 .crm-kanban::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
 .crm-kanban-col { min-width: 240px; max-width: 280px; flex: 1; background: var(--bg-surface); border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; }
 .crm-kanban-col.drag-over { border-color: var(--accent); background: rgba(201,162,39,0.05); box-shadow: 0 0 12px rgba(201,162,39,0.15); }
@@ -252,7 +252,7 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .ckc-header .ckc-value { font-size: 10px; color: var(--accent-text); font-weight: 600; }
 .ckc-header input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
 .ckc-cards { flex: 1; padding: 6px; overflow-y: auto; max-height: 600px; }
-.ckc-cards::-webkit-scrollbar { width: 4px; }
+.ckc-cards::-webkit-scrollbar { width: 10px; }
 .ckc-cards::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .crm-deal-card { background: var(--bg-card); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; border: 1px solid var(--border); cursor: grab; transition: all 0.15s; position: relative; }
 .crm-deal-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
@@ -324,11 +324,13 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .team-deal-item .td-amt { color: var(--accent-text); font-weight: 500; }
 
 /* Scroll */
-.scroll-panel { max-height: 400px; overflow-y: auto; }
-.scroll-panel::-webkit-scrollbar { width: 4px; }
-.scroll-panel::-webkit-scrollbar-track { background: transparent; }
-.scroll-panel::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
-.scroll-panel::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+.scroll-panel { max-height: 400px; overflow-y: auto; scrollbar-width: auto; scrollbar-color: var(--border-hover) var(--bg-surface); }
+/* App-wide comfortable scrollbars (single light theme; colors ride the CSS vars) */
+*::-webkit-scrollbar { width: 12px; height: 12px; }
+*::-webkit-scrollbar-track { background: var(--bg-surface); border-radius: 6px; }
+*::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--bg-surface); border-radius: 6px; min-height: 40px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+* { scrollbar-color: var(--border) var(--bg-surface); }
 
 /* Loading */
 .loading { text-align: center; padding: 24px; color: var(--text-muted); }
@@ -722,7 +724,6 @@ button { text-align: left; }
 
     <div class="sidebar-group-title">Market &amp; Distribution</div>
     <div class="tab" data-view="artifacts" data-org="sales" onclick="switchView('artifacts')" style="font-weight:600">Artifacts</div>
-    <div class="tab" data-view="notes" data-org="sales" onclick="switchView('notes')" style="font-weight:600">Notes</div>
     <!-- Intelligence is reachable from Marketing's own sidebar entry, and from
          Sales via the AI Transcription > Intelligence sub-tab (see view-copilot). -->
     <div class="tab" data-view="intelligence" data-org="marketing" onclick="switchView('intelligence')" style="display:none">Intelligence</div>
@@ -877,11 +878,23 @@ button { text-align: left; }
       </div>
     </div>
 
+    <!-- CRM OKRs -->
+    <div id="view-crmokrs" class="view">
+      <div class="meetings-subnav">
+        <button class="prod-btn" onclick="switchView('pipeline')">Deals</button>
+        <button class="prod-btn" onclick="switchView('contact360')">Contact 360</button>
+        <button class="prod-btn primary" onclick="switchView('crmokrs')">OKRs</button>
+      </div>
+      <div class="prod-feature-loading" id="okrLoading"><div class="memory-empty">Loading OKR tracker...</div></div>
+      <div id="okrContent" style="display:none"></div>
+    </div>
+
     <!-- CONTACT 360 -->
     <div id="view-contact360" class="view">
       <div class="meetings-subnav">
         <button class="prod-btn" onclick="switchView('pipeline')">Deals</button>
         <button class="prod-btn primary" onclick="switchView('contact360')">Contact 360</button>
+        <button class="prod-btn" onclick="switchView('crmokrs')">OKRs</button>
       </div>
       <div id="contactPlaceholder">
         <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
@@ -942,6 +955,7 @@ button { text-align: left; }
       <div class="meetings-subnav">
         <button class="prod-btn primary" onclick="switchView('pipeline')">Deals</button>
         <button class="prod-btn" onclick="switchView('contact360')">Contact 360</button>
+        <button class="prod-btn" onclick="switchView('crmokrs')">OKRs</button>
       </div>
       <!-- Top bar: brand toggle + view toggle + summary -->
       <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
@@ -1038,9 +1052,9 @@ button { text-align: left; }
             </div>
           </div>
         </div>
-        <div class="section-header">This Week's Calendar + Notes</div>
+        <div class="section-header">Next 7 Days &mdash; Calendar + Notes</div>
         <div class="card"><div class="card-body scroll-panel" id="weekCalMeetings"><div class="loading"><div class="spinner"></div><br>Loading calendar...</div></div></div>
-        <div class="section-header">Granola Meeting Notes (This Week)</div>
+        <div class="section-header">Past AI Transcriptions</div>
         <div class="card"><div class="card-body scroll-panel" id="weekMeetings"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
         <div class="section-header">Last 30 Days</div>
         <div class="card"><div class="card-body scroll-panel" id="monthMeetings"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
@@ -1339,17 +1353,24 @@ button { text-align: left; }
         <h2>Productivity Hub</h2>
         <button class="prod-btn" onclick="prodSyncTasks()">Sync External Tasks</button>
         <button class="prod-btn" onclick="prodScanActivity()">Scan Activity</button>
+        <select id="prodBrandFilter" onchange="setProdBrand(this.value)" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:12px">
+          <option value="all">All companies</option>
+          <option value="cadient">Cadient</option>
+          <option value="vorro">Vorro</option>
+          <option value="cv3">CV3</option>
+          <option value="revengineer">RevEngineer</option>
+        </select>
         <button class="prod-btn primary" onclick="toggleAddTask()">+ Add Task</button>
       </div>
 
       <div id="prodAddForm" class="prod-add-form">
-        <input id="prodTaskTitle" type="text" placeholder="Task title (bold, actionable)" onkeydown="if(event.key==='Enter')addProdTask()">
+        <input id="prodTaskTitle" type="text" spellcheck="true" lang="en" autocapitalize="sentences" placeholder="Task title (bold, actionable)" onkeydown="if(event.key==='Enter')addProdTask()">
         <div class="paf-row">
           <input id="prodTaskPerson" type="text" placeholder="For whom (optional)">
           <input id="prodTaskDue" type="date" placeholder="Due date">
           <select id="prodTaskColumn"><option value="active">Active</option><option value="waiting">Waiting On</option><option value="someday">Someday</option></select>
         </div>
-        <textarea id="prodTaskContext" rows="2" placeholder="Context, notes, links..."></textarea>
+        <textarea id="prodTaskContext" rows="2" spellcheck="true" lang="en" autocapitalize="sentences" placeholder="Context, notes, links..."></textarea>
         <div class="paf-actions">
           <button class="prod-btn" onclick="toggleAddTask()">Cancel</button>
           <button class="prod-btn primary" onclick="addProdTask()">Add Task</button>
@@ -1358,14 +1379,9 @@ button { text-align: left; }
 
       <div class="prod-tabs">
         <button class="prod-tab active" onclick="switchProdView('board',this)">Board</button>
-        <button class="prod-tab" onclick="switchProdView('assets',this)">Sales Assets</button>
         <button class="prod-tab" onclick="switchProdView('memory',this)">Memory</button>
         <button class="prod-tab" onclick="switchProdView('glossary',this)">Glossary</button>
         <button class="prod-tab" onclick="switchProdView('review',this)">Review</button>
-        <button class="prod-tab" onclick="switchProdView('load',this)">Load</button>
-        <button class="prod-tab" onclick="switchProdView('okrs',this)">OKRs</button>
-        <button class="prod-tab" onclick="switchProdView('energy',this)">Energy</button>
-        <button class="prod-tab" onclick="switchProdView('focus',this)">Focus</button>
       </div>
 
       <!-- Board view -->
@@ -1393,81 +1409,6 @@ button { text-align: left; }
           <div class="kanban-col done" id="colDone">
             <div class="kanban-col-header"><div class="kch-dot"></div><div class="kch-title">Done</div><div class="kch-count" id="cntDone">0</div></div>
             <div id="cardsDone"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Sales Assets view -->
-      <div id="prodAssetsView" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <!-- Cadient Assets -->
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px">
-            <h3 style="color:#3b3735;font-size:14px;margin:0 0 14px;display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#128188;</span> Cadient SmartSuite</h3>
-            <div style="margin-bottom:14px">
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">One Pagers</div>
-              <a href="https://drive.google.com/file/d/170l_zc3Y8tUbNatai4ldMZXqAdg0eat-/view" target="_blank" class="asset-link">SmartSuite + CEM (Exec/Director)</a>
-              <a href="https://drive.google.com/file/d/1ZY5OiGSX4ZM-D3ZJsY2SBShktAR5YO_g/view" target="_blank" class="asset-link">SmartSource (TA/Sourcing)</a>
-              <a href="https://drive.google.com/file/d/1Gx_gawGmxobqKLkigngqx3vqq_O9QcLK/view" target="_blank" class="asset-link">SmartScreen (Recruiter/Ops)</a>
-              <a href="https://drive.google.com/file/d/1i7zB35EBSZFTMkb2BIapeiVLXEWq11PH/view" target="_blank" class="asset-link">SmartHire (HR Manager)</a>
-              <a href="https://drive.google.com/file/d/1nZLAN0E1IloIHfYVVuFYHSLVYo40Erib/view" target="_blank" class="asset-link">SmartSuite Full Overview</a>
-            </div>
-            <div style="margin-bottom:14px">
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Videos / Demos</div>
-              <a href="https://drive.google.com/file/d/18kV5WPL8nyackgynuPXNRZIaMpQZPJEF/view" target="_blank" class="asset-link">SmartSuite Explainer (Exec/Director)</a>
-              <a href="https://drive.google.com/file/d/1DQqqpyefqW8mDcl6LZ3rM81GQrhaG0I9/view" target="_blank" class="asset-link">SmartMatch Promo (TA/Sourcing)</a>
-              <a href="https://drive.google.com/file/d/1J_FjkeaGAtACRHDMib1677zhb6blssNr/view" target="_blank" class="asset-link">SmartScreen Promo (Recruiter/Ops)</a>
-              <a href="https://drive.google.com/file/d/1kSGx0qWC9grkTZ2IFtJ9fpQMlz3eI863/view" target="_blank" class="asset-link">SmartSuite Overview (HR/Default)</a>
-            </div>
-            <div style="margin-bottom:14px">
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">CEM / Hiring Journey PDFs</div>
-              <a href="https://drive.google.com/file/d/1SSQSCc55KsiYZoO_WTqsSrpeQjXrHXwS/view" target="_blank" class="asset-link">Grocery</a>
-              <a href="https://drive.google.com/file/d/11IVZ1Pj3BgY9FOtl1a2XgLjGii8fslz9/view" target="_blank" class="asset-link">Healthcare &amp; Nursing</a>
-              <a href="https://drive.google.com/file/d/1dVpO0fSPI3G-ZR5vsPqEv0JZ7z1kvvbM/view" target="_blank" class="asset-link">Generic / Automotive</a>
-              <a href="https://drive.google.com/file/d/1JN49IUxb5ak7nTTMAB5rqhuN5SND9SXy/view" target="_blank" class="asset-link">Manufacturing</a>
-              <a href="https://drive.google.com/file/d/1xjXu9hSUTZnVemgZYqiPKpyP1tDCtzfV/view" target="_blank" class="asset-link">Logistics &amp; Warehousing</a>
-              <a href="https://drive.google.com/file/d/1CMw-UQ1q6KvGC4sqGIjmzcPNCKiu7GXg/view" target="_blank" class="asset-link">Hospitality</a>
-              <a href="https://drive.google.com/file/d/1_4B2DrjdFPj4NVeUS7Zrjv9ivmsmIx0N/view" target="_blank" class="asset-link">Food &amp; Beverage</a>
-              <a href="https://drive.google.com/file/d/12QvuVwJ_FjTRWZ3P39dAy-xAKA-RgeEM/view" target="_blank" class="asset-link">Delivery</a>
-              <a href="https://drive.google.com/file/d/1qfUFyqKAX3-gxJCwItpgANRqr8sXj81S/view" target="_blank" class="asset-link">Financial Services</a>
-            </div>
-            <div>
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Case Studies</div>
-              <a href="https://drive.google.com/file/d/1PpXwvv1sM6ljI-XdepjlsaVL0XXikwtu/view" target="_blank" class="asset-link">Mini Case Study (Grocery/Auto)</a>
-              <a href="https://drive.google.com/file/d/13JLKPTiQvy0h14hHbmucTp4a71_H-tjG/view" target="_blank" class="asset-link">Mini Proof Point (Healthcare/Default)</a>
-            </div>
-          </div>
-          <!-- Vorro Assets -->
-          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px">
-            <h3 style="color:#5e8c45;font-size:14px;margin:0 0 14px;display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#127973;</span> Vorro BridgeGate</h3>
-            <div style="margin-bottom:14px">
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Product Overview</div>
-              <a href="https://vorro.net" target="_blank" class="asset-link">Vorro.net (Main Site)</a>
-              <a href="https://vorro.net/bridgegate" target="_blank" class="asset-link">BridgeGate EiPaaS Platform</a>
-            </div>
-            <div style="margin-bottom:14px">
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Key Capabilities</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;padding:4px 0">
-                Integration (FHIR, HL7, EDI X12, NCPDP, C-CDA)<br>
-                AI Data Hub (unified patient data)<br>
-                Workflow Automation (AI-driven)<br>
-                Real-time Monitoring + Auto-healing<br>
-                Self-managed, Hybrid, or Fully Managed
-              </div>
-            </div>
-            <div style="margin-bottom:14px">
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Pricing Reference</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;padding:4px 0">
-                Platform: $20K to $90K+/yr<br>
-                Per-connection fees on top<br>
-                100+ enterprises, 5000+ apps, 10M daily transactions
-              </div>
-            </div>
-            <div>
-              <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">EHR Partners</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.8;padding:4px 0">
-                Epic, Cerner, Athena, AllScripts, eClinicalWorks, NextGen, Meditech, CPSI
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -1507,30 +1448,6 @@ button { text-align: left; }
       <div id="prodReviewView" style="display:none">
         <div class="prod-feature-loading" id="reviewLoading"><div class="memory-empty">Click to load weekly review...</div></div>
         <div id="reviewContent" style="display:none"></div>
-      </div>
-
-      <!-- Meeting Load view -->
-      <div id="prodLoadView" style="display:none">
-        <div class="prod-feature-loading" id="loadLoading"><div class="memory-empty">Click to load meeting analysis...</div></div>
-        <div id="loadContent" style="display:none"></div>
-      </div>
-
-      <!-- OKR Tracker view -->
-      <div id="prodOKRView" style="display:none">
-        <div class="prod-feature-loading" id="okrLoading"><div class="memory-empty">Click to load OKR tracker...</div></div>
-        <div id="okrContent" style="display:none"></div>
-      </div>
-
-      <!-- Energy Tracker view -->
-      <div id="prodEnergyView" style="display:none">
-        <div class="prod-feature-loading" id="energyLoading"><div class="memory-empty">Click to load energy tracker...</div></div>
-        <div id="energyContent" style="display:none"></div>
-      </div>
-
-      <!-- Focus Blocks view -->
-      <div id="prodFocusView" style="display:none">
-        <div class="prod-feature-loading" id="focusLoading"><div class="memory-empty">Click to load focus blocks...</div></div>
-        <div id="focusContent" style="display:none"></div>
       </div>
 
     </div>
@@ -1607,11 +1524,19 @@ button { text-align: left; }
           <button class="prod-btn primary" onclick="generateLegalDoc('both')" style="background:#8a6a24;border-color:#8a6a24;color:#fff;flex:1">Generate Both</button>
         </div>
 
-        <div id="legalExamplesPanel" style="display:none">
-          <div class="section-header">Email Examples Found</div>
-          <div class="card"><div class="card-body scroll-panel" id="legalExamples" style="padding:0"></div></div>
-        </div>
       </div>
+
+      <div id="legalExamplesPanel" style="display:none">
+        <div class="section-header">Email Examples Found</div>
+        <div class="card"><div class="card-body scroll-panel" id="legalExamples" style="padding:0"></div></div>
+      </div>
+
+      <div id="legalBasePanel" style="margin-top:14px">
+        <div class="section-header">Base Versions</div>
+        <div class="card"><div class="card-body" id="legalBaseList" style="padding:12px;font-size:12px">Loading base versions...</div></div>
+      </div>
+
+      <div id="legalDocOutput" class="card" style="display:none;margin-top:14px;padding:14px"></div>
     </div>
 
     <!-- ARTIFACTS -->
@@ -1630,28 +1555,6 @@ button { text-align: left; }
         </div>
       </div>
       <div id="artifactsContent"><div class="loading"><div class="spinner"></div><br>Loading artifacts...</div></div>
-    </div>
-
-    <!-- RESEARCH NOTES -->
-    <div id="view-notes" class="view">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <h2 style="font-size:16px;font-weight:700;flex:1;color:#3b3735">Research Notes</h2>
-        <button class="prod-btn primary" onclick="toggleNoteForm()" style="background:#3b3735;border-color:#3b3735;color:#fff">+ New Note</button>
-      </div>
-      <div id="noteFormPanel" class="card" style="display:none;margin-bottom:14px">
-        <div class="card-body" style="padding:14px;display:grid;gap:8px">
-          <input type="text" id="noteTitleInput" placeholder="Title" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit">
-          <input type="text" id="noteTagsInput" placeholder="Tags (comma separated)" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit">
-          <input type="text" id="noteSourceInput" placeholder="Source URL (optional)" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit">
-          <textarea id="noteContentInput" rows="8" placeholder="Note content (markdown ok)" style="padding:8px 10px;border:1px solid #d6d3d0;border-radius:5px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
-          <div style="display:flex;gap:8px">
-            <button class="prod-btn primary" onclick="saveNote()" style="background:#3b3735;border-color:#3b3735;color:#fff">Save Note</button>
-            <button class="prod-btn" onclick="toggleNoteForm()">Cancel</button>
-          </div>
-        </div>
-      </div>
-      <div id="notesContent"><div class="loading"><div class="spinner"></div><br>Loading notes...</div></div>
-      <div id="noteDetailPanel" style="display:none"></div>
     </div>
 
     <!-- NEWS FEED -->
@@ -1948,6 +1851,7 @@ function mnSinceForRange(range){
   if(range==='today')return now-86400000;
   if(range==='this_week'){const d=new Date();const dow=d.getDay()||7;return now-(dow-1)*86400000;}
   if(range==='last_week')return now-14*86400000;
+  if(range==='last_90_days')return now-90*86400000;
   return now-30*86400000; // last_30_days default
 }
 function mnExtractDays(q){
@@ -3001,12 +2905,12 @@ function switchView(v){
   else if(v==='copilot'&&window._copilotLoaded)refreshCopilotCurrentMeeting().catch(()=>{});
   if(v==='productivity'&&!window._prodLoaded)safeLoad(loadProductivity,'Productivity');
   if(v==='contact360'&&!window._contact360AutoLoaded){window._contact360AutoLoaded=true;loadRecentContacts();loadMostMentioned();loadRecentExecChanges();}
-  // Legal tab is static — no data load needed on switch
+  if(v==='crmokrs'&&!window._okrLoaded){window._okrLoaded=true;safeLoad(loadOKRTracker,'CRM OKRs');}
+  if(v==='legal'&&!window._legalBasesLoaded){window._legalBasesLoaded=true;loadLegalBases();}
   // News and Social Posting are now Today sub-sections, loaded from loadDashboard() instead.
   if(v==='icpchecker'&&!window._icpLoaded)safeLoad(loadICPChecker,'ICP Checker');
   if(v==='followups'&&!window._followupsLoaded)safeLoad(loadFollowups,'Follow-ups');
   if(v==='artifacts'&&!window._artifactsLoaded)safeLoad(loadArtifacts,'Artifacts');
-  if(v==='notes'&&!window._notesLoaded)safeLoad(loadNotes,'Notes');
   // Marketing views
   if(v==='mktCampaigns'&&!window._mktCampaignsLoaded){window._mktCampaignsLoaded=true;safeLoad(loadMktCampaigns,'Campaigns');}
   if(v==='mktLeads'&&!window._mktLeadsLoaded){window._mktLeadsLoaded=true;safeLoad(loadMktLeads,'Lead Analytics');}
@@ -4984,6 +4888,52 @@ function parseMeetings(raw){
   return ms;
 }
 
+// Past AI Transcriptions: finalized live-caption meetings from the server
+// meeting-notes store (GET /api/meeting-notes?full=1). One fetch renders
+// summary + expandable speaker-line transcript per entry. Legacy transcripts
+// may contain literal backslash-n separators; normalize before splitting.
+async function renderPastTranscriptions(targetId){
+  const el=document.getElementById(targetId);if(!el)return;
+  let d={};
+  try{ d=await mnFetch({since:String(Date.now()-14*86400000),limit:'50',full:'1'}); }catch(e){ el.innerHTML='<div class="empty-state">Failed to load transcriptions</div>'; return; }
+  const entries=(d.entries||[]);
+  if(!entries.length){el.innerHTML='<div class="empty-state" style="font-size:11px;color:var(--text-muted);padding:12px">No AI transcriptions yet. Start Live Captions during a meeting on the AI Transcription tab; finalized meetings appear here with summary + transcript.</div>';return;}
+  window._pastTxEntries=entries;
+  el.innerHTML=entries.map((m,i)=>{
+    const when=m.startTs?new Date(m.startTs).toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+    const ppl=(m.attendees||[]).slice(0,4).join(', ');
+    const hasSummary=!!(m.summary&&m.summary.length>10);
+    const hasTx=!!(m.transcript&&m.transcript.length>20);
+    return `<div class="item" style="padding-bottom:0">
+      <div class="item-row">
+        <div class="item-icon granola">&#127908;</div>
+        <div class="item-content"><div class="item-title">${esc(m.title||'Meeting')}</div>
+        <div class="item-sub">${esc(when)}${ppl?' &middot; '+esc(ppl):''}${m.lineCount?' &middot; '+m.lineCount+' lines':''}</div></div>
+        <span class="notes-link ${hasSummary?'active':'greyed'}" onclick="togglePastTx('${targetId}',${i},'summary')">Summary</span>
+        <span class="notes-link ${hasTx?'active':'greyed'}" style="margin-left:4px" onclick="togglePastTx('${targetId}',${i},'tx')">View transcript</span>
+      </div>
+      <div id="ptx_${targetId}_${i}_summary" style="display:none"></div>
+      <div id="ptx_${targetId}_${i}_tx" style="display:none"></div>
+    </div>`;
+  }).join('');
+}
+function togglePastTx(targetId,i,kind){
+  const box=document.getElementById('ptx_'+targetId+'_'+i+'_'+kind);if(!box)return;
+  if(box.dataset.loaded==='1'){box.style.display=box.style.display==='none'?'block':'none';return;}
+  const m=(window._pastTxEntries||[])[i]||{};
+  if(kind==='summary'){
+    box.innerHTML='<div class="notes-content">'+(m.summary?renderMarkdown(m.summary):'<span style="color:var(--text-muted)">Summary not generated yet.</span>')+'</div>';
+  }else{
+    const raw=String(m.transcript||'').replace(/\\n/g,'\n'); // legacy entries stored with literal backslash-n separators
+    const lines=raw.split('\n').filter(l=>l.trim());
+    box.innerHTML='<div class="notes-content" style="max-height:280px;overflow-y:auto">'+(lines.length?lines.map(l=>{
+      const mm=/^([^:]{1,40}):\s*(.*)$/.exec(l);
+      return mm?'<div style="margin-bottom:3px"><span style="color:var(--accent-text);font-weight:700">'+esc(mm[1])+':</span> '+esc(mm[2])+'</div>'
+               :'<div style="margin-bottom:3px">'+esc(l)+'</div>';
+    }).join(''):'<span style="color:var(--text-muted)">No transcript captured.</span>')+'</div>';
+  }
+  box.dataset.loaded='1';box.style.display='block';
+}
 function renderGranolaMeetings(raw,targetId){
   const el=document.getElementById(targetId);const ms=parseMeetings(raw);
   if(!ms.length){el.innerHTML='<div class="empty-state" style="font-size:11px;color:var(--text-muted);padding:12px">No Granola notes found. Open the <a href="https://granola.ai" target="_blank" style="color:var(--blue)">Granola app</a>, record a meeting, and refresh this tab.</div>';return}
@@ -5281,7 +5231,7 @@ async function loadMeetingsView(){
   loadDaySchedule(new Date());
   // Load calendar events AND Granola meetings in parallel
   const now=new Date();
-  const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay());weekStart.setHours(0,0,0,0);
+  const weekStart=new Date(now);weekStart.setHours(0,0,0,0); // rolling 7-day window starting TODAY (was Sunday-anchored)
   const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+7);
   const [calR,wR,mR,prepDraftsR,prepDocsR]=await Promise.allSettled([
     call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime',pageSize:250}),
@@ -5373,6 +5323,9 @@ async function loadMeetingsView(){
           statusBadge=`<a href="${esc(docMatch.driveUrl)}" target="_blank" onclick="event.stopPropagation()" style="color:#5e8c45;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;background:rgba(52,211,153,0.15);margin-right:4px;text-decoration:none;border:1px solid rgba(52,211,153,0.3)" title="Open prep doc in Google Drive">Prep Doc</a>`;
         } else if(hasPrepReady){
           statusBadge=`<a href="${draftUrl(prepMatch.draftId||prepMatch.id)}" target="_blank" onclick="event.stopPropagation()" style="color:#5e8c45;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;background:rgba(52,211,153,0.15);margin-right:4px;text-decoration:none;border:1px solid rgba(52,211,153,0.3)">Prep Ready</a>`;
+        } else if(typeof getMeetingPrepLink==='function'&&getMeetingPrepLink(e.summary||'',emails)){
+          const _pl=getMeetingPrepLink(e.summary||'',emails);
+          statusBadge=`<a href="${esc(_pl.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent-text);font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;background:var(--accent-dim);margin-right:4px;text-decoration:none;border:1px solid var(--accent)" title="Open prep brief">${esc(_pl.label||'Prep available')}</a>`;
         } else if(hasNotes){
           statusBadge='<span style="color:#8a6a24;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.15);margin-right:4px">Notes Only</span>';
         } else {
@@ -5394,9 +5347,8 @@ async function loadMeetingsView(){
     calEl.innerHTML=calHtml;
     }
   }else{calEl.innerHTML='<div class="empty-state">Failed to load calendar</div>';}
-  // Render Granola meetings separately
-  if(wR.status==='fulfilled')renderGranolaMeetings(wR.value,'weekMeetings');
-  else{const _wm=document.getElementById('weekMeetings');if(_wm)_wm.innerHTML='<div class="empty-state">Failed to load</div>';}
+  // Render Past AI Transcriptions (finalized live-caption meeting notes)
+  renderPastTranscriptions('weekMeetings');
   if(mR.status==='fulfilled')renderGranolaMeetings(mR.value,'monthMeetings');
   else{const _mm=document.getElementById('monthMeetings');if(_mm)_mm.innerHTML='<div class="empty-state">Failed to load</div>';}
 }
@@ -6841,6 +6793,15 @@ const DEDUP_WINDOW_MS=6000;
 function _pushTranscriptLine(line){
   const norm=_normUtterance(line.text);
   if(!norm)return false;
+  // cid in-place update: interim/final revisions of the same live caption row
+  // (from the Meet extension) update the existing line instead of appending.
+  // Returns false (no NEW line) so callers skip side-effects for revisions.
+  if(line.cid){
+    for(let i=copilotTranscriptLines.length-1;i>=0&&i>=copilotTranscriptLines.length-30;i--){
+      const ex=copilotTranscriptLines[i];
+      if(ex.cid===line.cid){ex.text=line.text;if(line.speaker)ex.speaker=line.speaker;ex.time=line.time||ex.time;return false;}
+    }
+  }
   const now=(line.time&&line.time.getTime)?line.time.getTime():Date.now();
   const named=!_isUnnamedSpeaker(line.speaker);
   for(let i=copilotTranscriptLines.length-1;i>=0;i--){
@@ -6894,6 +6855,17 @@ const VORRO_PAGE_LINKS_BY_EMAIL = {
 // Shared lookup used by both the AI Transcription left-column banner
 // (renderVorroBanner, via loadAttendeeContext) and the Meetings tab's Prep
 // button (expandMeeting) -- keeps both surfaces in sync off one map.
+// Static prep-collateral links for recurring meetings, matched against the
+// CALENDAR EVENT TITLE (complements VORRO_PAGE_LINKS_* which key off attendee
+// emails). One line per future meeting. Used by the week-list status badge.
+const MEETING_PREP_LINKS=[
+  {pattern:/ICE.*(Basisvps|Marketing)/i, url:'https://smart0109.github.io/p/37d0fc35bd9b/', label:'Prep available'}, // Vorro x ICE InsureTech pre-meeting strategy brief
+];
+function getMeetingPrepLink(title,emails){
+  const t=String(title||'');
+  return MEETING_PREP_LINKS.find(l=>l.pattern.test(t))
+    || (function(){const v=getVorroLink(emails||[]);return v?{url:v.url,label:'Prep available'}:null;})();
+}
 function getVorroLink(emails){
   return (emails||[]).map(e=>{
     const d=(e.split('@')[1]||'').toLowerCase();
@@ -7258,21 +7230,108 @@ function startBrowserSpeech(statusMsg){
   setListenUI(true,statusMsg||'Listening (browser speech)...');
 }
 
-async function loadMeetTranscriptFromDrive(silentFallback){
+// ── Unified past-meeting transcript resolver ─────────────────────────────
+// Resolution order: stored AI Transcription notes (exact meetingId, then
+// title+date fuzzy) -> saved local sessions -> Drive docs (date-windowed).
+// Every render is guarded by a stillCurrent() check so a slow lookup never
+// clobbers the pane after the user switched meetings again.
+function _mnNormalizeTranscript(t){return String(t||'').replace(/\\n/g,'\n');}
+function _meetingStartMs(m){
+  if(m&&m.start&&(m.start.dateTime||m.start.date))return new Date(m.start.dateTime||m.start.date).getTime();
+  if(m&&m.date)return new Date(m.date).getTime()||0;
+  return 0;
+}
+async function _mnEntryForMeeting(m){
+  const key=(typeof _meetingKey==='function'?_meetingKey(m):'')||'';
+  let entries=[];
+  try{ if(key){const d1=await mnFetch({meetingId:key,full:'1',limit:'5'});entries=d1.entries||[];} }catch(e){}
+  let e=key?entries.find(x=>x.meetingId&&x.meetingId===key):null;
+  if(!e){
+    try{const d2=await mnFetch({limit:'200',full:'1'});entries=d2.entries||[];}catch(err){entries=[];}
+    e=key?entries.find(x=>x.meetingId&&x.meetingId===key):null;
+    if(!e){
+      const title=String((m&&(m.summary||m.title))||'').toLowerCase().trim();
+      const ms=_meetingStartMs(m);
+      if(title&&ms){
+        e=entries.find(x=>{
+          const t2=String(x.title||'').toLowerCase().trim();
+          const titleOk=t2&&(t2===title||t2.includes(title)||title.includes(t2));
+          const dateOk=x.startTs&&Math.abs(x.startTs-ms)<=6*3600000;
+          return titleOk&&dateOk;
+        });
+      }
+    }
+  }
+  return (e&&(e.transcript||e.summary))?e:null;
+}
+async function resolveTranscriptForMeeting(m){
+  m=m||copilotCurrentMeeting||{};
+  const myKey=(typeof _meetingKey==='function'?_meetingKey(m):'')||JSON.stringify(m).slice(0,80);
+  const stillCurrent=()=>{const ck=(typeof _meetingKey==='function'?_meetingKey(copilotCurrentMeeting):'')||JSON.stringify(copilotCurrentMeeting||{}).slice(0,80);return ck===myKey;};
+  const tEl=document.getElementById('copilotTranscript');
+  const title=(m.summary||m.title||'Meeting');
+  if(tEl)tEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Loading transcript for '+esc(title)+'...</div>';
+  try{
+    const e=await _mnEntryForMeeting(m);
+    if(!stillCurrent())return;
+    if(e){
+      const lines=parseMeetTranscript(_mnNormalizeTranscript(e.transcript));
+      if(lines.length){
+        copilotTranscriptLines=lines;renderCopilotTranscript();
+        copilotMeetingContext='MEETING TRANSCRIPT: '+_mnNormalizeTranscript(e.transcript).slice(0,2000);
+        const note=document.createElement('div');
+        note.style.cssText='font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600';
+        note.textContent='Captured live captions: '+(e.title||title)+' ('+lines.length+' lines'+(e.startTs?', '+new Date(e.startTs).toLocaleDateString():'')+')';
+        if(tEl)tEl.prepend(note);
+        return;
+      }
+      if(e.summary){
+        if(tEl)tEl.innerHTML='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">AI Transcription summary for "'+esc(e.title||title)+'":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(e.summary.slice(0,6000))+'</div>';
+        copilotMeetingContext='MEETING NOTES: '+e.summary.slice(0,2000);
+        return;
+      }
+    }
+  }catch(err){}
+  if(!stillCurrent())return;
+  try{
+    const tl=String(title).toLowerCase().trim();const ms=_meetingStartMs(m);
+    const sv=sbGetSessions().find(x=>{
+      const t2=String(x.title||'').toLowerCase().trim();
+      const titleOk=t2&&tl&&(t2===tl||t2.includes(tl)||tl.includes(t2));
+      const dateOk=!ms||!x.date||Math.abs(new Date(x.date).getTime()-ms)<=36*3600000;
+      return titleOk&&dateOk&&x.lines&&x.lines.length;
+    });
+    if(sv){
+      if(!stillCurrent())return;
+      copilotTranscriptLines=sv.lines.map(l=>({text:l.text,speaker:l.speaker||'',time:l.t?new Date(l.t):new Date(),confidence:1,dgSpeaker:-1}));
+      renderCopilotTranscript();
+      return;
+    }
+  }catch(err){}
+  if(!stillCurrent())return;
+  await loadMeetTranscriptFromDrive(true,myKey);
+}
+
+async function loadMeetTranscriptFromDrive(silentFallback,myKey){
   const m=copilotCurrentMeeting||{};
+  if(!myKey)myKey=(typeof _meetingKey==='function'?_meetingKey(m):'')||'';
+  const _stillCurrent=()=>((typeof _meetingKey==='function'?_meetingKey(copilotCurrentMeeting):'')||'')===myKey;
   const title=m.summary||'';
   const tEl=document.getElementById('copilotTranscript');
   if(tEl)tEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching Drive for this meeting\'s transcript...</div>';
   try{
     const kw=(title||'').replace(/[^a-zA-Z0-9 ]/g,' ').trim().split(/\s+/).filter(w=>w.length>2).slice(0,4);
+    // Date window: only consider Drive docs modified near THIS meeting's date,
+    // so a generic name match can't pull in some other week's transcript.
+    const md=_meetingStartMs(m);
+    const dateClause=md?` and modifiedTime > '${new Date(md-86400000).toISOString()}' and modifiedTime < '${new Date(md+7*86400000).toISOString()}'`:'';
     const nameClause=kw.length?'('+kw.map(w=>`name contains '${w.replace(/'/g,"")}'`).join(' or ')+')':"(name contains 'Transcript' or name contains 'Gemini' or name contains 'Notes')";
-    const q=`mimeType='application/vnd.google-apps.document' and ${nameClause} and trashed=false`;
+    const q=`mimeType='application/vnd.google-apps.document' and ${nameClause} and trashed=false${dateClause}`;
     let files=((await call(`${DRIVE}__search_files`,{query:q,pageSize:25}))||{}).files||[];
     if(!files.length){
-      files=((await call(`${DRIVE}__search_files`,{query:"mimeType='application/vnd.google-apps.document' and (name contains 'Transcript' or name contains 'Gemini' or name contains 'Notes') and trashed=false",pageSize:25}))||{}).files||[];
+      files=((await call(`${DRIVE}__search_files`,{query:"mimeType='application/vnd.google-apps.document' and (name contains 'Transcript' or name contains 'Gemini' or name contains 'Notes') and trashed=false"+dateClause,pageSize:25}))||{}).files||[];
     }
-    if(!files.length){ return _meetTranscriptFallback(m, silentFallback, 'No Meet/Gemini transcript found in Drive for this meeting.'); }
-    const md=(m.start&&(m.start.dateTime||m.start.date))?new Date(m.start.dateTime||m.start.date).getTime():0;
+    if(!files.length){ if(!_stillCurrent())return; return _meetTranscriptFallback(m, silentFallback, 'No Meet/Gemini transcript found in Drive for this meeting.'); }
     const score=(f)=>{let sc=0;const nm=(f.title||'').toLowerCase();
       if(/transcript/.test(nm))sc+=3; if(/gemini|notes/.test(nm))sc+=1;
       kw.forEach(w=>{if(nm.includes(w.toLowerCase()))sc+=2;});
@@ -7280,11 +7339,23 @@ async function loadMeetTranscriptFromDrive(silentFallback){
       return sc;};
     files.sort((a,b)=>score(b)-score(a));
     const best=files[0];
+    // Relevance gate: never render a doc that neither matches the meeting's
+    // title keywords nor sits within a week of the meeting date.
+    if(kw.length||md){
+      const _bn=((best&&best.title)||'').toLowerCase();
+      const _kwHit=kw.some(w=>_bn.includes(w.toLowerCase()));
+      const _dateHit=!!(md&&best&&best.modifiedTime&&Math.abs(new Date(best.modifiedTime).getTime()-md)<=7*86400000);
+      if(!_kwHit&&!_dateHit){
+        if(!_stillCurrent())return;
+        return _meetTranscriptFallback(m, silentFallback, 'No Drive doc matched "'+kw.join(' ')+'"'+(md?' near '+new Date(md).toLocaleDateString():'')+'.');
+      }
+    }
     const cr=await call(`${DRIVE}__read_file_content`,{fileId:best.id});
     const text=(cr&&cr.content)||'';
-    if(!text.trim()){ return _meetTranscriptFallback(m, silentFallback, 'Found "'+best.title+'" but it was empty.'); }
+    if(!text.trim()){ if(!_stillCurrent())return; return _meetTranscriptFallback(m, silentFallback, 'Found "'+best.title+'" but it was empty.'); }
     const lines=parseMeetTranscript(text);
     if(lines.length>=2){
+      if(!_stillCurrent())return;
       copilotTranscriptLines=lines;
       renderCopilotTranscript();
       const note=document.createElement('div');
@@ -7292,19 +7363,24 @@ async function loadMeetTranscriptFromDrive(silentFallback){
       note.textContent='Loaded from Drive: '+best.title+' ('+lines.length+' lines, real speaker names)';
       if(tEl)tEl.prepend(note);
     } else {
+      if(!_stillCurrent())return;
       if(tEl)tEl.innerHTML='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">From Drive: '+esc(best.title)+'</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(text.slice(0,6000))+'</div>';
     }
-  }catch(e){ return _meetTranscriptFallback(m, silentFallback, 'Drive transcript load failed: '+(e.message||e)); }
+  }catch(e){ if(!_stillCurrent())return; return _meetTranscriptFallback(m, silentFallback, 'Drive transcript load failed: '+(e.message||e)); }
 }
 
 async function _meetTranscriptFallback(m, silent, msg){
+  const title=(m&&(m.summary||m.title))||'Meeting';
   try{
     const gR=await mnQuery({query:'Meeting: '+((m&&m.summary)||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
     const gText=typeof gR==='string'?gR:(gR&&(gR.answer||gR.text||gR.content))||'';
     const tEl=document.getElementById('copilotTranscript');
-    if(gText&&gText.length>20){ if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "${esc((m&&m.summary)||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`; return; }
-    if(tEl)tEl.innerHTML='<div class="empty-state">'+esc(msg||'No transcript available')+'<br><span style="font-size:10px;color:var(--text-muted)">Turn on Meet transcription or Gemini notes so a named transcript saves to Drive.</span></div>';
-  }catch(e){ const tEl=document.getElementById('copilotTranscript'); if(tEl)tEl.innerHTML='<div class="empty-state">'+esc(msg||'No transcript available')+'</div>'; }
+    // mnQuery's "nothing found" message used to render as if it were real
+    // notes -- detect it explicitly and fall through to the honest empty state.
+    const _noNotes=/^No AI Transcription meeting notes found/i.test(gText||'');
+    if(gText&&gText.length>20&&!_noNotes){ if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Meeting notes for "${esc((m&&m.summary)||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`; return; }
+    if(tEl)tEl.innerHTML='<div class="empty-state">No transcript found for "'+esc(title)+'".<br><span style="font-size:10px;color:var(--text-muted)">Searched: stored AI Transcription notes, saved local sessions, and Drive docs. '+esc(msg||'')+' Turn on Live Captions or Gemini notes during meetings so a transcript is saved.</span></div>';
+  }catch(e){ const tEl=document.getElementById('copilotTranscript'); if(tEl)tEl.innerHTML='<div class="empty-state">No transcript found for "'+esc(title)+'".<br><span style="font-size:10px;color:var(--text-muted)">Searched: stored AI Transcription notes, saved local sessions, and Drive docs. '+esc(msg||'')+' Turn on Live Captions or Gemini notes during meetings so a transcript is saved.</span></div>'; }
 }
 
 function parseMeetTranscript(text){
@@ -7320,25 +7396,66 @@ function parseMeetTranscript(text){
 }
 
 let _meetCapTimer=null, _meetCapCode='', _meetCapSince=0;
+// Meeting-identity gate for the live caption stream (see pollMeetCaptions):
+// _capGatedMismatch=true means the last poll was NOT rendered because the live
+// stream belongs to a different meeting than the one selected (or a meeting
+// switch just happened); the first matched tick after that resets the
+// transcript + cursor so the live meeting's history replays cleanly.
+// _lastCapSession caches the last {session, meetUrl} seen from the server so
+// meeting-switch code can tell "selected the live meeting" from "selected
+// some other meeting". _mnSelfHealed guards the once-per-meeting session
+// self-heal (re-registering /api/meeting-notes/session when it's missing).
+let _capGatedMismatch=false,_lastCapSession=null;
+const _mnSelfHealed={};
+// Extracts the Google Meet meeting code (xxx-yyyy-zzz) from a URL/location
+// string. Same detection idea as renderCopilotMeetingHeader's platform check,
+// but returns the code itself for equality comparison.
+function _parseMeetCode(u){const m=String(u||'').match(/meet\.google\.com\/([a-z0-9]{3,10}(?:-[a-z0-9]{3,10}){2})/i);return m?m[1].toLowerCase():null;}
+// Does the live caption stream described by d ({session, meetUrl}) belong to
+// the currently selected meeting (copilotCurrentMeeting)? Order of authority:
+// 1) Meet code parsed from both sides (authoritative when both parse),
+// 2) session.meetingId vs _meetingKey(selected),
+// 3) no session at all: only match a calendar meeting in progress by time
+//    window (filter-dropdown picks like {id,title,date,src} never match).
+function _liveCapMatchesSelected(d){
+  const m=copilotCurrentMeeting;
+  if(!m||!d)return false;
+  try{
+    const selCode=_parseMeetCode(m.conferenceUrl||'')||_parseMeetCode(m.hangoutLink||'')||_parseMeetCode(m.location||'');
+    const liveCode=_parseMeetCode(d.meetUrl||'');
+    if(liveCode&&selCode)return liveCode===selCode;
+    const mk=(typeof _meetingKey==='function')?_meetingKey(m):null;
+    if(d.session&&mk&&d.session.meetingId===mk)return true;
+    if(d.session)return false;
+    const st=m.start&&(m.start.dateTime||m.start.date);
+    const en=m.end&&(m.end.dateTime||m.end.date);
+    if(!st||!en)return false;
+    const now=Date.now();
+    return new Date(st).getTime()<=now&&now<=new Date(en).getTime();
+  }catch(e){return false;}
+}
 async function toggleMeetCaptions(){
   if(_meetCapTimer){ stopMeetCaptions(); return; }
   await _startMeetCaptions(false);
 }
-// freshMeeting=true skips any lines already sitting in the server-side buffer
-// (which is keyed per-user, not per-meeting) by starting the cursor at "now"
-// instead of replaying from 0 -- used when auto-switching into a meeting that
-// just started, so a prior meeting's stale captions don't bleed through.
+// The cursor now ALWAYS starts at "now" (the server-side buffer is keyed
+// per-user, not per-meeting, so a since=0 replay on tab load used to dump a
+// previous meeting's stale captions into whatever meeting was selected).
+// Intentional replay of the LIVE meeting's history is handled by the
+// meeting-identity gate in pollMeetCaptions (_capGatedMismatch reset), which
+// rewinds the cursor to the session's startTs only once identity matches.
+// freshMeeting is kept for signature compatibility with existing callers.
 async function _startMeetCaptions(freshMeeting){
   const btn=document.getElementById('btnMeetCap');
   try{
     const r=await fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'});
     if(!r.ok)throw new Error('could not get pairing code (are you signed in?)');
-    const d=await r.json(); _meetCapCode=d.code; _meetCapSince=freshMeeting?Date.now():0;
+    const d=await r.json(); _meetCapCode=d.code; _meetCapSince=Date.now();
     const bar=document.getElementById('meetCapBar'); if(bar)bar.style.display='flex';
     const cc=document.getElementById('meetCapCode'); if(cc)cc.textContent=_meetCapCode;
     if(btn){btn.textContent='Stop Captions';btn.className='listen-btn active';}
     if(_meetCapTimer)clearInterval(_meetCapTimer);
-    _meetCapTimer=setInterval(pollMeetCaptions,1500);
+    _meetCapTimer=setInterval(pollMeetCaptions,750);
     // Heartbeat: re-register the pairing code every 10 min so a server restart
     // (which wipes the in-memory code registry) re-pairs without any clicks.
     if(!window._meetCapHb)window._meetCapHb=setInterval(()=>{fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'}).catch(()=>{});},600000);
@@ -7359,7 +7476,7 @@ function stopMeetCaptions(){
 const _MN_INTERNAL_DOMAINS=['basisvps.com','vorro.net','cadienttalent.com','commercev3.com','basisvectors.com','gmail.com','hotmail.com','outlook.com','yahoo.com'];
 function _mnCompanyFromAttendees(atts){for(const a of (atts||[])){const em=((a&&a.email)||'').toLowerCase();const d=em.split('@')[1]||'';if(d&&_MN_INTERNAL_DOMAINS.indexOf(d)===-1)return d;}return '';}
 function _mnBrandGuess(){try{return (typeof detectBrandFromContext==='function'&&detectBrandFromContext())||'';}catch(e){return '';}}
-async function _startMeetingNotesSession(m,attendees){try{await fetch('/api/meeting-notes/session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({meetingId:(typeof _meetingKey==='function'?_meetingKey(m):'')||'',title:(m&&m.summary)||'Meeting',company:_mnCompanyFromAttendees(attendees),brand:_mnBrandGuess(),attendees:(attendees||[]).map(function(a){return a.email||a.displayName||'';}).filter(Boolean),startTs:Date.now()})});}catch(e){}}
+async function _startMeetingNotesSession(m,attendees){try{await fetch('/api/meeting-notes/session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({meetingId:(typeof _meetingKey==='function'?_meetingKey(m):'')||'',title:(m&&m.summary)||'Meeting',company:_mnCompanyFromAttendees(attendees),brand:_mnBrandGuess(),attendees:(attendees||[]).map(function(a){return a.email||a.displayName||'';}).filter(Boolean),startTs:(m&&m.start&&(m.start.dateTime||m.start.date))?new Date(m.start.dateTime||m.start.date).getTime():Date.now()})});}catch(e){}}
 async function _finalizeMeetingNotes(){try{await fetch('/api/meeting-notes/finalize',{method:'POST',credentials:'same-origin'});}catch(e){}}
 
 // --- Live tone auto-analysis: while live captions run, the TONE coach action
@@ -7471,6 +7588,7 @@ async function _maybeGeneratePreBrief(m,attendees){
 async function restartCaptionsForMeeting(){
   if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
   copilotTranscriptLines=[];
+  _surfacedTopicAt={};_topicFeedCount=0;
   try{renderCopilotTranscript();}catch(e){}
   await _startMeetCaptions(true);
 }
@@ -7480,6 +7598,44 @@ async function pollMeetCaptions(){
     const r=await fetch('/api/live-captions?code='+encodeURIComponent(_meetCapCode)+'&since='+_meetCapSince,{credentials:'same-origin'});
     if(!r.ok)return;
     const d=await r.json();
+    // Cache the live stream's identity for meeting-switch code (loadCopilotStripMeeting).
+    _lastCapSession={session:d.session||null,meetUrl:d.meetUrl||null};
+    // Session self-heal: captions are flowing but no per-meeting session is
+    // registered server-side (e.g. server restart wiped _capSessions). If the
+    // selected calendar meeting is in progress right now, re-register it once
+    // so notes segmentation + the identity gate below get a real session.
+    if(!d.session&&copilotCurrentMeeting){
+      try{
+        const _shKey=(typeof _meetingKey==='function')?_meetingKey(copilotCurrentMeeting):null;
+        const _shSt=copilotCurrentMeeting.start&&(copilotCurrentMeeting.start.dateTime||copilotCurrentMeeting.start.date);
+        const _shEn=copilotCurrentMeeting.end&&(copilotCurrentMeeting.end.dateTime||copilotCurrentMeeting.end.date);
+        const _shNow=Date.now();
+        if(_shKey&&!_mnSelfHealed[_shKey]&&_shSt&&_shEn&&new Date(_shSt).getTime()<=_shNow&&_shNow<=new Date(_shEn).getTime()){
+          _mnSelfHealed[_shKey]=true;
+          _startMeetingNotesSession(copilotCurrentMeeting,(copilotCurrentMeeting.attendees||[]).filter(a=>!a.self));
+        }
+      }catch(e){}
+    }
+    // Meeting-identity gate: the caption buffer is keyed per-USER, not
+    // per-meeting, so only render lines when the live stream belongs to the
+    // meeting currently selected in the AI Transcription tab.
+    if(!_liveCapMatchesSelected(d)){
+      const stG=document.getElementById('meetCapStatus');
+      if(stG)stG.textContent='Live captions recording for "'+((d.session&&d.session.title)||'another meeting')+'" — not this meeting';
+      if(d.now&&d.now>_meetCapSince)_meetCapSince=d.now; // skip past these lines; don't render them here
+      _capGatedMismatch=true;
+      return;
+    }
+    if(_capGatedMismatch){
+      // First matched tick after a mismatch or a meeting switch: reset the
+      // pane and rewind the cursor to the live session's start so the next
+      // tick replays THIS meeting's full history from the server buffer.
+      copilotTranscriptLines=[];
+      _meetCapSince=(d.session&&d.session.startTs)?(d.session.startTs-1):0;
+      _capGatedMismatch=false;
+      try{renderCopilotTranscript();}catch(e){}
+      return;
+    }
     const lines=(d.lines||[]);
     if(lines.length){
       let _anyNamed=false;
@@ -7487,7 +7643,7 @@ async function pollMeetCaptions(){
         if(l.ts>_meetCapSince)_meetCapSince=l.ts;
         const spk=(l.speaker||'').trim();
         if(spk&&!_isUnnamedSpeaker(spk))_anyNamed=true;
-        const added=_pushTranscriptLine({text:l.text,time:new Date(l.ts||Date.now()),confidence:1,speaker:spk,dgSpeaker:-1});
+        const added=_pushTranscriptLine({text:l.text,time:new Date(l.ts||Date.now()),confidence:1,speaker:spk,dgSpeaker:-1,cid:l.cid});
         if(!added)return; // duplicate / merged -> skip side-effects
         checkObjections(l.text);
         const brand=detectBrandFromContext();const topics=[];
@@ -7801,7 +7957,7 @@ async function generateDealReview(){
   if(body)body.innerHTML='<div class="cr-body loading"><div class="spinner"></div><br>Reviewing the call...</div>';
   const brand=detectBrandFromContext();
   const kb=KNOWLEDGE_BASE[brand];
-  const sys=`Analyze this ${kb.company} sales call using the deal-review framework. Output ONLY JSON, no prose, no markdown: {"stage":"<your best guess: Discovery|Demo|Negotiation|Closing|Stalled|Won|Lost, based only on what happened in this call>","outcomeFactor":"<the ONE primary factor driving how this call went, under 25 words>","processExecution":"<was discovery/qualification done well this call -- one specific observation, under 25 words>","competitiveDynamics":"<any competitor mentioned or implied, and how it was handled -- or 'None raised' if none>","qualificationGaps":"<what BANT/MEDDIC info is still missing after this call -- budget, authority, need, timeline, or 'None -- well qualified' if none>","nextAction":"<ONE specific, repeatable next action with a rough timeframe, under 20 words>"}. Base this ONLY on the actual transcript content, not generic advice.`;
+  const sys=`Analyze this ${kb.company} sales call using the deal-review framework. Output ONLY JSON, no prose, no markdown: {"stage":"<your best guess: Discovery|Demo|Negotiation|Closing|Stalled|Won|Lost, based only on what happened in this call>","outcomeFactor":"<the ONE primary factor driving how this call went, under 25 words>","processExecution":"<was discovery/qualification done well this call -- one specific observation, under 25 words>","competitiveDynamics":"<any competitor mentioned or implied, and how it was handled -- or 'None raised' if none>","qualificationGaps":"<what BANT/MEDDIC info is still missing after this call -- budget, authority, need, timeline, or 'None -- well qualified' if none>","nextAction":"<ONE specific, repeatable next action with a rough timeframe, under 20 words>","terms":[{"term":"<acronym/jargon used in this call or this review>","meaning":"<plain-English one-liner>"}]}. Base this ONLY on the actual transcript content, not generic advice.`;
   try{
     const raw=await ask(sys,[
       {label:'Full transcript',value:transcript.slice(0,8000)},
@@ -7827,6 +7983,9 @@ async function generateDealReview(){
     });
     if(dr.nextAction){
       html+=`<div style="margin-top:4px;padding:10px 12px;background:var(--accent-dim);border-radius:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--accent-text)">Next Action</div><div style="font-size:12px;color:var(--text-primary);margin-top:2px">${esc(dr.nextAction)}</div></div>`;
+    }
+    if(Array.isArray(dr.terms)&&dr.terms.length){
+      html+=`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8a6a24">Terms &amp; Acronyms</div><div style="font-size:12px;color:var(--text-primary);margin-top:2px">${dr.terms.filter(t=>t&&t.term).map(t=>`<div style="margin-top:2px"><strong>${esc(t.term)}</strong> — ${esc(t.meaning||'')}</div>`).join('')}</div></div>`;
     }
     html+='</div>';
     if(body)body.innerHTML=html;
@@ -7865,7 +8024,8 @@ async function copilotAction(type,_opts){
   const brand=detectBrandFromContext();
   const kb=KNOWLEDGE_BASE[brand];
 
-  const fmt=`FORMAT (STRICT): Reply as 3 to 5 short, clean bullet points only. Start every line with "- ". One idea per bullet, max ~18 words each. NO headings, NO markdown EXCEPT one narrow case: wrap a genuine buying-intent/signal phrase (real interest, urgency, budget, timeline, approval/authority, a competitor name, a stated concern) in **double asterisks** if and only if that exact phrase actually appears in what was said -- never bold a whole bullet, never bold something you added yourself, and most bullets will have no bold at all. NO preamble, NO sign-off. Do NOT restate the transcript and do NOT repeat or summarize past meeting notes — answer only from the LIVE conversation and the product facts provided. CRITICAL: if the live conversation is empty, a placeholder, or too generic/vague to identify a real, specific thing that was just said, reply with EXACTLY ONE bullet saying so plainly (e.g. "- Not enough live conversation captured yet — try this again once something specific is said.") and STOP THERE. Never invent a generic answer, statistic, or scenario to fill space when the live conversation doesn't actually contain one.`;
+  const fmt=`FORMAT (STRICT): Reply as short, clean bullet points grouped under section headers. A section header is a line starting with "### " (3-6 words, e.g. "### What to say"). Under each header, 2 to 4 bullets starting with "- ", one idea per bullet, max ~25 words each. 3 to 4 sections total before the final Terms section. Be SPECIFIC: quote exact words from the live conversation, name names, cite real numbers from the product facts and account research — never a generic answer that could apply to any call. The only other markdown allowed is **double asterisks** around a genuine buying-intent/signal phrase (real interest, urgency, budget, timeline, approval/authority, a competitor name, a stated concern) if and only if that exact phrase actually appears in what was said — never bold a whole bullet, never bold something you added yourself. NO preamble, NO sign-off. Do NOT restate the transcript and do NOT repeat or summarize past meeting notes — answer only from the LIVE conversation and the product facts provided. CRITICAL: if the live conversation is empty, a placeholder, or too generic/vague to identify a real, specific thing that was just said, reply with EXACTLY ONE bullet saying so plainly (e.g. "- Not enough live conversation captured yet — try this again once something specific is said.") and STOP THERE — no sections, no Terms. Never invent a generic answer, statistic, or scenario to fill space.
+TERMS & ACRONYMS (MANDATORY, EVERY ANSWER): end with a final section exactly "### Terms & acronyms" defining every acronym, technical term, product name, or non-everyday phrase that appears in the live conversation excerpt OR in your own answer above — one bullet each, format "- **TERM** — plain-English meaning in one short sentence a non-expert would understand." Include sales jargon too (e.g. LAER, BANT, ICP, ATS, FHIR, EiPaaS, discovery, pipeline). If genuinely nothing needs defining, this section must contain exactly one bullet: "- No jargon this time — everything above is plain English."`;
   const sessionTone=`You are Manish's real-time meeting copilot. Be direct, specific, data-driven. Cite concrete numbers/metrics from the product knowledge when relevant.`;
   // 2026-08-06: each action below is now explicitly grounded in a named
   // framework from the Sales-Skills playbook set instead of an ad-hoc
@@ -7875,7 +8035,7 @@ async function copilotAction(type,_opts){
   const prompts={
     // Active Listening's "Replay" step (HEAR method): restate in plain words
     // before anything else, which is also how you confirm you understood it.
-    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said (this is the "Replay" step of active listening — restate before reacting). Bullets should cover: the key point in plain words; any jargon/acronym decoded as "TERM = meaning"; one bullet on why it matters to Manish right now — check the account & deal research provided (real CRM/deal/past-meeting data for these specific attendees) and ground this bullet in it when relevant, not a generic guess.`,
+    explain:`${sessionTone}\n${fmt}\n\nTask: explain in plain English what was JUST said (the "Replay" step of active listening — restate before reacting). Sections: "### What they said" (the key point in plain words, quoting their exact phrase); "### Why it matters now" (grounded in the account & deal research — real CRM/deal/past-meeting data for these specific attendees — when relevant, not a generic guess); "### What to do with it" (one concrete move or clarifying line Manish can use in the next 30 seconds, starting "Say: ").`,
     // LAER (Listen/Acknowledge/Explore/Respond), verified 2026-08-12 against
     // the actual installed b2b-marketing-engine skill (references/reply-handling.md,
     // "Async LAER for Email/LinkedIn" section) -- the only one of the 6 named
@@ -7888,20 +8048,20 @@ async function copilotAction(type,_opts){
     // quantify-pain do NOT appear in any installed skill's content -- they
     // remain general sales-coaching framings, not literal skill excerpts. See
     // PIPELINE_ERRORS.md "copilot-laer-skill-grounded-RESOLVED".
-    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection in the LIVE CONVERSATION. Quote or closely paraphrase the SPECIFIC objection they raised, do not generalize it into a vague category. Run true LAER order -- Listen is already done via the transcript, so: Acknowledge, then Explore, then Respond (do not respond before exploring). Bullets: one that Acknowledges the concern is reasonable using their own words (not a generic "I understand"); one that Explores with ONE clarifying question surfacing what's actually driving it (the stated objection is rarely the real one -- e.g. "too expensive" often really means "compared to what?" or "not sure it's worth it yet"); two that Respond, only after the explore question, checking the account & deal research for real, this-prospect-specific proof first (a past commitment, their actual deal stage) and falling back to ${kb.company} data/results only when nothing account-specific applies (never a discount, never an argument); one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say right now, leading with the Explore question if the real objection is still unclear. Never argue, get defensive, or offer a discount that wasn't asked for. If no real objection is identifiable in the live conversation, use the single-bullet fallback in FORMAT instead of guessing.`,
+    rebuttal:`${sessionTone}\n${fmt}\n\nTask: the prospect raised an objection in the LIVE CONVERSATION. Quote or closely paraphrase the SPECIFIC objection they raised, do not generalize it into a vague category. Run true LAER order -- Listen is already done via the transcript, so: Acknowledge, then Explore, then Respond (do not respond before exploring). Sections: "### Their objection" (quote it), "### Acknowledge & explore", "### Respond with proof", "### Say this" — distribute the following across them: one that Acknowledges the concern is reasonable using their own words (not a generic "I understand"); one that Explores with ONE clarifying question surfacing what's actually driving it (the stated objection is rarely the real one -- e.g. "too expensive" often really means "compared to what?" or "not sure it's worth it yet"); two that Respond, only after the explore question, checking the account & deal research for real, this-prospect-specific proof first (a past commitment, their actual deal stage) and falling back to ${kb.company} data/results only when nothing account-specific applies (never a discount, never an argument); one final bullet starting "Say: " with a word-for-word line under 30 words Manish can say right now, leading with the Explore question if the real objection is still unclear. Never argue, get defensive, or offer a discount that wasn't asked for. If no real objection is identifiable in the live conversation, use the single-bullet fallback in FORMAT instead of guessing.`,
     // Building-rapport's Signal Reading (positive/neutral/negative cues) +
     // active-listening's "hear the emotion, not just the words."
-    tone:`${sessionTone}\n${fmt}\n\nTask: read the room using signal-reading — classify verbal and implied cues, not just the literal words. Bullets: overall signal in 1-2 words (positive/neutral/negative + why); two to three citing the exact words/phrases/pacing that signal it; one on whether the deal is trending up or down and the next lever to pull.`,
+    tone:`${sessionTone}\n${fmt}\n\nTask: read the room using signal-reading — classify verbal and implied cues, not just the literal words. The FIRST bullet of the first section MUST begin with the overall signal in 1-2 plain tone words (e.g. "Skeptical, guarded —") followed by why. Sections: "### Overall signal"; "### Evidence" (two to three bullets citing the exact words/phrases/pacing, per speaker where names are known); "### Trend & next lever" (deal trending up or down, the one adjustment to make now, and a "Say: " line to shift the energy).`,
     // Discovery's "quantify pain" + Active Listening's Replay, applied to
     // live Q&A moments rather than a scripted discovery call.
-    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a specific statement in the LIVE CONVERSATION. First, locate the exact thing they said or asked — quote or closely paraphrase it, do not guess or generalize it into a vague category like "discussion about deals". If you can identify it, bullets: one Replaying it using the SPECIFIC words/topic from the transcript (not a generic summary); two to three with the factual answer, checking the account & deal research for this specific prospect first (their real deal stage, past commitments, prior meeting notes) and using ${kb.company} metrics/case studies only where nothing account-specific applies, quantifying impact where possible; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question that goes one layer deeper (a discovery-style probe, not a closed yes/no). If you cannot identify a real, specific question or statement in the live conversation, use the single-bullet fallback described in FORMAT instead of guessing.`,
+    advise:`${sessionTone}\n${fmt}\n\nTask: they just asked something or made a specific statement in the LIVE CONVERSATION. First, locate the exact thing they said or asked — quote or closely paraphrase it, do not guess or generalize it into a vague category like "discussion about deals". If you can identify it, sections: "### What they asked" ; "### Your answer" ; "### Say / Ask" — covering: one Replaying it using the SPECIFIC words/topic from the transcript (not a generic summary); two to three with the factual answer, checking the account & deal research for this specific prospect first (their real deal stage, past commitments, prior meeting notes) and using ${kb.company} metrics/case studies only where nothing account-specific applies, quantifying impact where possible; one starting "Say: " with a word-for-word reply under 40 words; one starting "Ask: " with a strong follow-up question that goes one layer deeper (a discovery-style probe, not a closed yes/no). If you cannot identify a real, specific question or statement in the live conversation, use the single-bullet fallback described in FORMAT instead of guessing.`,
     // Sales-psychology's status-quo equation (dissatisfaction x vision x
     // first steps must outweigh resistance) reframed as self-motivation, plus
     // closing's core philosophy as a confidence anchor.
-    motivate:`${sessionTone}\n${fmt}\n\nTask: Manish needs a quick confidence/energy boost mid-call. Bullets: one short punchy pep-talk line; one reminder of a concrete win/strength (use ${kb.company} data if relevant); one reframing whatever is happening in the live conversation as forward motion, not a setback — "if you've qualified well, this is just the next step"; one closing bullet starting "Say to yourself: " with a one-line mantra under 15 words. Keep it upbeat and genuine, not cheesy corporate-speak.`,
+    motivate:`${sessionTone}\n${fmt}\n\nTask: Manish needs a quick confidence/energy boost mid-call. Sections: "### Right now" (reframe what's happening in the live conversation as forward motion); "### Your proof" (a concrete win/strength, ${kb.company} data if relevant); "### Say to yourself" (one-line mantra under 15 words) — covering: one short punchy pep-talk line; one reminder of a concrete win/strength (use ${kb.company} data if relevant); one reframing whatever is happening in the live conversation as forward motion, not a setback — "if you've qualified well, this is just the next step"; one closing bullet starting "Say to yourself: " with a one-line mantra under 15 words. Keep it upbeat and genuine, not cheesy corporate-speak.`,
     // Building-rapport's core premise -- genuine, not manipulative -- applied
     // to humor: it only works if it's authentic to the actual conversation.
-    humor:`${sessionTone}\n${fmt}\n\nTask: lighten the mood for a second with some clean, work-appropriate humor related to sales calls, the topic just discussed, or the current situation — genuine to what's actually happening in this call, not a generic canned joke. Bullets: one light joke or witty one-liner tied to something specific just said; one playful observation about the live conversation; one bullet starting "Say: " with a short, natural, funny-but-professional line Manish could actually say out loud to break tension or build rapport. Keep it tasteful — never at the prospect's expense.`
+    humor:`${sessionTone}\n${fmt}\n\nTask: lighten the mood for a second with some clean, work-appropriate humor related to sales calls, the topic just discussed, or the current situation — genuine to what's actually happening in this call, not a generic canned joke. Sections: "### The moment" (what just happened that's funny/human, tied to something specific said); "### Use this" (one "Say: " line that's natural, funny-but-professional) — covering: one light joke or witty one-liner tied to something specific just said; one playful observation about the live conversation; one bullet starting "Say: " with a short, natural, funny-but-professional line Manish could actually say out loud to break tension or build rapport. Keep it tasteful — never at the prospect's expense.`
   };
 
   // explain/rebuttal/advise are grounded in REAL, already-fetched research
@@ -7913,7 +8073,7 @@ async function copilotAction(type,_opts){
   // actions (tone/motivate/humor) are unchanged. See PIPELINE_ERRORS.md
   // "copilot-real-research-fast-RESOLVED".
   const _liveTranscriptForData=transcript||getFullTranscript();
-  const _researchGroundedTypes={explain:1,rebuttal:1,advise:1};
+  const _researchGroundedTypes={explain:1,rebuttal:1,advise:1,tone:1,motivate:1,humor:1};
   const data=_researchGroundedTypes[type]?[
     {label:'Live conversation (most recent, answer ONLY from this)',value:_liveTranscriptForData},
     {label:'Attendees',value:JSON.stringify(copilotAttendeeData)},
@@ -7928,7 +8088,7 @@ async function copilotAction(type,_opts){
   ];
 
   try{
-    const response=await ask(prompts[type],data);
+    const response=await ask(prompts[type],data,{maxTokens:1200});
     if(typeof response==='string' && response.indexOf('Session expired')===0){
       body.innerHTML='<div class="empty-state" style="color:#8a6a24">&#9888; Your session expired - reload the page and sign in again.</div>';
     } else if(typeof response==='string' && response.indexOf('AI unavailable')===0){
@@ -7963,10 +8123,12 @@ function speakResponse(){
 
 function _cleanBullets(text){
   const raw=(typeof text==='string'?text:JSON.stringify(text)).replace(/\r/g,'');
-  const out=[];
+  const out=[]; // items are strings (bullets) or {h:'...'} (section headers)
   for(let l of raw.split('\n')){
     l=l.trim(); if(!l)continue;
-    l=l.replace(/^#{1,6}\s*/,'').replace(/^[-*\u2022\u2013\u2014]\s+/,'').replace(/^\d+[.)]\s+/,'');
+    const hm=l.match(/^#{1,6}\s+(.+)$/);
+    if(hm){out.push({h:hm[1].replace(/\*\*/g,'').trim()});continue;}
+    l=l.replace(/^[-*\u2022\u2013\u2014]\s+/,'').replace(/^\d+[.)]\s+/,'');
     // Keep **bold** -- the one allowed markdown case, used only to highlight a
     // genuine buying-intent/signal phrase (see FORMAT in copilotAction). Strip
     // any other markdown noise the model might slip in.
@@ -7974,8 +8136,20 @@ function _cleanBullets(text){
     l=l.trim(); if(l) out.push(l);
   }
   if(!out.length) out.push(raw.trim());
-  return '<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px">'+
-    out.map(i=>`<li style="line-height:1.5;color:var(--text-primary)">${_boldEsc(i)}</li>`).join('')+'</ul>';
+  let html='';let ulOpen=false;
+  const _openUl=()=>{if(!ulOpen){html+='<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px">';ulOpen=true;}};
+  const _closeUl=()=>{if(ulOpen){html+='</ul>';ulOpen=false;}};
+  for(const i of out){
+    if(i&&typeof i==='object'&&i.h){
+      _closeUl();
+      html+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent-text,#8a6a24);margin:10px 0 4px">${esc(i.h)}</div>`;
+    }else{
+      _openUl();
+      html+=`<li style="line-height:1.5;color:var(--text-primary)">${_boldEsc(String(i))}</li>`;
+    }
+  }
+  _closeUl();
+  return html;
 }
 // Escape HTML first (model output is untrusted), THEN convert the one allowed
 // markdown marker (**text**) into <strong>. Safe order: ** contains no
@@ -8029,7 +8203,7 @@ async function loadCopilot(){
   const now=new Date();
   const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
   const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
-  const pastStart=new Date(now.getTime()-14*86400000); // 14 days back
+  const pastStart=new Date(now.getTime()-30*86400000); // 30 days back
   const futureEnd=new Date(now.getTime()+7*86400000); // 7 days ahead
   try{
     const [pastR,todayR,futR]=await Promise.allSettled([
@@ -8037,7 +8211,7 @@ async function loadCopilot(){
       call(`${CAL}__list_events`,{startTime:todayStart.toISOString(),endTime:todayEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
       call(`${CAL}__list_events`,{startTime:todayEnd.toISOString(),endTime:futureEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
     ]);
-    const pastEvents=(pastR.status==='fulfilled'?(pastR.value?.events||[]):[]).slice(-10);
+    const pastEvents=(pastR.status==='fulfilled'?(pastR.value?.events||[]):[]).slice(-25);
     const todayEvents=todayR.status==='fulfilled'?(todayR.value?.events||[]):[];
     const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,10);
 
@@ -8186,8 +8360,10 @@ async function _refreshCopilotCurrentMeetingImpl(){
   if(isInProgress){
     // A new meeting is actually underway (not just "next upcoming" ticking
     // over to a future one) -- auto-start/restart captions for it.
+    // Register the per-meeting session FIRST (and await it) so the identity
+    // gate in pollMeetCaptions never sees a stale session on its first tick.
+    try{ await _startMeetingNotesSession(next, attendees); }catch(e){}
     try{ await restartCaptionsForMeeting(); }catch(e){}
-    _startMeetingNotesSession(next, attendees);
     dbg('AI Transcription auto-switched to meeting in progress: '+(next.summary||'Meeting'),'ok');
   }
   else{ _finalizeMeetingNotes(); } // meeting over, none in progress -> store its notes
@@ -8207,18 +8383,18 @@ async function loadCopilotStripMeeting(idx){
   const strip=document.getElementById('copilotMeetingStrip');
   if(strip){strip.querySelectorAll('div[onclick]').forEach((d,i)=>{d.style.borderColor=i===idx?'var(--accent)':'var(--border)';d.style.opacity=i===idx?'1':events[i]?._tag==='past'?'0.5':'1'});}
   // Manually switching meetings must clear the PREVIOUS meeting's live-caption
-  // buffer -- pollMeetCaptions() re-renders every 1.5s from copilotTranscriptLines
-  // regardless of which meeting is selected, so without this a stale transcript
-  // from an earlier, unrelated (possibly already-ended) meeting silently
-  // overwrites whatever loadMeetTranscriptFromDrive shows for the newly
-  // selected meeting. The automatic calendar-switch path already had this
-  // protection (restartCaptionsForMeeting / the freshMeeting flag on
-  // _startMeetCaptions) -- this manual path never got it. See
+  // buffer -- without this a stale transcript from an earlier, unrelated
+  // (possibly already-ended) meeting silently overwrites whatever
+  // loadMeetTranscriptFromDrive shows for the newly selected meeting. See
   // PIPELINE_ERRORS.md "copilot-stale-transcript-on-meeting-switch-RESOLVED".
-  const _wasCapturingLive=!!_meetCapTimer;
-  if(_meetCapTimer){clearInterval(_meetCapTimer);_meetCapTimer=null;}
+  // The caption poll timer intentionally KEEPS running: pollMeetCaptions' own
+  // meeting-identity gate decides whether the live stream belongs to the
+  // meeting selected here, and setting _capGatedMismatch=true forces its
+  // reset+replay path on the next matched tick.
   copilotTranscriptLines=[];
+  _surfacedTopicAt={};_topicFeedCount=0;
   try{renderCopilotTranscript();}catch(e){}
+  _capGatedMismatch=true;
   // The CRM/deal context cards and the pre-meeting brief had the exact same
   // staleness problem as the transcript above: neither was cleared or
   // regenerated on a manual meeting switch, so both kept showing the
@@ -8239,15 +8415,21 @@ async function loadCopilotStripMeeting(idx){
     const _ccc2=document.getElementById('copilotContextCards');if(_ccc2)_ccc2.innerHTML='<div class="empty-state">No context data found for attendees</div>';
   }
   _maybeGeneratePreBrief(m,attendees);
-  // If captions were actively running and this isn't a past meeting, restart
-  // them fresh (freshMeeting=true skips replaying old buffered lines) so the
-  // new meeting's live capture starts clean instead of bleeding together.
-  if(_wasCapturingLive && m._tag!=='past'){
-    await _startMeetCaptions(true);
-  }
-  // Pull THIS meeting's real transcript (with speaker names) from Google Drive (Meet/Gemini),
-  // falling back to Granola notes if no Drive transcript exists.
-  loadMeetTranscriptFromDrive(true);
+  // Pull THIS meeting's real transcript (with speaker names) from Google Drive
+  // (Meet/Gemini), falling back to Granola notes if no Drive transcript exists
+  // -- but ONLY when the selected meeting is NOT the one being live-captioned
+  // right now. For the live meeting, pollMeetCaptions' gate replays the live
+  // buffer instead (Drive would race it and clobber the live pane).
+  let _isLiveSelected=false;
+  try{
+    if(_lastCapSession){
+      const _selCode=_parseMeetCode(m.conferenceUrl||'')||_parseMeetCode(m.hangoutLink||'')||_parseMeetCode(m.location||'');
+      const _liveCode=_parseMeetCode(_lastCapSession.meetUrl||'');
+      const _mk=(typeof _meetingKey==='function')?_meetingKey(m):null;
+      _isLiveSelected=(!!_liveCode&&!!_selCode&&_liveCode===_selCode)||!!(_lastCapSession.session&&_mk&&_lastCapSession.session.meetingId===_mk);
+    }
+  }catch(e){}
+  if(!_isLiveSelected)resolveTranscriptForMeeting(m);
 }
 
 async function loadAttendeeContext(attendees){
@@ -8349,6 +8531,7 @@ function clearCopilotSession(){
   copilotAttendeeData={};
   _coachAnalyzedIdx=0;
   _coachFeedItems=[];
+  _surfacedTopicAt={};_topicFeedCount=0;
   _autoCoachOn=false;
   if(_autoCoachTimer){clearInterval(_autoCoachTimer);_autoCoachTimer=null;}
   const tog=document.getElementById('autoCoachToggle');if(tog)tog.checked=false;
@@ -8372,6 +8555,13 @@ let _autoCoachTimer=null;
 let _coachAnalyzedIdx=0; // tracks which transcript lines have been analyzed
 let _coachFeedItems=[];
 let _coachBusy=false;
+// Topic-surfacing flood control: a topic re-fires at most once per cooldown,
+// and topic entries in the coaching feed are capped per session (the asset
+// PANEL still always updates -- only the feed spam is capped).
+let _surfacedTopicAt={};
+const TOPIC_COOLDOWN_MS=5*60*1000;
+const MAX_TOPIC_FEED_ITEMS=10;
+let _topicFeedCount=0;
 
 // Topic detection patterns for content surfacing
 const TOPIC_PATTERNS=[
@@ -8379,14 +8569,14 @@ const TOPIC_PATTERNS=[
   {pattern:/competitor|alternative|also looking|comparing|vs\b|versus|icims|greenhouse|workday|paradox|mulesoft|boomi/i, topic:'competitor', label:'Competitive Intel'},
   {pattern:/implementation|timeline|how long|migration|onboard|deploy|rollout/i, topic:'implementation', label:'Implementation'},
   {pattern:/case study|example|proof|reference|who else|other clients|success story/i, topic:'social_proof', label:'Social Proof'},
-  {pattern:/demo|see it|show me|walk.*through|how does it work/i, topic:'demo', label:'Demo/Walkthrough'},
+  {pattern:/\bdemo\b|show me|walk.*through|how does it work/i, topic:'demo', label:'Demo/Walkthrough'},
   {pattern:/security|hipaa|compliance|audit|soc|gdpr|encryption/i, topic:'compliance', label:'Compliance/Security'},
   {pattern:/integration|connect|api|fhir|hl7|edi|interop/i, topic:'integration', label:'Integration'},
   {pattern:/retention|turnover|attrition|quit|leave|churn/i, topic:'retention', label:'Retention'},
   {pattern:/sourcing|candidate|talent pool|pipeline|recruit/i, topic:'sourcing', label:'Talent Sourcing'},
   {pattern:/screening|interview|assess|evaluation|phone screen/i, topic:'screening', label:'Screening'},
   {pattern:/contract|agreement|terms|negotiate|renewal|commitment/i, topic:'closing', label:'Deal Closing'},
-  {pattern:/next step|follow up|schedule|meeting|call back/i, topic:'next_steps', label:'Next Steps'}
+  {pattern:/next step|follow[- ]?up|call back|schedule (a|another|the) (call|demo|meeting)/i, topic:'next_steps', label:'Next Steps'}
 ];
 
 // Asset mapping by topic and brand
@@ -8544,7 +8734,9 @@ SAY THIS: [A specific, word-for-word suggestion Manish should say next. Under 40
 
 WATCH FOR: [One sentence: what to listen for in the next 2 minutes that would signal a buying signal or objection.]
 
-Be specific to what was actually said. Never generic. Reference ${kb.product} features only if relevant.`;
+Be specific to what was actually said. Never generic. Reference ${kb.product} features only if relevant.
+
+Formatting: plain text only, EXCEPT you may wrap a genuine buying-intent/signal phrase (real interest, urgency, budget, timeline, approval/authority, a competitor name, a stated concern) in **double asterisks** -- only when that exact phrase actually appears in what was said, never a whole sentence, never something you added yourself.`;
 
     const coachData=[
       {label:'New transcript lines',value:newText},
@@ -8597,7 +8789,7 @@ function addCoachFeedItem(type,text,icon){
       <span style="font-weight:600;color:${colors[type]||'#3b3735'};font-size:10px;text-transform:uppercase;letter-spacing:0.5px">${labels[type]||type}</span>
       <span style="margin-left:auto;font-size:9px;color:var(--text-muted)">${timeStr}</span>
     </div>
-    <div style="color:var(--text-primary)">${esc(text)}</div>
+    <div style="color:var(--text-primary)">${_boldEsc(text)}</div>
     ${type==='advise'?'<button onclick="navigator.clipboard.writeText(this.parentElement.querySelector(\'div:last-of-type\').textContent);this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy to use\',1500)" style="margin-top:4px;font-size:9px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--accent-text);cursor:pointer">Copy to use</button>':''}
   `;
   feed.insertBefore(item,feed.firstChild);
@@ -8611,6 +8803,10 @@ function addCoachFeedItem(type,text,icon){
 function surfaceAssets(topics,brand){
   const el=document.getElementById('copilotSuggestedAssets');
   if(!el)return;
+  const _now=Date.now();
+  topics=topics.filter(tp=>!(_surfacedTopicAt[tp.topic]&&_now-_surfacedTopicAt[tp.topic]<TOPIC_COOLDOWN_MS));
+  if(!topics.length)return;
+  topics.forEach(tp=>{_surfacedTopicAt[tp.topic]=_now;});
   const assetDB=ASSET_MAP[brand]||ASSET_MAP.cadient;
   let html='';
   const seen=new Set();
@@ -8631,7 +8827,10 @@ function surfaceAssets(topics,brand){
   }
   if(html){
     el.innerHTML=html;
-    addCoachFeedItem('topic','Relevant assets surfaced: '+topics.map(t=>t.label).join(', ')+'. See Suggested Assets panel below.','&#128218;');
+    if(_topicFeedCount<MAX_TOPIC_FEED_ITEMS){
+      _topicFeedCount++;
+      addCoachFeedItem('topic','Relevant assets surfaced: '+topics.map(t=>t.label).join(', ')+'. See Suggested Assets panel below.','&#128218;');
+    }
   }
   surfacePlaybooks(topics);
 }
@@ -8728,7 +8927,7 @@ async function askAiCustom(){
     {label:'Brand',value:brand}
   ];
   try{
-    const r=await ask('Answer this question from a CRO sales coach perspective. Be direct, specific, actionable. Under 100 words.\n\nQuestion: '+q,contextData,{fast:true});
+    const r=await ask('Answer this question from a CRO sales coach perspective. Be direct, specific, actionable. Structure: 3-6 bullets answering with specifics from the transcript/context, then a final section "Terms & acronyms:" with one-line plain-English definitions of every acronym/jargon term used in the question or your answer (or "No jargon used." if none). Under 220 words total.\n\nQuestion: '+q,contextData,{fast:true});
     if(r&&!r.includes('unavailable'))addCoachFeedItem('advise',r,'&#129302;');
     else addCoachFeedItem('system','AI unavailable. Set ANTHROPIC_API_KEY on Render for AI responses.','&#9888;');
   }catch(e){addCoachFeedItem('system','Error: '+e.message,'&#9888;');}
@@ -8818,9 +9017,10 @@ async function loadCopilotMeetingFromFilter(){
       const tText=typeof t==='string'?t:(t?.transcript||t?.text||'');
       const isError=!tText||tText.includes('"error"')||tText.includes('No transcript')||tText.includes('not found')||tText.includes('No data')||tText.includes('unavailable')||tText.length<20;
       if(!isError){
-        copilotTranscriptLines=[{text:tText.slice(0,5000),time:new Date(meeting.date||Date.now()),confidence:1,manual:true}];
+        const parsed=parseMeetTranscript(_mnNormalizeTranscript(tText));
+        copilotTranscriptLines=parsed.length?parsed:[{text:_mnNormalizeTranscript(tText).slice(0,20000),time:new Date(meeting.date||Date.now()),confidence:1,manual:true}];
         renderCopilotTranscript();
-        copilotMeetingContext='MEETING TRANSCRIPT: '+tText.slice(0,2000);
+        copilotMeetingContext='MEETING TRANSCRIPT: '+_mnNormalizeTranscript(tText).slice(0,2000);
         loaded=true;
       }
     }
@@ -8833,7 +9033,7 @@ async function loadCopilotMeetingFromFilter(){
         loaded=true;
       }
     }
-    if(!loaded&&tEl)tEl.innerHTML='<div class="empty-state">No transcript or notes found for this meeting.</div>';
+    if(!loaded){ await resolveTranscriptForMeeting(meeting); }
   }catch(e){dbg('loadCopilotMeetingFromFilter error: '+e.message,'err');}
 }
 
@@ -8847,7 +9047,7 @@ async function populateCopilotMeetings(){
     ((r&&r.files)||[]).forEach(f=>opts.push({src:'drive',id:f.id,title:f.title,date:f.modifiedTime||'',parts:''}));
   }catch(e){}
   try{
-    const gr=await mnListMeetings({time_range:'last_30_days'});
+    const gr=await mnListMeetings({time_range:'last_90_days'});
     parseMeetings(gr).forEach(m=>opts.push({src:'granola',id:m.id,title:m.title,date:m.date,parts:m.parts}));
   }catch(e){}
   const seen=new Set();
@@ -8871,6 +9071,18 @@ async function populateCopilotMeetings(){
 let prodTasks={active:[],waiting:[],someday:[],done:[]};
 let prodMemory={people:[],projects:[],preferences:[],decisions:[]};
 let prodGlossary=[];
+let _prodBrand='all';
+function setProdBrand(b){_prodBrand=b||'all';renderKanban();renderGlossary(document.getElementById('glossarySearch')?.value?.toLowerCase().trim()||'');}
+// Render-time brand classifier: explicit task.brand wins, then context/title regex.
+function taskBrand(t){
+  if(t.brand)return t.brand;
+  const s=((t.title||'')+' '+(t.context||'')+' '+(t.meetingTitle||'')).toLowerCase();
+  if(/vorro|bridgegate|fhir|hl7|ehr|epic|cerner|hipaa|interop|medicaid/.test(s))return 'vorro';
+  if(/cv3|commercev3|ecommerce|shopify|magento|bigcommerce|\bdtc\b/.test(s))return 'cv3';
+  if(/revengineer|revengine|intent data|6sense|demandbase|buying signal/.test(s))return 'revengineer';
+  if(/cadient|smartsuite|smartsource|smartmatch|smartscreen|hiring|recruit|talent|\bats\b/.test(s))return 'cadient';
+  return '';
+}
 async function ask(p,d,opts){
   // Always use fastest model (Haiku)
   // Try Cowork askClaude first (fast Haiku model, works in artifact context)
@@ -8884,7 +9096,7 @@ async function ask(p,d,opts){
   // Fallback to server API
   try{
     const _brand=typeof detectBrandFromContext==='function'?detectBrandFromContext():'cadient';
-    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[],fast:true,company:_brand})});
+    const res=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prompt:p,data:d||[],fast:true,company:_brand,max_tokens:(opts&&opts.maxTokens)||1200})});
     if(!res.ok){
       const errText=await res.text().catch(()=>'');
       throw new Error('HTTP '+res.status+(errText?' '+errText:''));
@@ -8906,6 +9118,7 @@ async function ask(p,d,opts){
 
 async function loadProductivity(){
   window._prodLoaded=true;
+  try{const saved=_lsGet('prodTasksLocal',null); if(saved)['active','waiting','someday','done'].forEach(c=>{(saved[c]||[]).forEach(t=>{if(!prodTasks[c].some(x=>x.id===t.id))prodTasks[c].push(t);});});}catch(e){}
   // Load tasks from multiple sources in parallel
   const [calTasks,emailTasks,granolaTasks,dealTasks,callTasks]=await Promise.allSettled([
     loadCalendarTasks(),
@@ -8981,12 +9194,12 @@ async function loadDealTasks(){
     // Cadient deals from Zoho MCP
     const r=await call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Closing_Date between '${now}' and '${weekStr}' and Stage != 'Closed Won' and Stage != 'Closed Lost' order by Closing_Date asc limit 20`}});
     (r?.data||[]).forEach(d=>{
-      addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Cadient &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm'});
+      addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Cadient &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm',brand:'cadient'});
     });
     // Vorro deals from Gmail pipeline cache
     const vDeals=await loadVorroPipelineCache();
     vDeals.filter(d=>d.Closing_Date&&d.Closing_Date>=now&&d.Closing_Date<=weekStr).forEach(d=>{
-      addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Vorro &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm'});
+      addTaskIfNew('active',{title:'Follow up: '+d.Deal_Name,context:`Vorro &middot; ${d.Stage} - ${fmtMoney(d.Amount)} closing ${d.Closing_Date}`,person:d.Contact_Name?.name||d.Contact_Name||'',due:d.Closing_Date||'',source:'crm',brand:'vorro'});
     });
   }catch(e){if(typeof _eBus!=='undefined')_eBus.capture(e,'silent-catch')}
 }
@@ -9062,16 +9275,20 @@ function renderKanban(){
     const container=document.getElementById('cards'+col.charAt(0).toUpperCase()+col.slice(1));
     const count=document.getElementById('cnt'+col.charAt(0).toUpperCase()+col.slice(1));
     if(!container||!count)return;
-    const tasks=prodTasks[col]||[];
+    let tasks=prodTasks[col]||[];
+    if(_prodBrand!=='all')tasks=tasks.filter(t=>{const b=taskBrand(t);return b===_prodBrand||b==='';});
     count.textContent=tasks.length;
     container.innerHTML=tasks.map(t=>{
-      const isOverdue=t.due&&new Date(t.due)<new Date()&&col!=='done';
+      const dueD=t.due?new Date(t.due+(String(t.due).length===10?'T23:59:59':'')):null; const isOverdue=dueD&&!isNaN(dueD)&&dueD<new Date()&&col!=='done';
       const sourceIcon={calendar:'&#128197;',email:'&#9993;',granola:'&#127793;',crm:'&#128178;',manual:'&#128221;',meeting:'&#127908;'}[t.source]||'&#128221;';
       return `<div class="kanban-card" data-id="${t.id}">
         <div class="kc-actions">
           ${col!=='done'?`<button onclick="moveTask('${t.id}','done')" title="Complete">&#10003;</button>`:''}
-          ${col!=='active'&&col!=='done'?`<button onclick="moveTask('${t.id}','active')" title="Move to Active">&#9654;</button>`:''}
-          ${col==='active'?`<button onclick="moveTask('${t.id}','waiting')" title="Waiting">&#9202;</button>`:''}
+          <button onclick="editTask('${t.id}')" title="Edit">&#9998;</button>
+          <select onchange="if(this.value)moveTask('${t.id}',this.value)" onclick="event.stopPropagation()" title="Move to..." style="width:22px;height:22px;border:none;background:var(--bg-surface);color:var(--text-muted);font-size:10px;border-radius:4px;cursor:pointer">
+            <option value="">&#8644;</option>
+            ${['active','waiting','someday','done'].filter(c=>c!==col).map(c=>`<option value="${c}">${c==='active'?'Active':c==='waiting'?'Waiting On':c==='someday'?'Someday':'Done'}</option>`).join('')}
+          </select>
           <button onclick="removeTask('${t.id}')" title="Remove">&#10005;</button>
         </div>
         <div class="kc-title">${esc(t.title)}</div>
@@ -9088,6 +9305,7 @@ function renderKanban(){
       </div>`;
     }).join('')||'<div class="memory-empty">No tasks</div>';
   });
+  try{_lsSet('prodTasksLocal',{active:prodTasks.active.filter(t=>t.source==='manual'),waiting:prodTasks.waiting.filter(t=>t.source==='manual'),someday:prodTasks.someday.filter(t=>t.source==='manual'),done:prodTasks.done.filter(t=>t.source==='manual')});}catch(e){}
 }
 
 function moveTask(id,toCol){
@@ -9114,6 +9332,7 @@ function removeTask(id){
 }
 
 function toggleAddTask(){
+  _editingTaskId=null;
   document.getElementById('prodAddForm').classList.toggle('visible');
   document.getElementById('prodTaskTitle').focus();
 }
@@ -9123,17 +9342,48 @@ function quickAddTask(col){
   toggleAddTask();
 }
 
+let _editingTaskId=null;
+function editTask(id){
+  const t=_findProdTask(id);if(!t)return;
+  _editingTaskId=id;
+  document.getElementById('prodTaskTitle').value=t.title||'';
+  document.getElementById('prodTaskContext').value=t.context||'';
+  document.getElementById('prodTaskPerson').value=t.person||'';
+  document.getElementById('prodTaskDue').value=/^\d{4}-\d{2}-\d{2}$/.test(t.due||'')?t.due:'';
+  for(const col of ['active','waiting','someday','done'])if(prodTasks[col].some(x=>x.id===id))document.getElementById('prodTaskColumn').value=col==='done'?'active':col;
+  document.getElementById('prodAddForm').classList.add('visible');
+  document.getElementById('prodTaskTitle').focus();
+}
+
+function validProdDue(due){
+  if(!due)return {ok:true,due:''};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(due))return {ok:false,msg:'Due date must be YYYY-MM-DD'};
+  const d=new Date(due+'T00:00:00');
+  if(isNaN(d))return {ok:false,msg:'Invalid date'};
+  const yr=d.getFullYear(),nowYr=new Date().getFullYear();
+  if(yr<nowYr-1||yr>nowYr+2)return {ok:false,msg:'Due date year looks wrong ('+yr+') — expected '+(nowYr-1)+'–'+(nowYr+2)};
+  return {ok:true,due};
+}
 function addProdTask(){
   const title=document.getElementById('prodTaskTitle').value.trim();
   if(!title)return;
+  const chk=validProdDue(document.getElementById('prodTaskDue').value);
+  if(!chk.ok){alert(chk.msg);document.getElementById('prodTaskDue').focus();return;}
   const col=document.getElementById('prodTaskColumn').value;
-  addTaskIfNew(col,{
-    title:title,
-    context:document.getElementById('prodTaskContext').value.trim(),
-    person:document.getElementById('prodTaskPerson').value.trim(),
-    due:document.getElementById('prodTaskDue').value,
-    source:'manual'
-  });
+  const context=document.getElementById('prodTaskContext').value.trim();
+  const person=document.getElementById('prodTaskPerson').value.trim();
+  if(_editingTaskId){
+    const t=_findProdTask(_editingTaskId);
+    if(t){
+      t.title=title;t.context=context;t.person=person;t.due=chk.due;
+      persistCallTask(t,{title,detail:context,due:chk.due,assignee:person});
+      let cur='';for(const c of ['active','waiting','someday','done'])if(prodTasks[c].some(x=>x.id===t.id))cur=c;
+      if(cur&&cur!==col)moveTask(t.id,col);
+    }
+    _editingTaskId=null;
+  }else{
+    addTaskIfNew(col,{title,context,person,due:chk.due,source:'manual'});
+  }
   document.getElementById('prodTaskTitle').value='';
   document.getElementById('prodTaskContext').value='';
   document.getElementById('prodTaskPerson').value='';
@@ -9145,25 +9395,21 @@ function addProdTask(){
 function switchProdView(view,btn){
   document.querySelectorAll('.prod-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
-  const views=['board','assets','memory','glossary','review','load','okrs','energy','focus'];
-  const ids={board:'prodBoardView',assets:'prodAssetsView',memory:'prodMemoryView',glossary:'prodGlossaryView',review:'prodReviewView',load:'prodLoadView',okrs:'prodOKRView',energy:'prodEnergyView',focus:'prodFocusView'};
+  const views=['board','memory','glossary','review'];
+  const ids={board:'prodBoardView',memory:'prodMemoryView',glossary:'prodGlossaryView',review:'prodReviewView'};
   views.forEach(v=>{const el=document.getElementById(ids[v]);if(el)el.style.display=v===view?'block':'none';});
   // Lazy load new features on first click
   if(view==='review'&&!window._reviewLoaded){window._reviewLoaded=true;loadWeeklyReview();}
-  if(view==='load'&&!window._loadLoaded){window._loadLoaded=true;loadMeetingLoad();}
-  if(view==='okrs'&&!window._okrLoaded){window._okrLoaded=true;loadOKRTracker();}
-  if(view==='energy'&&!window._energyLoaded){window._energyLoaded=true;loadEnergyTracker();}
-  if(view==='focus'&&!window._focusLoaded){window._focusLoaded=true;loadFocusBlocks();}
 }
 
-// ── Weekly Review ──
+// ── Weekly Review (combined: review stats + AI, meeting load, energy, focus) ──
 async function loadWeeklyReview(){
   const el=document.getElementById('reviewContent');
   const ld=document.getElementById('reviewLoading');
   ld.innerHTML='<div class="memory-empty">Loading weekly review data...</div>';
   try{
     const now=new Date();
-    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
+    const weekStart=new Date(now);const dow=(now.getDay()+6)%7;weekStart.setDate(weekStart.getDate()-dow);weekStart.setHours(0,0,0,0);
     const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+6);weekEnd.setHours(23,59,59,999);
     const [calR,emailR,granR,dealsR]=await Promise.allSettled([
       call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
@@ -9179,17 +9425,7 @@ async function loadWeeklyReview(){
     const threadCount=threads.length;
     const granolaCount=Array.isArray(meetings)?meetings.length:0;
     const dealCount=deals.length;
-    const summary=`This week: ${mtgCount} calendar events, ${threadCount} email threads, ${granolaCount} Granola meetings, ${dealCount} Zoho deals updated.`;
-    const aiPrompt='You are a CRO productivity coach. Given this weeks data, generate a weekly review with 3 sections: WINS (3-5 bullets), BLOCKERS (2-3 bullets), NEXT WEEK PRIORITIES (3-5 bullets). Be specific using the data provided. Return plain text with section headers.';
-    const dataItems=[
-      {label:'Calendar Events',value:events.map(e=>`${e.summary||'No title'} (${(e.start?.dateTime||e.start?.date||'').slice(0,16)})`).join('; ')},
-      {label:'Email Thread Count',value:String(threadCount)},
-      {label:'Granola Meetings',value:Array.isArray(meetings)?meetings.map(m=>m.title||m.name||'Meeting').join('; '):'None'},
-      {label:'Zoho Deals Updated',value:deals.map(d=>`${d.Deal_Name} [${d.Stage}] ${fmtMoney(d.Amount)}`).join('; ')}
-    ];
-    let aiResult;
-    try{aiResult=await ask(aiPrompt,dataItems);}catch(e){aiResult=null;}
-    const sections=parseReviewSections(aiResult);
+    // Render the deterministic parts first; AI bullets are patched in when ready.
     el.innerHTML=`
       <div class="prod-feature-card">
         <h3>&#128203; Weekly Review &mdash; Week of ${weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</h3>
@@ -9199,12 +9435,33 @@ async function loadWeeklyReview(){
           <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${granolaCount}</div><div class="pf-label">Granola Notes</div></div>
           <div class="pf-stat-box"><div class="pf-num" style="color:var(--orange)">${dealCount}</div><div class="pf-label">Deals Updated</div></div>
         </div>
-        <div class="pf-section"><h4 style="color:var(--green)">&#9989; Wins</h4><ul>${(sections.wins||['No data available']).map(w=>'<li>'+esc(w)+'</li>').join('')}</ul></div>
-        <div class="pf-section"><h4 style="color:var(--red)">&#128679; Blockers</h4><ul>${(sections.blockers||['No blockers identified']).map(b=>'<li>'+esc(b)+'</li>').join('')}</ul></div>
-        <div class="pf-section"><h4 style="color:var(--blue)">&#127919; Next Week Priorities</h4><ul>${(sections.priorities||['No priorities generated']).map(p=>'<li>'+esc(p)+'</li>').join('')}</ul></div>
+        <div id="reviewAiSections"><div class="memory-empty">Generating AI wins / blockers / priorities...</div></div>
       </div>
       <div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._reviewLoaded=false;loadWeeklyReview()">Regenerate Review</button></div>`;
+    const wkEvents=(events||[]).filter(e=>e.start?.dateTime&&e.end?.dateTime&&!((e.attendees||[]).some(a=>a.self&&a.responseStatus==='declined')));
+    window._reviewWkEvents=wkEvents;
+    el.innerHTML+=renderLoadCard(wkEvents,weekStart)+'<div id="energyCardWrap">'+renderEnergyCard(wkEvents)+'</div>'+renderFocusCard(wkEvents);
     ld.style.display='none';el.style.display='block';
+    // Non-blocking AI pass
+    const aiPrompt='You are a CRO productivity coach. Given this weeks data, generate a weekly review with 3 sections: WINS (3-5 bullets), BLOCKERS (2-3 bullets), NEXT WEEK PRIORITIES (3-5 bullets). Be specific using the data provided. Return plain text with section headers.';
+    const dataItems=[
+      {label:'Calendar Events',value:events.map(e=>`${e.summary||'No title'} (${(e.start?.dateTime||e.start?.date||'').slice(0,16)})`).join('; ')},
+      {label:'Email Thread Count',value:String(threadCount)},
+      {label:'Granola Meetings',value:Array.isArray(meetings)?meetings.map(m=>m.title||m.name||'Meeting').join('; '):'None'},
+      {label:'Zoho Deals Updated',value:deals.map(d=>`${d.Deal_Name} [${d.Stage}] ${fmtMoney(d.Amount)}`).join('; ')}
+    ];
+    ask(aiPrompt,dataItems).then(aiResult=>{
+      const sections=parseReviewSections(aiResult);
+      const ai=document.getElementById('reviewAiSections');
+      if(!ai)return;
+      ai.innerHTML=`
+        <div class="pf-section"><h4 style="color:var(--green)">&#9989; Wins</h4><ul>${(sections.wins&&sections.wins.length?sections.wins:['No data available']).map(w=>'<li>'+esc(w)+'</li>').join('')}</ul></div>
+        <div class="pf-section"><h4 style="color:var(--red)">&#128679; Blockers</h4><ul>${(sections.blockers&&sections.blockers.length?sections.blockers:['No blockers identified']).map(b=>'<li>'+esc(b)+'</li>').join('')}</ul></div>
+        <div class="pf-section"><h4 style="color:var(--blue)">&#127919; Next Week Priorities</h4><ul>${(sections.priorities&&sections.priorities.length?sections.priorities:['No priorities generated']).map(p=>'<li>'+esc(p)+'</li>').join('')}</ul></div>`;
+    }).catch(()=>{
+      const ai=document.getElementById('reviewAiSections');
+      if(ai)ai.innerHTML='<div class="memory-empty">AI review unavailable</div>';
+    });
   }catch(e){ld.innerHTML='<div class="memory-empty">Error loading review: '+esc(e.message)+'</div>';}
 }
 
@@ -9225,76 +9482,84 @@ function parseReviewSections(text){
   return result;
 }
 
-// ── Meeting Load ──
-async function loadMeetingLoad(){
-  const el=document.getElementById('loadContent');
-  const ld=document.getElementById('loadLoading');
-  ld.innerHTML='<div class="memory-empty">Analyzing meeting load...</div>';
-  try{
-    const now=new Date();
-    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
-    const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
-    const calR=await call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
-    const events=(calR?.events||[]).filter(e=>e.start?.dateTime&&e.end?.dateTime);
-    const days=['Mon','Tue','Wed','Thu','Fri'];
-    const dayHours=[0,0,0,0,0];
-    events.forEach(e=>{
-      const s=new Date(e.start.dateTime);const en=new Date(e.end.dateTime);
-      const dayIdx=s.getDay()-1;
-      if(dayIdx>=0&&dayIdx<5){dayHours[dayIdx]+=(en-s)/3600000;}
+// ── Meeting Load (returns card HTML; events = this week's timed, non-declined events) ──
+function renderLoadCard(events,weekStart){
+  const days=['Mon','Tue','Wed','Thu','Fri'];
+  const byDay=[[],[],[],[],[]];
+  (events||[]).forEach(e=>{
+    const s=new Date(e.start.dateTime);const en=new Date(e.end.dateTime);
+    const dayIdx=(s.getDay()+6)%7; // Mon=0 .. Sun=6
+    if(dayIdx<5)byDay[dayIdx].push([s.getTime(),en.getTime()]);
+  });
+  // Merge overlapping intervals per day before summing
+  const dayHours=byDay.map(list=>{
+    list.sort((a,b)=>a[0]-b[0]);
+    let tot=0,curStart=null,curEnd=null;
+    list.forEach(([s,e])=>{
+      if(curEnd===null){curStart=s;curEnd=e;}
+      else if(s<=curEnd){curEnd=Math.max(curEnd,e);}
+      else{tot+=curEnd-curStart;curStart=s;curEnd=e;}
     });
-    const totalMtg=dayHours.reduce((a,b)=>a+b,0);
-    const totalAvail=40;
-    const focusHrs=totalAvail-totalMtg;
-    const ratio=Math.round((totalMtg/totalAvail)*100);
-    const overloaded=ratio>60;
-    let html=`<div class="prod-feature-card"><h3>&#128200; Meeting Load Analysis</h3>`;
-    if(overloaded)html+=`<div class="pf-warning">&#9888; Meeting load is at ${ratio}% &mdash; above the 60% threshold. Consider declining or rescheduling meetings to protect focus time.</div>`;
-    html+=`<div class="pf-stat-row">
-      <div class="pf-stat-box"><div class="pf-num" style="color:var(--orange)">${totalMtg.toFixed(1)}h</div><div class="pf-label">Meeting Hours</div></div>
-      <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${focusHrs.toFixed(1)}h</div><div class="pf-label">Focus Hours</div></div>
-      <div class="pf-stat-box"><div class="pf-num" style="color:${overloaded?'var(--red)':'var(--blue)'};">${ratio}%</div><div class="pf-label">Meeting Ratio</div></div>
-      <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${events.length}</div><div class="pf-label">Total Events</div></div>
-    </div>`;
-    html+=`<h4>Weekly Overview</h4>
-    <div class="pf-bar-wrap"><div class="pf-bar-label">Meetings</div><div class="pf-bar-track"><div class="pf-bar-fill meetings" style="width:${ratio}%">${totalMtg.toFixed(1)}h</div></div></div>
-    <div class="pf-bar-wrap"><div class="pf-bar-label">Focus</div><div class="pf-bar-track"><div class="pf-bar-fill focus-bar" style="width:${100-ratio}%">${focusHrs.toFixed(1)}h</div></div></div>`;
-    html+=`<h4>Day-by-Day Breakdown</h4>`;
-    days.forEach((d,i)=>{
-      const pct=Math.round((dayHours[i]/8)*100);
-      const cls=pct>75?'red':pct>50?'amber':'green';
-      html+=`<div class="pf-bar-wrap"><div class="pf-bar-label">${d}</div><div class="pf-bar-track"><div class="pf-bar-fill ${cls}" style="width:${Math.min(pct,100)}%">${dayHours[i].toFixed(1)}h</div></div></div>`;
-    });
-    html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._loadLoaded=false;loadMeetingLoad()">Refresh</button></div>`;
-    el.innerHTML=html;ld.style.display='none';el.style.display='block';
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
+    if(curEnd!==null)tot+=curEnd-curStart;
+    return tot/3600000;
+  });
+  const eventCount=(events||[]).filter(e=>((new Date(e.start.dateTime)).getDay()+6)%7<5).length;
+  const totalMtg=dayHours.reduce((a,b)=>a+b,0);
+  const totalAvail=40;
+  const focusHrs=Math.max(totalAvail-totalMtg,0);
+  const ratio=Math.round((totalMtg/totalAvail)*100);
+  const overloaded=ratio>60;
+  let html=`<div class="prod-feature-card"><h3>&#128200; Meeting Load Analysis</h3>`;
+  if(overloaded)html+=`<div class="pf-warning">&#9888; Meeting load is at ${ratio}% &mdash; above the 60% threshold. Consider declining or rescheduling meetings to protect focus time.</div>`;
+  html+=`<div class="pf-stat-row">
+    <div class="pf-stat-box"><div class="pf-num" style="color:var(--orange)">${totalMtg.toFixed(1)}h</div><div class="pf-label">Meeting Hours</div></div>
+    <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${focusHrs.toFixed(1)}h</div><div class="pf-label">Focus Hours</div></div>
+    <div class="pf-stat-box"><div class="pf-num" style="color:${overloaded?'var(--red)':'var(--blue)'};">${ratio}%</div><div class="pf-label">of 40h work-week (assumed, overlaps merged)</div></div>
+    <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${eventCount}</div><div class="pf-label">Mon&ndash;Fri Events</div></div>
+  </div>`;
+  html+=`<h4>Weekly Overview</h4>
+  <div class="pf-bar-wrap"><div class="pf-bar-label">Meetings</div><div class="pf-bar-track"><div class="pf-bar-fill meetings" style="width:${Math.min(ratio,100)}%">${totalMtg.toFixed(1)}h</div></div></div>
+  <div class="pf-bar-wrap"><div class="pf-bar-label">Focus</div><div class="pf-bar-track"><div class="pf-bar-fill focus-bar" style="width:${Math.max(100-ratio,0)}%">${focusHrs.toFixed(1)}h</div></div></div>`;
+  html+=`<h4>Day-by-Day Breakdown</h4>`;
+  days.forEach((d,i)=>{
+    const pct=Math.round((dayHours[i]/8)*100);
+    const cls=pct>75?'red':pct>50?'amber':'green';
+    html+=`<div class="pf-bar-wrap"><div class="pf-bar-label">${d}</div><div class="pf-bar-track"><div class="pf-bar-fill ${cls}" style="width:${Math.min(pct,100)}%">${dayHours[i].toFixed(1)}h</div></div></div>`;
+  });
+  html+=`</div>`;
+  return html;
 }
 
-// ── OKR Tracker ──
+// ── OKR Tracker (CRM section; Cadient live Zoho + Vorro cached pipeline) ──
 async function loadOKRTracker(){
   const el=document.getElementById('okrContent');
   const ld=document.getElementById('okrLoading');
   ld.innerHTML='<div class="memory-empty">Loading OKR data...</div>';
   try{
+    const OKR_TARGETS={pipeline:2000000,winRate:30,meetingsPerWeek:15,dealsWonQtd:5}; // business targets — edit here; not derivable from CRM
     const now=new Date();
-    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
+    const weekStart=new Date(now);const dow=(now.getDay()+6)%7;weekStart.setDate(weekStart.getDate()-dow);weekStart.setHours(0,0,0,0);
     const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
-    const [dealsR,wonR,lostR,calR]=await Promise.allSettled([
+    const qStart=new Date(now.getFullYear(),Math.floor(now.getMonth()/3)*3,1).toISOString().slice(0,10);
+    const [dealsR,wonR,lostR,calR,vorroR]=await Promise.allSettled([
       call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Amount from Deals where Stage != 'Closed Lost' and Stage != 'Closed Won' limit 200"}}),
-      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Amount from Deals where Stage = 'Closed Won' limit 200"}}),
-      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:"select Amount from Deals where Stage = 'Closed Lost' limit 200"}}),
-      call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'})
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Amount from Deals where Stage = 'Closed Won' and Closing_Date >= '${qStart}' limit 200`}}),
+      call(`${ZOHO}__executeCOQLQuery`,{body:{select_query:`select Amount from Deals where Stage = 'Closed Lost' and Closing_Date >= '${qStart}' limit 200`}}),
+      call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'}),
+      loadVorroPipelineCache()
     ]);
-    const pipeline=(dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[]).reduce((s,d)=>s+(d.Amount||0),0);
+    const vorroOpen=(vorroR.status==='fulfilled'?(Array.isArray(vorroR.value)?vorroR.value:[]):[]).filter(d=>!/closed/i.test(String(d.Stage||'')));
+    const pipeline=(dealsR.status==='fulfilled'?(dealsR.value?.data||[]):[]).reduce((s,d)=>s+amtNum(d.Amount),0)
+      +vorroOpen.reduce((s,d)=>s+amtNum(d.Amount),0);
     const won=(wonR.status==='fulfilled'?(wonR.value?.data||[]):[]);
     const lost=(lostR.status==='fulfilled'?(lostR.value?.data||[]):[]);
     const winRate=won.length+lost.length>0?Math.round((won.length/(won.length+lost.length))*100):0;
     const mtgCount=(calR.status==='fulfilled'?(calR.value?.events||[]):[]).length;
     const okrs=[
-      {name:'Pipeline Coverage',target:2000000,actual:pipeline,unit:'$',fmt:v=>fmtMoney(v)},
-      {name:'Win Rate',target:30,actual:winRate,unit:'%',fmt:v=>v+'%'},
-      {name:'Meetings/Week',target:15,actual:mtgCount,unit:'',fmt:v=>String(v)},
-      {name:'Response Time',target:4,actual:null,unit:'hr',fmt:()=>'Track manually'}
+      {name:'Pipeline Coverage (Cadient live + Vorro cached)',target:OKR_TARGETS.pipeline,actual:pipeline,unit:'$',fmt:v=>fmtMoney(v)},
+      {name:'Win Rate (QTD, by count)',target:OKR_TARGETS.winRate,actual:winRate,unit:'%',fmt:v=>v+'%'},
+      {name:'Meetings/Week',target:OKR_TARGETS.meetingsPerWeek,actual:mtgCount,unit:'',fmt:v=>String(v)},
+      {name:'Deals Won (QTD)',target:OKR_TARGETS.dealsWonQtd,actual:won.length,unit:'',fmt:v=>String(v)}
     ];
     let html=`<div class="prod-feature-card"><h3>&#127919; OKR Tracker</h3>`;
     okrs.forEach(o=>{
@@ -9313,25 +9578,13 @@ async function loadOKRTracker(){
   }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
 }
 
-// ── Energy Tracker ──
-async function loadEnergyTracker(){
-  const el=document.getElementById('energyContent');
-  const ld=document.getElementById('energyLoading');
-  ld.innerHTML='<div class="memory-empty">Loading meetings for energy tracking...</div>';
-  try{
-    const now=new Date();
-    const weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1);weekStart.setHours(0,0,0,0);
-    const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+4);weekEnd.setHours(23,59,59,999);
-    const calR=await call(`${CAL}__list_events`,{startTime:weekStart.toISOString(),endTime:weekEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
-    const events=(calR?.events||[]).filter(e=>e.summary);
-    const stored=_lsGet('energyTracker',{});
-    renderEnergyView(el,ld,events,stored);
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
-}
-
-function renderEnergyView(el,ld,events,stored){
-  const energizing=Object.values(stored).filter(v=>v==='energizing').length;
-  const draining=Object.values(stored).filter(v=>v==='draining').length;
+// ── Energy Tracker (returns card HTML; stats scoped to the displayed meetings) ──
+function renderEnergyCard(events){
+  events=events||[];
+  const stored=_lsGet('energyTracker',{});
+  const keys=events.map(e=>'energy_'+(e.id||e.summary));
+  const energizing=keys.filter(k=>stored[k]==='energizing').length;
+  const draining=keys.filter(k=>stored[k]==='draining').length;
   const total=energizing+draining;
   const ePct=total>0?Math.round((energizing/total)*100):50;
   const dPct=total>0?100-ePct:50;
@@ -9353,74 +9606,65 @@ function renderEnergyView(el,ld,events,stored){
     html+=`<div class="pf-energy-item">
       <div class="pf-mtg-time">${esc(sTime)}</div>
       <div class="pf-mtg-name">${esc(e.summary)}</div>
-      <button class="pf-energy-btn energize ${val==='energizing'?'active':''}" onclick="setEnergy('${esc(key)}','energizing')" title="Energizing">+</button>
-      <button class="pf-energy-btn drain ${val==='draining'?'active':''}" onclick="setEnergy('${esc(key)}','draining')" title="Draining">&minus;</button>
+      <button class="pf-energy-btn energize ${val==='energizing'?'active':''}" data-k="${escAttr(key)}" onclick="setEnergy(this.dataset.k,'energizing')" title="Energizing">+</button>
+      <button class="pf-energy-btn drain ${val==='draining'?'active':''}" data-k="${escAttr(key)}" onclick="setEnergy(this.dataset.k,'draining')" title="Draining">&minus;</button>
     </div>`;
   });
   if(!events.length)html+=`<div class="memory-empty">No meetings found this week</div>`;
   html+=`</div>`;
-  el.innerHTML=html;ld.style.display='none';el.style.display='block';
-  window._energyEvents=events;
+  return html;
 }
 
 function setEnergy(key,value){
   const stored=_lsGet('energyTracker',{});
   if(stored[key]===value){delete stored[key];}else{stored[key]=value;}
   _lsSet('energyTracker',stored);
-  const el=document.getElementById('energyContent');
-  const ld=document.getElementById('energyLoading');
-  renderEnergyView(el,ld,window._energyEvents||[],stored);
+  const w=document.getElementById('energyCardWrap');
+  if(w)w.innerHTML=renderEnergyCard(window._reviewWkEvents||[]);
 }
 
-// ── Focus Blocks ──
-async function loadFocusBlocks(){
-  const el=document.getElementById('focusContent');
-  const ld=document.getElementById('focusLoading');
-  ld.innerHTML='<div class="memory-empty">Finding focus blocks...</div>';
-  try{
-    const now=new Date();
-    const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
-    const tomorrowEnd=new Date(todayStart);tomorrowEnd.setDate(tomorrowEnd.getDate()+2);tomorrowEnd.setHours(0,0,0,0);
-    const calR=await call(`${CAL}__list_events`,{startTime:todayStart.toISOString(),endTime:tomorrowEnd.toISOString(),timeZone:'America/New_York',orderBy:'startTime'});
-    const events=(calR?.events||[]).filter(e=>e.start?.dateTime&&e.end?.dateTime);
-    const todayLabel=now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-    const tmrw=new Date(todayStart);tmrw.setDate(tmrw.getDate()+1);
-    const tmrwLabel=tmrw.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-    const todayEvents=events.filter(e=>{const d=new Date(e.start.dateTime);return d.toDateString()===now.toDateString();});
-    const tmrwEvents=events.filter(e=>{const d=new Date(e.start.dateTime);return d.toDateString()===tmrw.toDateString();});
-    const todayBlocks=findFocusGaps(todayEvents,now);
-    const tmrwBlocks=findFocusGaps(tmrwEvents,tmrw);
-    const todayFocus=todayBlocks.reduce((s,b)=>s+b.minutes,0);
-    const tmrwFocus=tmrwBlocks.reduce((s,b)=>s+b.minutes,0);
-    let html=`<div class="prod-feature-card"><h3>&#128161; Focus Blocks</h3>
-      <div class="pf-stat-row">
-        <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${(todayFocus/60).toFixed(1)}h</div><div class="pf-label">Today Focus</div></div>
-        <div class="pf-stat-box"><div class="pf-num" style="color:var(--blue)">${(tmrwFocus/60).toFixed(1)}h</div><div class="pf-label">Tomorrow Focus</div></div>
-        <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${todayBlocks.length+tmrwBlocks.length}</div><div class="pf-label">Total Blocks</div></div>
+// ── Focus Blocks (returns card HTML; events = this week's timed events) ──
+function renderFocusCard(events){
+  events=events||[];
+  const now=new Date();
+  const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
+  const todayLabel=now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const tmrw=new Date(todayStart);tmrw.setDate(tmrw.getDate()+1);
+  const tmrwLabel=tmrw.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const todayEvents=events.filter(e=>{const d=new Date(e.start.dateTime);return d.toDateString()===now.toDateString();});
+  const tmrwEvents=events.filter(e=>{const d=new Date(e.start.dateTime);return d.toDateString()===tmrw.toDateString();});
+  const todayBlocks=findFocusGaps(todayEvents,now);
+  const tmrwBlocks=findFocusGaps(tmrwEvents,tmrw);
+  const todayFocus=todayBlocks.reduce((s,b)=>s+b.minutes,0);
+  const tmrwFocus=tmrwBlocks.reduce((s,b)=>s+b.minutes,0);
+  let html=`<div class="prod-feature-card"><h3>&#128161; Focus Blocks</h3>
+    <div class="pf-stat-row">
+      <div class="pf-stat-box"><div class="pf-num" style="color:var(--green)">${(todayFocus/60).toFixed(1)}h</div><div class="pf-label">Today Focus</div></div>
+      <div class="pf-stat-box"><div class="pf-num" style="color:var(--blue)">${(tmrwFocus/60).toFixed(1)}h</div><div class="pf-label">Tomorrow Focus</div></div>
+      <div class="pf-stat-box"><div class="pf-num" style="color:var(--purple)">${todayBlocks.length+tmrwBlocks.length}</div><div class="pf-label">Total Blocks</div></div>
+    </div>`;
+  html+=`<h4>Today &mdash; ${esc(todayLabel)}</h4>`;
+  if(todayBlocks.length){
+    todayBlocks.forEach(b=>{
+      html+=`<div class="pf-focus-card">
+        <div class="pf-focus-time">${b.startStr} &mdash; ${b.endStr}</div>
+        <div class="pf-focus-dur">${b.minutes} min</div>
+        <div class="pf-focus-label">Available for deep work</div>
       </div>`;
-    html+=`<h4>Today &mdash; ${esc(todayLabel)}</h4>`;
-    if(todayBlocks.length){
-      todayBlocks.forEach(b=>{
-        html+=`<div class="pf-focus-card">
-          <div class="pf-focus-time">${b.startStr} &mdash; ${b.endStr}</div>
-          <div class="pf-focus-dur">${b.minutes} min</div>
-          <div class="pf-focus-label">Available for deep work</div>
-        </div>`;
-      });
-    }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found today</div>`;}
-    html+=`<h4>Tomorrow &mdash; ${esc(tmrwLabel)}</h4>`;
-    if(tmrwBlocks.length){
-      tmrwBlocks.forEach(b=>{
-        html+=`<div class="pf-focus-card">
-          <div class="pf-focus-time">${b.startStr} &mdash; ${b.endStr}</div>
-          <div class="pf-focus-dur">${b.minutes} min</div>
-          <div class="pf-focus-label">Available for deep work</div>
-        </div>`;
-      });
-    }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found tomorrow</div>`;}
-    html+=`</div><div style="text-align:center;margin-top:8px"><button class="prod-btn" onclick="window._focusLoaded=false;loadFocusBlocks()">Refresh</button></div>`;
-    el.innerHTML=html;ld.style.display='none';el.style.display='block';
-  }catch(e){ld.innerHTML='<div class="memory-empty">Error: '+esc(e.message||'')+'</div>';}
+    });
+  }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found today</div>`;}
+  html+=`<h4>Tomorrow &mdash; ${esc(tmrwLabel)}</h4>`;
+  if(tmrwBlocks.length){
+    tmrwBlocks.forEach(b=>{
+      html+=`<div class="pf-focus-card">
+        <div class="pf-focus-time">${b.startStr} &mdash; ${b.endStr}</div>
+        <div class="pf-focus-dur">${b.minutes} min</div>
+        <div class="pf-focus-label">Available for deep work</div>
+      </div>`;
+    });
+  }else{html+=`<div class="memory-empty">No focus blocks of 90+ minutes found tomorrow</div>`;}
+  html+=`</div>`;
+  return html;
 }
 
 function findFocusGaps(events,day){
@@ -9429,6 +9673,8 @@ function findFocusGaps(events,day){
   const sorted=events.map(e=>({s:new Date(e.start.dateTime),e:new Date(e.end.dateTime)})).sort((a,b)=>a.s-b.s);
   const gaps=[];
   let cursor=workStart;
+  const now2=new Date();
+  if(day.toDateString()===now2.toDateString()&&now2>cursor)cursor=now2;
   sorted.forEach(evt=>{
     if(evt.s>cursor){
       const mins=Math.round((evt.s-cursor)/60000);
@@ -9521,48 +9767,92 @@ async function loadMemoryView(){
 }
 
 async function loadGlossaryView(){
-  // Build glossary from CLAUDE.md knowledge
+  const L=(term,def,brand,cat,link)=>({term,def,brand,cat:cat||'phrase',link:link||''});
   prodGlossary=[
-    {term:'SmartSuite',def:'Cadient integrated AI hiring platform (SmartSource + SmartMatch + SmartScreen + SmartTenure + SmartFeedback)'},
-    {term:'SmartSource',def:'AI candidate sourcing tool. 5x pool improvement.'},
-    {term:'SmartMatch',def:'AI skills matching. 15% accuracy lift.'},
-    {term:'SmartScreen',def:'Auto phone screening. 30% faster hiring.'},
-    {term:'SmartTenure',def:'Predictive retention analytics. 20% retention lift.'},
-    {term:'SmartFeedback',def:'Post-hire engagement insights. 30% improvement.'},
-    {term:'SmartHire',def:'Cadient central hiring orchestration system.'},
-    {term:'BridgeGate',def:'Vorro enterprise integration platform (EiPaaS). Connects EHRs, billing, HIEs.'},
-    {term:'EiPaaS',def:'Enterprise Integration Platform as a Service (Vorro model).'},
-    {term:'FHIR',def:'Fast Healthcare Interoperability Resources. Modern healthcare data standard.'},
-    {term:'HL7',def:'Health Level 7. Legacy healthcare messaging standard.'},
-    {term:'EDI X12',def:'Electronic Data Interchange. Healthcare billing/transaction standard.'},
-    {term:'NCPDP',def:'National Council for Prescription Drug Programs. Pharmacy data standard.'},
-    {term:'C-CDA',def:'Consolidated Clinical Document Architecture. Clinical document standard.'},
-    {term:'ATS',def:'Applicant Tracking System. The software companies use to manage hiring.'},
-    {term:'WOTC',def:'Work Opportunity Tax Credit. Tax incentive for hiring from target groups.'},
-    {term:'CAC',def:'Customer Acquisition Cost.'},
-    {term:'TTF',def:'Time-to-Fill. Days from job posting to hire.'},
-    {term:'CEM',def:'Candidate Engagement Model. Cadient hiring journey PDF assets.'},
-    {term:'ICP',def:'Ideal Customer Profile. Scoring criteria for prospect qualification.'},
-    {term:'KOL',def:'Key Opinion Leader. Influencers whose audiences match our ICP.'},
-    {term:'BDR',def:'Business Development Representative. Anjali, Anshu, Kashif, Toiba.'},
-    {term:'Basis Vectors',def:'PE firm. Parent company managing Cadient and Vorro.'},
-    {term:'Command Center',def:'Prospect management dashboard at cadient-command.onrender.com.'},
-    {term:'Evaboot',def:'Email enrichment service. 65% hit rate. $0.05/lookup.'},
-    {term:'Apify',def:'LinkedIn scraping platform. 5-actor stack for profile enrichment.'},
-    {term:'Apollo',def:'Prospect enrichment. Free people/match endpoint for name+company lookup.'},
-    {term:'Warmly',def:'Website visitor identification. Feeds into outreach pipeline.'},
-    {term:'Granola',def:'Meeting transcription and AI notes tool.'},
-    {term:'TPL',def:'Third Party Liability. Healthcare billing concept.'},
-    {term:'MCO',def:'Managed Care Organization. Type of health insurance plan.'},
+    L('ICP','Ideal Customer Profile — the scoring criteria that decide if a prospect is worth pursuing.','all'),
+    L('ATS','Applicant Tracking System — the software companies use to manage hiring.','all'),
+    L('TTF','Time-to-Fill — days from job posting to hire.','all'),
+    L('CAC','Customer Acquisition Cost.','all'),
+    L('WOTC','Work Opportunity Tax Credit — tax incentive for hiring from target groups.','all'),
+    L('KOL','Key Opinion Leader — influencer whose audience matches our ICP.','all'),
+    L('BDR','Business Development Representative (Anjali, Anshu, Kashif, Toiba; CV3: Yara, Girija, Aakriti).','all'),
+    L('Basis Vectors','PE firm — parent managing Cadient, Vorro, CV3, RevEngineer.','all'),
+    L('Command Center','Prospect management dashboard.','all','link','https://cadient-command.onrender.com'),
+    L('Granola','Meeting transcription + AI notes tool feeding this dashboard.','all'),
+    L('Evaboot','Email enrichment service. 65% hit rate, $0.05/lookup.','all','pricing'),
+    L('SmartSuite','Integrated AI hiring platform: SmartSource + SmartMatch + SmartScreen + SmartTenure + SmartFeedback.','cadient','product'),
+    L('SmartSource','AI candidate sourcing — 5x bigger candidate pools.','cadient','product'),
+    L('SmartMatch','AI skills matching — 15% accuracy lift.','cadient','product'),
+    L('SmartScreen','Automated phone screening — 30% faster hiring.','cadient','product'),
+    L('SmartTenure','Predictive retention analytics — 20% retention lift.','cadient','product'),
+    L('SmartFeedback','Post-hire engagement insights — 30% improvement.','cadient','product'),
+    L('CEM','Candidate Engagement Model — Cadient hiring-journey PDF assets, per industry.','cadient','product'),
+    L('Cadient headline metrics','60% faster hiring, 30% better quality, 45% lower cost-per-hire, 80% recruiter productivity lift. One client saved $1M+/yr.','cadient','product'),
+    L('Cadient pricing','Enterprise SaaS — TODO: Manish to add list/floor pricing (KB says "contact for pricing"). Benchmark to quote: $3,200 avg industry cost-per-hire, 45-day fill.','cadient','pricing'),
+    L('SmartSuite + CEM one-pager (Exec/Director)','Cadient one-pager.','cadient','link','https://drive.google.com/file/d/170l_zc3Y8tUbNatai4ldMZXqAdg0eat-/view'),
+    L('SmartSource one-pager (TA/Sourcing)','Cadient one-pager.','cadient','link','https://drive.google.com/file/d/1ZY5OiGSX4ZM-D3ZJsY2SBShktAR5YO_g/view'),
+    L('SmartScreen one-pager (Recruiter/Ops)','Cadient one-pager.','cadient','link','https://drive.google.com/file/d/1Gx_gawGmxobqKLkigngqx3vqq_O9QcLK/view'),
+    L('SmartHire one-pager (HR Manager)','Cadient one-pager.','cadient','link','https://drive.google.com/file/d/1i7zB35EBSZFTMkb2BIapeiVLXEWq11PH/view'),
+    L('SmartSuite full overview','Cadient overview PDF.','cadient','link','https://drive.google.com/file/d/1nZLAN0E1IloIHfYVVuFYHSLVYo40Erib/view'),
+    L('SmartSuite explainer video','Exec/Director demo video.','cadient','link','https://drive.google.com/file/d/18kV5WPL8nyackgynuPXNRZIaMpQZPJEF/view'),
+    L('SmartMatch promo video','TA/Sourcing demo video.','cadient','link','https://drive.google.com/file/d/1DQqqpyefqW8mDcl6LZ3rM81GQrhaG0I9/view'),
+    L('SmartScreen promo video','Recruiter/Ops demo video.','cadient','link','https://drive.google.com/file/d/1J_FjkeaGAtACRHDMib1677zhb6blssNr/view'),
+    L('SmartSuite overview video','HR/Default demo video.','cadient','link','https://drive.google.com/file/d/1kSGx0qWC9grkTZ2IFtJ9fpQMlz3eI863/view'),
+    L('CEM hiring journey PDF — Grocery','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1SSQSCc55KsiYZoO_WTqsSrpeQjXrHXwS/view'),
+    L('CEM hiring journey PDF — Healthcare & Nursing','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/11IVZ1Pj3BgY9FOtl1a2XgLjGii8fslz9/view'),
+    L('CEM hiring journey PDF — Generic / Automotive','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1dVpO0fSPI3G-ZR5vsPqEv0JZ7z1kvvbM/view'),
+    L('CEM hiring journey PDF — Manufacturing','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1JN49IUxb5ak7nTTMAB5rqhuN5SND9SXy/view'),
+    L('CEM hiring journey PDF — Logistics & Warehousing','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1xjXu9hSUTZnVemgZYqiPKpyP1tDCtzfV/view'),
+    L('CEM hiring journey PDF — Hospitality','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1CMw-UQ1q6KvGC4sqGIjmzcPNCKiu7GXg/view'),
+    L('CEM hiring journey PDF — Food & Beverage','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1_4B2DrjdFPj4NVeUS7Zrjv9ivmsmIx0N/view'),
+    L('CEM hiring journey PDF — Delivery','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/12QvuVwJ_FjTRWZ3P39dAy-xAKA-RgeEM/view'),
+    L('CEM hiring journey PDF — Financial Services','Cadient CEM asset.','cadient','link','https://drive.google.com/file/d/1qfUFyqKAX3-gxJCwItpgANRqr8sXj81S/view'),
+    L('Mini case study (Grocery/Auto)','Cadient proof point.','cadient','link','https://drive.google.com/file/d/1PpXwvv1sM6ljI-XdepjlsaVL0XXikwtu/view'),
+    L('Mini proof point (Healthcare/Default)','Cadient proof point.','cadient','link','https://drive.google.com/file/d/13JLKPTiQvy0h14hHbmucTp4a71_H-tjG/view'),
+    L('BridgeGate','Vorro EiPaaS — connects EHRs, billing, HIEs; AI Data Hub; workflow automation; real-time monitoring + auto-healing.','vorro','product'),
+    L('EiPaaS','Enterprise Integration Platform as a Service (Vorro model).','vorro'),
+    L('FHIR','Fast Healthcare Interoperability Resources — modern healthcare data standard.','vorro'),
+    L('HL7','Health Level 7 — legacy healthcare messaging standard.','vorro'),
+    L('EDI X12','Electronic Data Interchange — healthcare billing/transaction standard.','vorro'),
+    L('NCPDP','Pharmacy data standard (National Council for Prescription Drug Programs).','vorro'),
+    L('C-CDA','Consolidated Clinical Document Architecture — clinical document standard.','vorro'),
+    L('TPL','Third Party Liability — healthcare billing concept.','vorro'),
+    L('MCO','Managed Care Organization — type of health insurance plan.','vorro'),
+    L('Vorro pricing','Platform $20K–$90K+/yr plus per-connection fees. Payback 4–6 months (52% integration cost reduction; one client saved $2.3M/yr consolidating 47 tools).','vorro','pricing'),
+    L('Vorro scale proof','100+ enterprises, 5,000+ apps connected, 10M daily transactions. EHR partners: Epic, Cerner, Athena, AllScripts, eClinicalWorks, NextGen, Meditech, CPSI.','vorro','product'),
+    L('Vorro.net','Main site.','vorro','link','https://vorro.net'),
+    L('BridgeGate platform page','EiPaaS platform overview.','vorro','link','https://vorro.net/bridgegate'),
+    L('CV3 / CommerceV3','Headless B2B + DTC ecommerce platform — B2B-native 15+ years; matrix SKUs, customer-specific pricing, account hierarchy; ERP: NetSuite, SAP, Epicor, Dynamics 365, Sage.','cv3','product'),
+    L('Matrix pricing','Size × color × customer-tier pricing — the B2B capability Shopify Plus lacks natively (needs $50K+ in apps there).','cv3'),
+    L('CV3 implementation','60–90 days, fully managed SaaS (vs $200–500K, 6–12 month Magento/Adobe builds).','cv3','pricing'),
+    L('CV3 pricing','Enterprise SaaS — TODO: Manish to add actual price points (KB says "contact for pricing").','cv3','pricing'),
+    L('commercev3.com','Product site.','cv3','link','https://commercev3.com'),
+    L('RevEngineer','B2B revenue intelligence / GTM engine — 12+ signal types incl. website deanonymization, G2/Capterra spikes, job-posting signals; signal-to-CRM routing.','revengineer','product'),
+    L('RevEngineer results','40–60% MQL-to-SQL lift; 25–35% shorter sales cycle; 30–50% less SDR outreach.','revengineer','product'),
+    L('RevEngineer pricing','60–70% cheaper than 6sense (6sense ≈ $150K+ ARR, 3–6 mo implementation); deploys in 2–3 weeks. TODO: Manish to add exact list price.','revengineer','pricing'),
+    L('RevEngineer.ai','Product site.','revengineer','link','https://revengineer.ai'),
   ];
   renderGlossary();
 }
 
 function renderGlossary(filter){
-  const items=filter?prodGlossary.filter(g=>g.term.toLowerCase().includes(filter)||g.def.toLowerCase().includes(filter)):prodGlossary;
-  document.getElementById('glossaryItems').innerHTML=items.length?items.map(g=>
-    `<div class="glossary-item"><div class="gi-term">${esc(g.term)}</div><div class="gi-def">${esc(g.def)}</div></div>`
-  ).join(''):'<div class="memory-empty">No matching terms</div>';
+  const CATL={phrase:'Phrases & Jargon',product:'Product Terms',pricing:'Pricing',link:'Important Links'};
+  const BRL={all:'Shared / Cross-Company',cadient:'Cadient',vorro:'Vorro',cv3:'CV3',revengineer:'RevEngineer'};
+  let items=prodGlossary;
+  if(typeof _prodBrand!=='undefined'&&_prodBrand!=='all')items=items.filter(g=>g.brand===_prodBrand||g.brand==='all');
+  if(filter)items=items.filter(g=>g.term.toLowerCase().includes(filter)||g.def.toLowerCase().includes(filter));
+  if(!items.length){document.getElementById('glossaryItems').innerHTML='<div class="memory-empty">No matching terms</div>';return;}
+  const order=['all','cadient','vorro','cv3','revengineer'];
+  document.getElementById('glossaryItems').innerHTML=order.filter(b=>items.some(g=>g.brand===b)).map(b=>{
+    const bi=items.filter(g=>g.brand===b);
+    const cats=['phrase','product','pricing','link'].filter(c=>bi.some(g=>g.cat===c));
+    return `<div style="margin-bottom:16px"><div style="font-size:12px;font-weight:800;color:var(--accent-text);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">${BRL[b]||esc(b)}</div>`+
+      cats.map(c=>`<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 4px">${CATL[c]}</div>`+
+        bi.filter(g=>g.cat===c).map(g=>g.link
+          ?`<a href="${escAttr(g.link)}" target="_blank" rel="noopener" class="asset-link">${esc(g.term)}${g.def?' — '+esc(g.def):''}</a>`
+          :`<div class="glossary-item"><div class="gi-term">${esc(g.term)}</div><div class="gi-def">${esc(g.def)}</div></div>`
+        ).join('')).join('')+`</div>`;
+  }).join('');
 }
 
 function filterGlossary(val){renderGlossary(val.toLowerCase().trim())}
@@ -9707,6 +9997,7 @@ function selectLegalType(type){
   });
   document.getElementById('legalFormPanel').style.display='block';
   updateLegalFields();
+  if(typeof renderLegalBases==='function')renderLegalBases();
 }
 
 function updateLegalFields(){
@@ -9790,6 +10081,7 @@ function pickLegalClient(name,email,company,title){
   document.getElementById('legalClientSearch').value=name+' - '+company;
   document.getElementById('legalClientResults').style.display='none';
   updateLegalFields();
+  if(legalActiveBaseId)legalRenderPreview();
 }
 
 async function generateLegalDoc(format){
@@ -9809,7 +10101,9 @@ async function generateLegalDoc(format){
 
   const formatLabel={docx:'Word document (.docx)',pdf:'PDF document (.pdf)',both:'both Word (.docx) and PDF (.pdf)'}[format];
 
-  const prompt=`Generate a professional ${tmpl.label} as a ${formatLabel} for ${brand==='cadient'?'Cadient Talent':'Vorro Healthcare'}.
+  const _activeBase=(typeof legalBases!=='undefined'&&legalActiveBaseId)?legalBases.find(x=>x.id===legalActiveBaseId):null;
+  const _baseBlock=_activeBase?('\n\nBASE VERSION (use this as the template: keep its structure, clauses and language; party names, addresses and dates are already substituted for the new prospect; only adjust for the field values and additional terms below):\n---\n'+legalFillBase(_activeBase.text)+'\n---\n'):'';
+  const prompt=`Generate a professional ${tmpl.label} as a ${formatLabel} for ${brand==='cadient'?'Cadient Talent':'Vorro Healthcare'}.${_baseBlock}
 
 Document Type: ${tmpl.label}
 Brand: ${brand}
@@ -9864,41 +10158,183 @@ async function legalSearchExamples(){
   const panel=document.getElementById('legalExamplesPanel');
   const el=document.getElementById('legalExamples');
   panel.style.display='block';
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
   el.innerHTML='<div class="loading"><div class="spinner"></div><br>Searching emails for NDA, MSA, SOW, Amendment, Proposal examples...</div>';
 
-  try{
-    const queries=[
-      'subject:(NDA OR "non-disclosure" OR "nondisclosure")',
-      'subject:(MSA OR "master service" OR "service agreement")',
-      'subject:(SOW OR "statement of work")',
-      'subject:(amendment OR "contract amendment" OR "addendum")',
-      'subject:(proposal OR "business proposal" OR "pricing proposal")'
-    ];
-    const labels=['NDA','MSA','SOW','Amendment','Proposal'];
-
-    const results=await Promise.allSettled(queries.map(q=>
-      call(`${GMAIL}__search_threads`,{query:q+' newer_than:365d',pageSize:5})
-    ));
-
-    let html='';
-    results.forEach((r,i)=>{
-      const threads=r.status==='fulfilled'?(r.value?.threads||[]):[];
-      if(threads.length){
-        html+=`<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#3b3735;text-transform:uppercase;border-bottom:1px solid #d6d3d0">${labels[i]} Examples (${threads.length})</div>`;
-        threads.forEach(t=>{
-          const m=t.messages?.[t.messages.length-1]||{};
-          html+=`<a class="item" href="${gmailUrl(t.id)}" target="_blank"><div class="item-row">
-            <div class="item-icon" style="background:rgba(244,114,182,0.15);color:#3b3735">&#128220;</div>
-            <div class="item-content"><div class="item-title">${esc(truncate(m.subject||'',55))}</div>
-            <div class="item-sub">${esc(m.sender?.split('@')[0]||'')} &middot; ${fmtDate(m.date)} &middot; ${t.messages?.length||0} msgs</div></div></div></a>`;
-        });
-      }
-    });
-
-    el.innerHTML=html||'<div class="empty-state">No legal document examples found in your email</div>';
-  }catch(e){
-    el.innerHTML='<div class="empty-state" style="color:#8c3a2f">Search failed: '+esc(e.message)+'</div>';
+  const KW='(NDA OR "non-disclosure" OR "nondisclosure" OR MSA OR "master service" OR "service agreement" OR SOW OR "statement of work" OR amendment OR addendum OR proposal OR agreement OR "letter of intent")';
+  const queries=[
+    KW+' has:attachment (filename:pdf OR filename:docx OR filename:doc) newer_than:2y',
+    'subject:'+KW+' newer_than:2y'
+  ];
+  window._legalFound={};
+  const errors=[];const msgs=[];const seen={};
+  for(const q of queries){
+    try{
+      const r=await call(`${GMAIL}__search_threads`,{query:q,pageSize:12},45000);
+      (r?.threads||[]).forEach(t=>(t.messages||[]).forEach(m=>{
+        if(seen[m.id])return;seen[m.id]=1;
+        msgs.push(Object.assign({threadId:t.id},m));
+      }));
+      if(msgs.length>=10)break;
+    }catch(e){errors.push(e.message);}
   }
+  msgs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  const buckets={nda:/\bnda\b|non.?disclosure/i,msa:/\bmsa\b|master service|service agreement/i,sow:/\bsow\b|statement of work/i,amendment:/amendment|addendum/i,proposal:/proposal/i};
+  const labels={nda:'NDA',msa:'MSA',sow:'SOW',amendment:'Amendment',proposal:'Proposal',other:'Other Agreements'};
+  const grouped={nda:[],msa:[],sow:[],amendment:[],proposal:[],other:[]};
+  msgs.forEach(m=>{
+    const hay=(m.subject||'')+' '+((m.attachments||[]).map(a=>a.filename).join(' '));
+    const k=Object.keys(buckets).find(k2=>buckets[k2].test(hay))||'other';
+    grouped[k].push(m);
+  });
+
+  let html='';
+  Object.keys(grouped).forEach(k=>{
+    const list=grouped[k].slice(0,6);
+    if(!list.length)return;
+    html+=`<div style="padding:8px 14px;font-size:11px;font-weight:700;color:#3b3735;text-transform:uppercase;border-bottom:1px solid #d6d3d0">${labels[k]} Examples (${list.length})</div>`;
+    list.forEach(m=>{
+      window._legalFound[m.id]=m;
+      const atts=(m.attachments||[]).filter(a=>a.filename);
+      html+=`<div class="item"><div class="item-row">
+        <div class="item-icon" style="background:rgba(244,114,182,0.15);color:#3b3735">&#128220;</div>
+        <div class="item-content"><div class="item-title">${esc(truncate(m.subject||'(no subject)',55))}</div>
+        <div class="item-sub">${esc((m.sender||'').split('<')[0].trim()||(m.sender||''))} &middot; ${fmtDate(m.date)}${atts.length?' &middot; '+esc(atts.map(a=>truncate(a.filename,30)).join(', ')):''}</div>
+        <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
+          <button class="prod-btn" style="font-size:10px;padding:3px 8px" onclick="legalUseAsBase('${m.id}','body')">Use email body as base</button>
+          ${atts.map((a,i)=>`<button class="prod-btn" style="font-size:10px;padding:3px 8px" onclick="legalUseAsBase('${m.id}','att',${i})">Import ${esc(truncate(a.filename,24))}</button>`).join('')}
+          <a href="${gmailUrl(m.threadId)}" target="_blank" style="font-size:10px;align-self:center;color:#3b3735">Open in Gmail</a>
+        </div></div></div></div>`;
+    });
+  });
+  if(!html&&errors.length){el.innerHTML='<div class="empty-state" style="color:#8c3a2f">Search failed: '+esc(errors.join(' | '))+'</div>';return;}
+  el.innerHTML=html||'<div class="empty-state">No legal document examples found in your email. You can paste one manually under Base Versions below.</div>';
+}
+
+// ── Base-version library (multiple base versions; kvStore-backed) ──
+let legalBases=[];
+let legalActiveBaseId=_lsGetRaw('legalActiveBase','')||'';
+async function loadLegalBases(){
+  const el=document.getElementById('legalBaseList');
+  try{
+    const r=await fetch('/api/legal/bases',{credentials:'same-origin'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();legalBases=d.versions||[];
+  }catch(e){if(el)el.innerHTML='<span style="color:#8c3a2f">Failed to load base versions: '+esc(e.message)+'</span>';return;}
+  renderLegalBases();
+}
+function renderLegalBases(){
+  const el=document.getElementById('legalBaseList');if(!el)return;
+  const list=legalSelectedType?legalBases.filter(b=>!b.docType||b.docType===legalSelectedType):legalBases;
+  el.innerHTML=(list.length?list.map(b=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #d6d3d0">
+      <input type="radio" name="legalBaseSel" ${b.id===legalActiveBaseId?'checked':''} onclick="setLegalActiveBase('${b.id}')" title="Use as base for generation">
+      <div style="flex:1;min-width:0"><b>${esc(b.name)}</b> <span style="color:#6e6864;font-size:11px">${esc(b.docType||'any type')} &middot; ${fmtDate(b.createdAt)}${b.sourceSubject?' &middot; from: '+esc(truncate(b.sourceSubject,40)):''}</span></div>
+      <button class="prod-btn" style="font-size:10px;padding:3px 8px" onclick="previewLegalBase('${b.id}')">Preview</button>
+      <button class="prod-btn" style="font-size:10px;padding:3px 8px;color:#8c3a2f" onclick="deleteLegalBase('${b.id}')">Delete</button>
+    </div>`).join(''):'<div style="color:#6e6864">No base versions saved yet. Click "Search My Emails for Examples" above and import one, or paste one:</div>')
+    +`<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="prod-btn" style="font-size:11px" onclick="pasteLegalBase()">+ Paste text as new base</button>`
+    +(legalActiveBaseId?`<button class="prod-btn" style="font-size:11px" onclick="setLegalActiveBase('')">Clear selection (generate from fields only)</button>`:'')+'</div>';
+}
+function setLegalActiveBase(id){legalActiveBaseId=id;_lsSetRaw('legalActiveBase',id);renderLegalBases();if(id)legalRenderPreview();}
+async function deleteLegalBase(id){
+  if(!confirm('Delete this base version?'))return;
+  try{await fetch('/api/legal/bases/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin'});}catch(e){}
+  legalBases=legalBases.filter(b=>b.id!==id);
+  if(legalActiveBaseId===id){legalActiveBaseId='';_lsSetRaw('legalActiveBase','');}
+  renderLegalBases();
+}
+async function pasteLegalBase(){
+  const text=prompt('Paste the full text of the example document:');
+  if(!text||!text.trim())return;
+  const name=prompt('Name this base version:','Pasted '+((LEGAL_TEMPLATES[legalSelectedType]||{}).label||'document'))||'Pasted base';
+  await saveLegalBase(text,{name});
+}
+async function legalUseAsBase(msgId,kind,attIdx){
+  const m=window._legalFound&&window._legalFound[msgId];
+  if(!m){alert('Message no longer cached - re-run the search.');return;}
+  let text='';
+  if(kind==='body'){text=m.plaintextBody||m.snippet||'';}
+  else{
+    const a=(m.attachments||[])[attIdx];
+    if(!a){alert('Attachment not found');return;}
+    try{
+      const r=await call(`${GMAIL}__get_attachment`,{messageId:m.id,attachmentId:a.attachmentId,mimeType:a.mimeType,filename:a.filename},60000);
+      if(r&&r.text&&r.text.trim()){text=r.text;}
+      else if(r&&r.data){
+        const bin=atob(r.data.replace(/-/g,'+').replace(/_/g,'/'));
+        const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+        const blob=new Blob([bytes],{type:a.mimeType||'application/octet-stream'});
+        const dl=document.createElement('a');dl.href=URL.createObjectURL(blob);dl.download=a.filename;dl.click();
+        alert('Downloaded '+a.filename+'. Server-side text extraction is not enabled for this file type (install mammoth / pdf-parse on the server). Open the file, copy its text, then use "Paste text as new base".');
+        return;
+      }else{alert('Attachment fetch returned no data');return;}
+    }catch(e){alert('Attachment fetch failed: '+e.message);return;}
+  }
+  if(!text.trim()){alert('No usable text in this message');return;}
+  await saveLegalBase(text,{name:m.subject||'Email example',sourceThreadId:m.threadId,sourceSubject:m.subject||''});
+}
+async function saveLegalBase(text,meta){
+  const tpl=legalTemplatize(text);
+  try{
+    const r=await fetch('/api/legal/bases',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+      body:JSON.stringify({name:meta.name||'Base version',docType:legalSelectedType||'',text:tpl,sourceThreadId:meta.sourceThreadId||null,sourceSubject:meta.sourceSubject||''})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
+    legalBases.push(d.version);
+    setLegalActiveBase(d.version.id);
+    const found=(tpl.match(/{{[A-Z_]+}}/g)||[]).filter((v,i,a)=>a.indexOf(v)===i);
+    alert('Base version saved.'+(found.length?' Placeholders detected: '+found.join(', '):' No placeholders auto-detected - the AI prompt will still substitute parties/dates.'));
+  }catch(e){alert('Save failed: '+e.message);}
+}
+function legalTemplatize(text){
+  let t=text;
+  const ourNames=['Cadient Talent LLC','Cadient Talent','Cadient','Vorro Healthcare','Vorro Inc.','Vorro','Basis Vectors Capital LLC','Basis Vectors Capital'];
+  ourNames.forEach(n=>{t=t.split(n).join('{{OUR_COMPANY}}');});
+  const guess=legalSelectedClient.company||'';
+  const cp=prompt('Counterparty (prospect/corporation) name as written in this example - every occurrence becomes {{PROSPECT_NAME}}. Leave blank to skip:',guess);
+  if(cp&&cp.trim())t=t.split(cp.trim()).join('{{PROSPECT_NAME}}');
+  const cpAddr=prompt('Counterparty address as written in this example (becomes {{PROSPECT_ADDRESS}}). Leave blank to skip:','');
+  if(cpAddr&&cpAddr.trim())t=t.split(cpAddr.trim()).join('{{PROSPECT_ADDRESS}}');
+  const MONTHS='January|February|March|April|May|June|July|August|September|October|November|December';
+  t=t.replace(new RegExp('\\b(?:'+MONTHS+')\\s+\\d{1,2},\\s*\\d{4}\\b','g'),'{{DATE}}')
+     .replace(new RegExp('\\b\\d{1,2}\\s+(?:'+MONTHS+')\\s+\\d{4}\\b','g'),'{{DATE}}')
+     .replace(/\b\d{4}-\d{2}-\d{2}\b/g,'{{DATE}}')
+     .replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g,'{{DATE}}');
+  return t;
+}
+function legalFillBase(t){
+  const brandEl=document.getElementById('legalBrand');
+  const brand=brandEl?brandEl.value:'cadient';
+  const brandNames={cadient:'Cadient Talent LLC',vorro:'Vorro Inc.',bvc:'Basis Vectors Capital LLC'};
+  const addr='1200 Route 22 East, Suite 2000, Bridgewater, NJ 08807';
+  const g=id=>{const e=document.getElementById('lf_'+id);return e?e.value:''};
+  const prospect=g('party2_name')||g('client_name')||g('to_company')||legalSelectedClient.company||'{{PROSPECT_NAME}}';
+  const paddr=g('party2_address')||g('client_address')||'{{PROSPECT_ADDRESS}}';
+  const date=g('effective_date')||g('proposal_date')||g('start_date')||new Date().toISOString().slice(0,10);
+  const nice=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T00:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}):date;
+  return t.split('{{OUR_COMPANY}}').join(brandNames[brand]||brandNames.cadient)
+          .split('{{OUR_ADDRESS}}').join(addr)
+          .split('{{PROSPECT_NAME}}').join(prospect)
+          .split('{{CORPORATION}}').join(prospect)
+          .split('{{PROSPECT_ADDRESS}}').join(paddr)
+          .split('{{DATE}}').join(nice);
+}
+function previewLegalBase(id){const b=legalBases.find(x=>x.id===id);if(b)legalRenderPreview(b);}
+function legalRenderPreview(b){
+  b=b||legalBases.find(x=>x.id===legalActiveBaseId);
+  const outEl=document.getElementById('legalDocOutput');
+  if(!b||!outEl)return;
+  const filled=legalFillBase(b.text);
+  window._legalDocText=filled;
+  window._legalDocFilename=(b.name+'-'+(legalSelectedClient.company||'draft')+'-'+new Date().toISOString().slice(0,10)).replace(/[^a-z0-9-]/gi,'-').toLowerCase();
+  outEl.style.display='block';
+  outEl.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">'
+    +'<span style="font-weight:700;font-size:14px;color:#3b3735">Base preview: '+esc(b.name)+(legalSelectedClient.company?' &rarr; '+esc(legalSelectedClient.company):'')+'</span>'
+    +'<button onclick="navigator.clipboard.writeText(window._legalDocText)" style="padding:4px 12px;background:rgba(244,114,182,0.15);border:1px solid rgba(244,114,182,0.3);border-radius:5px;color:#3b3735;cursor:pointer;font-size:11px">Copy</button>'
+    +'<button onclick="legalDownloadDoc()" style="padding:4px 12px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);border-radius:5px;color:#5e8c45;cursor:pointer;font-size:11px">Download .txt</button>'
+    +'</div><pre style="white-space:pre-wrap;font-size:11px;line-height:1.7;max-height:600px;overflow-y:auto;background:var(--bg-card);padding:16px;border-radius:6px;border:1px solid #d6d3d0">'+esc(filled)+'</pre>';
 }
 
 // ══════════════════════════════════════
@@ -10373,87 +10809,6 @@ const ARTIFACTS_DATA={
     ]
   }
 };
-
-let _notesCache=[];
-async function loadNotes(){
-  dbg('loadNotes() started');
-  window._notesLoaded=true;
-  const r=await fetch('/api/notes',{credentials:'same-origin'});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const data=await r.json();
-  _notesCache=data.notes||[];
-  renderNotesList();
-  dbg('loadNotes() done','ok');
-}
-function renderNotesList(){
-  const el=document.getElementById('notesContent');
-  if(!el)return;
-  if(!_notesCache.length){el.innerHTML='<div class="empty-state" style="padding:24px;color:var(--text-secondary)">No notes yet. Click "+ New Note" to add one.</div>';return;}
-  let html='<div style="display:grid;gap:10px">';
-  for(const n of _notesCache){
-    const tags=(n.tags||[]).map(t=>'<span style="display:inline-block;background:rgba(232,121,249,0.15);color:#3b3735;border-radius:4px;padding:2px 8px;font-size:10px;margin-right:4px">'+esc(t)+'</span>').join('');
-    html+='<div class="card" style="cursor:pointer" onclick="viewNote(\''+n.id+'\')"><div class="card-body" style="padding:12px 14px">';
-    html+='<div style="font-weight:700;font-size:13px;color:#3b3735;margin-bottom:4px">'+esc(n.title)+'</div>';
-    html+='<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">'+esc(n.excerpt)+(n.excerpt&&n.excerpt.length>=220?'...':'')+'</div>';
-    html+='<div style="display:flex;align-items:center;justify-content:space-between">';
-    html+='<div>'+tags+'</div>';
-    html+='<div style="font-size:10px;color:var(--text-secondary)">'+new Date(n.updated_at).toLocaleDateString()+'</div>';
-    html+='</div></div></div>';
-  }
-  html+='</div>';
-  el.innerHTML=html;
-}
-async function viewNote(id){
-  const r=await fetch('/api/notes/'+encodeURIComponent(id),{credentials:'same-origin'});
-  if(!r.ok){dbg('viewNote failed','err');return;}
-  const data=await r.json();
-  const n=data.note;
-  const panel=document.getElementById('noteDetailPanel');
-  const listEl=document.getElementById('notesContent');
-  if(!panel||!n)return;
-  const tags=(n.tags||[]).map(t=>'<span style="display:inline-block;background:rgba(232,121,249,0.15);color:#3b3735;border-radius:4px;padding:2px 8px;font-size:10px;margin-right:4px">'+esc(t)+'</span>').join('');
-  let html='<div class="card"><div class="card-body" style="padding:16px">';
-  html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h3 style="font-size:15px;font-weight:700;flex:1;color:#3b3735">'+esc(n.title)+'</h3><button class="prod-btn" onclick="closeNoteDetail()">Close</button><button class="prod-btn" onclick="deleteNote(\''+n.id+'\')" style="color:#8c3a2f">Delete</button></div>';
-  html+='<div style="margin-bottom:10px">'+tags+'</div>';
-  if(n.source_url)html+='<div style="margin-bottom:10px;font-size:11px"><a href="'+esc(n.source_url)+'" target="_blank" rel="noopener">'+esc(n.source_url)+'</a></div>';
-  html+='<div style="white-space:pre-wrap;font-size:12px;line-height:1.6;color:#3b3735">'+esc(n.content)+'</div>';
-  html+='</div></div>';
-  panel.innerHTML=html;
-  panel.style.display='block';
-  if(listEl)listEl.style.display='none';
-}
-function closeNoteDetail(){
-  const panel=document.getElementById('noteDetailPanel');
-  const listEl=document.getElementById('notesContent');
-  if(panel)panel.style.display='none';
-  if(listEl)listEl.style.display='block';
-}
-async function deleteNote(id){
-  if(!confirm('Delete this note?'))return;
-  const r=await fetch('/api/notes/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin'});
-  if(r.ok){closeNoteDetail();await loadNotes();}
-}
-function toggleNoteForm(){
-  const panel=document.getElementById('noteFormPanel');
-  if(!panel)return;
-  panel.style.display=panel.style.display==='none'?'block':'none';
-}
-async function saveNote(){
-  const title=(document.getElementById('noteTitleInput')||{}).value||'';
-  const content=(document.getElementById('noteContentInput')||{}).value||'';
-  const tags=(document.getElementById('noteTagsInput')||{}).value||'';
-  const source_url=(document.getElementById('noteSourceInput')||{}).value||'';
-  if(!title.trim()||!content.trim()){alert('Title and content are required');return;}
-  const r=await fetch('/api/notes',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,tags,source_url})});
-  if(r.ok){
-    document.getElementById('noteTitleInput').value='';
-    document.getElementById('noteContentInput').value='';
-    document.getElementById('noteTagsInput').value='';
-    document.getElementById('noteSourceInput').value='';
-    toggleNoteForm();
-    await loadNotes();
-  }else{alert('Failed to save note');}
-}
 
 async function loadArtifacts(){
   dbg('loadArtifacts() started');

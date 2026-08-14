@@ -452,3 +452,138 @@ given; "leads to Rashmi" reads as her inheriting the same responsibility.
 
 Verification: sha256-gated patch (1 edit, exactly 1 occurrence), deployed
 and confirmed live.
+
+
+### meet-caption-meeting-pairing-RESOLVED (2026-08-14)
+Live captions from the Meet extension rendered into whatever meeting was
+selected in the AI Transcription tab, because the server-side caption buffer
+is keyed per-USER (pairing code), not per-meeting. Selecting an old meeting
+while a live call ran (or vice versa) cross-contaminated transcripts,
+coaching, and notes.
+
+Root cause: no meeting identity anywhere in the caption path. GET
+/api/live-captions returned only lines; the client had no way to know which
+meeting the stream belonged to.
+
+Fix (server + extension + client): POST /api/live-captions stores
+buf.meetUrl (extension now sends meetUrl:location.href); GET returns
+{session, meetUrl}; pollMeetCaptions gates ALL rendering and side-effects on
+_liveCapMatchesSelected() - a 3-tier match: (1) Meet code parsed from both
+sides (authoritative when both parse), (2) session.meetingId ===
+_meetingKey(selected), (3) time-window fallback only when no session exists.
+On mismatch the cursor skips past foreign lines (_capGatedMismatch); the
+first matched tick afterwards rewinds to session.startTs and replays only
+THIS meeting's history. _meetCapSince now starts at Date.now() (kills the
+since=0 stale replay), session self-heal re-registers the meeting-notes
+session after server restarts, and auto-switch registers the session BEFORE
+restarting captions.
+
+Verification: node --check on all files; extracted-function tests (7 gate
+scenarios inc. code-mismatch-overrides-session, in/out of time window) all
+pass; live server QA on a staged boot (:3999) confirmed session+meetUrl
+round-trip.
+
+
+### meet-caption-latency-RESOLVED (2026-08-14)
+Captions took ~10s to appear. Root cause: extension finalized a caption row
+only after 2 stable scans of a 700ms scanner and flushed every 1500ms;
+client polled every 1500ms; every stage waited for the previous.
+
+Fix: extension emits interim captions immediately with a per-row cid
+(finalize after 1 stable scan), scan 700->500ms, flush 1500->500ms; server
+upserts buffered lines in-place by cid (recent-tail scan) so interim
+revisions don't duplicate; client _pushTranscriptLine updates in-place by
+cid and skips side-effects for revisions; poll 1500->750ms. Net latency now
+~1-2s.
+
+Verification: live QA on staged server - interim POST then same-cid final
+POST keeps buffer count at 1 and GET returns the final text; function tests
+confirm _pushTranscriptLine cid upsert + named-speaker upgrade behavior.
+NOTE (manual step): the Chrome extension must be reloaded at
+chrome://extensions before the new content.js takes effect.
+
+
+### meeting-notes-literal-backslash-n-RESOLVED (2026-08-14)
+Stored meeting transcripts rendered as one endless line containing literal
+"\n" two-character sequences.
+
+Root cause: _finalizeCapSession joined transcript lines with join('\\n')
+(escaped backslash-n, i.e. the two characters backslash+n) instead of
+join('\n'). Same bug in _summarizeMeetingEntry's prompt assembly.
+
+Fix: both joins corrected to real newlines; GET /api/meeting-notes?full=1
+normalizes legacy entries on read (replace literal \n with real newlines)
+so previously-stored transcripts also parse into speaker lines. Also added
+?meetingId= filter to GET /api/meeting-notes so the client can resolve a
+meeting's transcript exactly instead of fuzzy-matching everything.
+
+Verification: live QA - finalized a 2-line session on the staged server;
+transcript contains real newlines, zero literal \n; meetingId filter
+returns exactly the matching entry; _mnNormalizeTranscript unit tests pass.
+
+
+### legal-asset-generator-dead-panel-RESOLVED (2026-08-14)
+The Legal Asset Generator's "Search My Emails for Examples" appeared to do
+nothing, and generated documents never rendered.
+
+Root cause (4 stacked defects): (1) #legalExamplesPanel was nested INSIDE
+the hidden #legalFormPanel, so results were invisible until a doc type was
+picked; (2) all fetch errors were swallowed silently; (3) Gmail queries were
+subject-only so real contracts (which live in attachments) never matched;
+(4) generateLegalDoc wrote into #legalDocOutput which did not exist in the
+DOM.
+
+Fix: moved #legalExamplesPanel out to be a sibling of the form panel; added
+#legalBasePanel (base-version library) and a real #legalDocOutput;
+legalSearchExamples rewritten - attachment-first Gmail queries, sequential
+execution, latest-first ordering, per-result import buttons, visible error
+states. Server: collectAttachments() in formatGmailMessage, new
+get_attachment Gmail op with optional mammoth/pdf-parse text extraction
+(guarded try/require, degrades gracefully when not installed), and
+/api/legal/bases GET/POST/DELETE persisted via kvStore. Base-version
+library: legalTemplatize() abstracts imported contracts into
+{{OUR_COMPANY}}/{{PROSPECT_NAME}}/{{PROSPECT_ADDRESS}}/{{DATE}} templates,
+legalFillBase() re-fills them, pickLegalClient() re-fills on client change,
+and generateLegalDoc() uses the active base as the drafting skeleton.
+
+Verification: node --check all files; live QA on staged server -
+/api/legal/bases CRUD (create/list/validate-400/delete) all pass; panel
+structure confirmed sibling-level in the DOM.
+
+
+## Session Log - 2026-08-14 (autonomous resume: Productivity Hub + Legal + QA + deploy)
+**Accomplished:** Resumed the interrupted 2026-08-13 session from
+_cowork_staging_20260814/PENDING_RESUME_COWORK_20260814.md. Found items 7
+(Productivity Hub overhaul: brand filter, Sales Assets tab removed with
+Drive links harvested into the new brand-grouped glossary, merged Review
+tab with Sunday week-start fix, view-crmokrs OKR sub-tab with OKR_TARGETS +
+QTD scoping, board move/edit/validation/localStorage persistence) and 8
+(Legal Asset Generator rebuild, see entry above) ALREADY APPLIED in the
+staged copies - the prior session finished implementation but died before
+updating the handoff doc. This session verified every sub-feature by
+inspection, then ran the full QA pass (item 9): strict UTF-8 + node --check
+on server.js, content.js and both inline index.html script blocks; booted
+the staged server on :3999 with stub env; 19/19 endpoint tests passed
+(live-captions cid upsert + session/meetUrl, meeting-notes meetingId filter
++ newline normalization, legal/bases CRUD, auth 401s); 36/36
+extracted-function tests passed (_liveCapMatchesSelected 7 scenarios,
+_pushTranscriptLine, _cleanBullets, validProdDue, renderGlossary,
+_mnEntryForMeeting resolution tiers, parseMeetTranscript,
+_mnNormalizeTranscript). One QA harness bug found and fixed (test used
+future timestamps; server was correct). Copied staged files over live with
+.bak-20260814 backups after confirming zero live-file drift vs the recorded
+mtimes.
+**Pending:** (1) MANUAL - reload the meet-captions extension at
+chrome://extensions (content.js changed). (2) Manish decisions - home page
+blocking/follow-ups options (B1+B2/F1+F2 recommendation) and ICP Finder
+hybrid-bridge rebuild (7 open questions) - see PENDING_RESUME doc item 11.
+(3) TODO placeholders in the new glossary for Cadient/CV3/RevEngineer list
+pricing - numbers intentionally NOT invented, Manish to fill.
+**Decisions made:** Used 'legalBasePanel' / OKR_TARGETS as deploy
+verification markers (already unique to the new build) instead of adding a
+cosmetic marker string. Left items 11 (home page, ICP Finder) untouched per
+handoff instructions.
+**Handoff note:** Deployed via deploy_to_github.py (commit SHA in the
+deploy output / GitHub main). Verify at second-brain-iida.onrender.com that
+the served index.html contains 'legalBasePanel' after Render's auto-deploy
+completes.
