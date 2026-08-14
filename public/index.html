@@ -5519,7 +5519,7 @@ async function expandMeeting(meetingId,title,emailsStr,namesStr,dateStr){
   if(!notesHtml&&granolaQueryR.status==='fulfilled'&&granolaQueryR.value){
     const gqVal=granolaQueryR.value;
     const gqText=typeof gqVal==='string'?gqVal:(gqVal?.answer||gqVal?.text||gqVal?.content||'');
-    if(gqText&&gqText.length>20)notesHtml=renderMarkdown(gqText.slice(0,4000));
+    if(gqText&&gqText.length>20)notesHtml='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Recent meeting notes (may not be from this meeting):</div>'+renderMarkdown(gqText.slice(0,4000));
   }
   if(notesHtml)html+='<div class="section-header">Granola Meeting Notes</div><div class="card"><div class="card-body" style="padding:14px;font-size:12px;line-height:1.7">'+notesHtml+'</div></div>';
 
@@ -7403,13 +7403,12 @@ async function loadMeetTranscriptFromDrive(silentFallback,myKey){
 async function _meetTranscriptFallback(m, silent, msg){
   const title=(m&&(m.summary||m.title))||'Meeting';
   try{
-    const gR=await mnQuery({query:'Meeting: '+((m&&m.summary)||'recent meeting')+'. What was discussed, key decisions, action items, and notes.'});
-    const gText=typeof gR==='string'?gR:(gR&&(gR.answer||gR.text||gR.content))||'';
     const tEl=document.getElementById('copilotTranscript');
-    // mnQuery's "nothing found" message used to render as if it were real
-    // notes -- detect it explicitly and fall through to the honest empty state.
-    const _noNotes=/^No AI Transcription meeting notes found/i.test(gText||'');
-    if(gText&&gText.length>20&&!_noNotes){ if(tEl)tEl.innerHTML=`<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Meeting notes for "${esc((m&&m.summary)||'Meeting')}":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${renderMarkdown(gText.slice(0,3000))}</div>`; return; }
+    // 2026-08-14 fix: removed the ungated mnQuery fallback here. Tiers 1-2 of
+    // resolveTranscriptForMeeting already searched the same meeting-notes store
+    // with proper matching (meetingId exact, title + a +/-6h date window), so
+    // anything a generic mnQuery date-window fetch returns is by definition NOT
+    // this meeting's notes. Go straight to the honest empty state below.
     if(tEl)tEl.innerHTML='<div class="empty-state">No transcript found for "'+esc(title)+'".<br><span style="font-size:10px;color:var(--text-muted)">Searched: stored AI Transcription notes, saved local sessions, and Drive docs. '+esc(msg||'')+' Turn on Live Captions or Gemini notes during meetings so a transcript is saved.</span></div>';
   }catch(e){ const tEl=document.getElementById('copilotTranscript'); if(tEl)tEl.innerHTML='<div class="empty-state">No transcript found for "'+esc(title)+'".<br><span style="font-size:10px;color:var(--text-muted)">Searched: stored AI Transcription notes, saved local sessions, and Drive docs. '+esc(msg||'')+' Turn on Live Captions or Gemini notes during meetings so a transcript is saved.</span></div>'; }
 }
@@ -9059,7 +9058,7 @@ async function loadCopilotMeetingFromFilter(){
       const gR=granolaR.value;
       const gText=typeof gR==='string'?gR:(gR?.answer||gR?.text||gR?.content||'');
       if(gText&&gText.length>20){
-        if(tEl)tEl.innerHTML='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Granola Notes for "'+esc(meeting.title||'Meeting')+'":</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(gText.slice(0,3000))+'</div>';
+        if(tEl)tEl.innerHTML='<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;font-weight:600">Recent meeting notes (may not be from this meeting):</div><div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">'+renderMarkdown(gText.slice(0,3000))+'</div>';
         copilotMeetingContext='MEETING NOTES: '+gText.slice(0,2000);
         loaded=true;
       }

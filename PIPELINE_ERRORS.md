@@ -700,3 +700,31 @@ instead of overwriting their work; drift gate re-armed on the new sha.
 PIPELINE_ERRORS.md). Verify second-brain-iida.onrender.com serves index.html
 containing 'icpProspectCards' and 'loadHomeFollowUps'. Render env already has
 SOCIAL_BRIDGE_TOKEN (shared with social bridge) - nothing new to configure.
+
+### copilot-fallback-wrong-meeting-notes-RESOLVED (2026-08-14)
+
+**Symptom:** Selecting a past meeting in Copilot could render OTHER meetings'
+notes under the header `Meeting notes for "<selected title>"`.
+**Root cause:** `_meetTranscriptFallback()` (public/index.html, ~7403) called
+`mnQuery({query:'Meeting: '+m.summary+...})`, but `mnQuery()` (~1899) ignores
+the title in the query entirely - it just returns the newest <=8 stored
+meeting-notes entries from the last 30 days, unfiltered. Tiers 1-2 of
+`resolveTranscriptForMeeting()` had already searched the same store with proper
+matching (meetingId exact, title + +/-6h window), so anything this generic
+fallback returned was by definition NOT the selected meeting's notes - yet it
+rendered them attributed to that meeting.
+**Fix (minimal, option b from the investigation):** removed the mnQuery call +
+its render from `_meetTranscriptFallback`; the function now goes straight to
+the honest 'No transcript found for "<title>"' empty state. Safety net on the
+two other ungated mnQuery render paths that attribute results to the selected
+meeting: loadCopilotMeetingFromFilter's granola fallback header relabeled from
+`Granola Notes for "<title>"` to `Recent meeting notes (may not be from this
+meeting)`; the meeting-prep granolaQueryR fallback now prepends the same
+non-attribution notice above its content. ID-matched paths (mnGetTranscript /
+get_meetings) and general Ask-AI/person-context mnQuery uses left untouched.
+**Verification:** node --check on both extracted inline script blocks (2/2 OK);
+tiers 1-4 of resolveTranscriptForMeeting + Drive relevance gate + empty state
+confirmed intact; mnQuery call-site count 13 -> 12; index.html 870,813 ->
+870,544 bytes. Backup: public/index.html.bak-20260814c. Deployed via
+deploy_to_github.py in the same commit as this entry; verify Render serves an
+index.html whose _meetTranscriptFallback contains no mnQuery call.
