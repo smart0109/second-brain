@@ -307,6 +307,18 @@ body { font-family: var(--font-body); background: var(--bg-base); color: var(--t
 .notes-link.greyed { background: rgba(0,0,0,0.03); color: var(--text-muted); cursor: default; }
 .notes-content { background: var(--bg-surface); border-top: 1px solid var(--border); padding: 10px 14px; font-size: 11px; line-height: 1.6; max-height: 200px; overflow-y: auto; color: var(--text-secondary); }
 
+/* ICP Outreach Drawer (2026-08-14, ICP Finder upgrade #4) -- same overlay pattern as
+   .deal-modal-overlay, but slides in from the right as a drawer rather than centering. */
+.icp-drawer-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 600; display: flex; justify-content: flex-end; backdrop-filter: blur(3px); }
+.icp-drawer { background: var(--bg-card); border-left: 1px solid var(--border); width: 92%; max-width: 460px; height: 100%; display: flex; flex-direction: column; box-shadow: -20px 0 60px rgba(0,0,0,0.35); }
+.icp-drawer-header { display: flex; align-items: flex-start; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.icp-drawer-header h3 { flex: 1; font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.icp-drawer-close { background: none; border: none; font-size: 18px; line-height: 1; cursor: pointer; color: var(--text-muted); padding: 2px 6px; }
+.icp-drawer-close:hover { color: var(--text-primary); }
+.icp-drawer-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+.icp-drawer-footer { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+.icp-drawer-msg { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; min-height: 100px; }
+
 /* Team cards */
 .team-card { background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border); padding: 18px; text-align: center; transition: all 0.2s; }
 .team-card:hover { border-color: var(--accent); }
@@ -812,7 +824,7 @@ button { text-align: left; }
           <span class="band-sub">Late-stage deals and threads going quiet.</span>
         </div>
         <div id="staleAlerts" style="display:none"></div>
-        <div class="section-header" style="margin-top:8px">Follow-ups &middot; Starred &amp; Unsent Drafts</div>
+        <div class="section-header" style="margin-top:8px">Going quiet &mdash; revenue at risk &middot; Starred &amp; Unsent Drafts</div>
         <div class="card" style="margin-bottom:12px"><div class="card-body scroll-panel" id="homeFollowUps" data-snooze="1"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
         <div class="card"><div class="card-body scroll-panel" id="closingDeals" data-snooze="1"><div class="loading"><div class="spinner"></div><br>Loading...</div></div></div>
       </div>
@@ -1578,17 +1590,19 @@ button { text-align: left; }
       <div class="card" style="margin-bottom:18px">
         <div class="card-header" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <h3 style="color:#3b3735;flex:1">Scored Prospects &middot; Signal Cards</h3>
-          <select id="icpProspectBrand" onchange="renderIcpProspects()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:12px">
+          <select id="icpProspectBrand" onchange="icpFilterChanged()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:12px">
             <option value="all">All brands</option>
             <option value="cadient">Cadient</option>
             <option value="vorro">Vorro</option>
             <option value="revengineer">RevEngineer</option>
+            <option value="cv3">CV3</option>
           </select>
-          <select id="icpProspectTier" onchange="renderIcpProspects()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:12px">
+          <select id="icpProspectTier" onchange="icpFilterChanged()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:12px">
             <option value="AB">Tier A + B</option>
             <option value="A">Tier A only</option>
           </select>
-          <button class="prod-btn" onclick="icpRequestRefresh(this)" title="Ask the Windows pipeline for a fresh prospect push">Request refresh</button>
+          <button class="prod-btn" onclick="icpRequestRefresh(this)" title="Free: asks the Windows pipeline to re-push its current local DB state (no new scraping/enrichment spend)">Sync from pipeline</button>
+          <button class="prod-btn" onclick="icpRequestDeepRefresh(this)" style="background:rgba(251,146,60,0.15);color:#8a6a24;border-color:rgba(251,146,60,0.3)" title="Paid: runs the full Apify/Evaboot pipeline before pushing">Deep refresh (paid)</button>
         </div>
         <div class="card-body" style="padding:14px">
           <div id="icpProspectMeta" style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Loading snapshot...</div>
@@ -1683,6 +1697,27 @@ button { text-align: left; }
           <div class="section-header collapsible" onclick="toggleSection(this)" style="color:#3b3735"><span class="sh-arrow">▼</span> Stale Deals &amp; Pipeline Hygiene</div>
           <div class="sh-collapsible-wrap">
             <div class="card"><div class="card-body scroll-panel" id="icpStaleDeals" style="max-height:400px;padding:14px"><div class="loading"><div class="spinner"></div></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outreach drawer (upgrade #4): pipeline pre-generated message if present, else an AI draft -->
+      <div id="icpOutreachDrawer" class="icp-drawer-overlay" style="display:none" onclick="if(event.target===this)closeIcpOutreachDrawer()">
+        <div class="icp-drawer">
+          <div class="icp-drawer-header">
+            <div style="flex:1">
+              <h3 id="icpDrawerTitle">Draft outreach</h3>
+              <div id="icpDrawerSubtitle" style="font-size:11px;color:var(--text-muted);margin-top:2px"></div>
+            </div>
+            <button class="icp-drawer-close" onclick="closeIcpOutreachDrawer()" title="Close (Esc)">&times;</button>
+          </div>
+          <div class="icp-drawer-body">
+            <div id="icpDrawerSourceTag" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-muted);margin-bottom:8px"></div>
+            <div id="icpDrawerMsg" class="icp-drawer-msg">Loading...</div>
+          </div>
+          <div class="icp-drawer-footer">
+            <button class="prod-btn" onclick="icpDrawerCopy(this)">Copy</button>
+            <button class="prod-btn" id="icpDrawerGmailBtn" onclick="icpDrawerSaveGmailDraft(this)" disabled style="background:rgba(52,211,153,0.15);color:#5e8c45;border-color:rgba(52,211,153,0.3)" title="Only enabled when this prospect has an email on file. Saves a draft only -- never sends.">Save as Gmail draft</button>
           </div>
         </div>
       </div>
@@ -11351,7 +11386,97 @@ async function addICPLead(p){
   }
 }
 
-// == HOME FOLLOW-UPS (F1+F2, 2026-08-14): starred emails + unsent drafts ==
+// == HOME FOLLOW-UPS (F1+F2+F3, 2026-08-14): starred emails + unsent drafts +
+// deal-aware "going quiet" deals, merged into one revenue-ordered list ==
+function _fuRenderStarred(s){
+  const ctxId='fuctx_'+s.threadId.replace(/[^a-zA-Z0-9]/g,'');
+  return `<div class="item" style="position:relative;padding-bottom:0">
+    <div style="cursor:pointer;padding-bottom:8px" onclick="toggleThreadContext('${ctxId}','${escAttr(s.threadId)}','${escAttr(s.from)}','${escAttr(s.subject)}','${escAttr(s.lastMsgId)}')">
+      <div class="item-row">
+        <div class="item-icon mail">&#9733;</div>
+        <div class="item-content"><div class="item-title">${esc(truncate(s.subject,50))}</div>
+        <div class="item-sub">${esc((s.fromEmail||'').split('@')[0])} &middot; ${s.msgCount||1} msgs</div>
+        <div class="item-snippet">${esc(truncate(s.snippet||'',80))}</div></div>
+        <div class="item-time">${fmtDate(s.date)}</div>
+      </div>
+    </div>
+    <div style="position:absolute;top:4px;right:4px;display:flex;gap:4px;z-index:5;align-items:center">
+      <button class="draft-btn" onclick="event.stopPropagation();toggleThreadContext('${ctxId}','${escAttr(s.threadId)}','${escAttr(s.from)}','${escAttr(s.subject)}','${escAttr(s.lastMsgId)}')" style="font-size:10px;padding:2px 8px" title="AI-draft a reply attached to this thread">Draft reply</button>
+      <a href="${gmailUrl(s.threadId)}" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail" style="font-size:11px;opacity:0.5;padding:2px 4px;text-decoration:none;color:var(--text-primary)">&#8599;</a>
+    </div>
+    <div id="${ctxId}" class="thread-context" style="display:none"></div>
+  </div>`;
+}
+function _fuRenderDraft(d){
+  return `<div class="item"><div class="item-row">
+    <div class="item-icon mail">&#9998;</div>
+    <div class="item-content"><div class="item-title">${esc(truncate(d.subject,50))}</div>
+    <div class="item-sub">to ${esc(truncate(d.to||'(no recipient)',40))}</div>
+    <div class="item-snippet">${esc(truncate(d.snippet||'',80))}</div></div>
+    <div class="item-time"><a href="${draftUrl(d.draftId)}" target="_blank" style="color:#3b3735;text-decoration:none;font-size:11px">Open draft &#8599;</a></div>
+  </div></div>`;
+}
+// F3: revenue-ordered "going quiet" deal card. daysToClose/closingDate drive
+// the "closes in Xd" badge; daysQuiet drives the "quiet Nd" badge. Draft
+// check-in reuses the F2 one-click draft lane, threaded when a prior thread
+// with the contact was found server-side, else a fresh draft (see
+// toggleQuietDealDraft below).
+function _fuRenderQuiet(d,idx){
+  const ctxId='fuqd_'+idx+'_'+String(d.dealId||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,24);
+  let closeBadge='';
+  if(d.daysToClose!=null){
+    if(d.daysToClose<=0)closeBadge='<span class="stale-days" style="background:rgba(248,113,113,0.18);color:#8c3a2f;margin-left:4px">closed '+Math.abs(d.daysToClose)+'d ago</span>';
+    else if(d.daysToClose<=21)closeBadge='<span class="stale-days" style="background:rgba(251,146,60,0.15);color:#8a6a24;margin-left:4px">closes in '+d.daysToClose+'d</span>';
+  }
+  const brandTag=d.brand==='vorro'
+    ?'<span style="background:rgba(52,211,153,0.15);color:#5e8c45;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Vorro</span>'
+    :'<span style="background:rgba(96,165,250,0.15);color:#3b3735;font-size:9px;padding:1px 4px;border-radius:3px;margin-left:4px">Cadient</span>';
+  const sub=[d.account,d.contact].filter(Boolean).map(s=>esc(truncate(s,30))).join(' &middot; ')||'&mdash;';
+  const draftBtn=d.contactEmail
+    ?`<button class="draft-btn" onclick="event.stopPropagation();toggleQuietDealDraft('${ctxId}','${escAttr(d.contactEmail)}','${escAttr(d.contact||'')}','${escAttr(d.name||'')}','${escAttr(d.account||'')}','${escAttr(d.stage||'')}','${escAttr(d.threadId||'')}','${escAttr(d.lastMsgId||'')}','${escAttr(d.subject||d.name||'')}')" style="font-size:10px;padding:2px 8px" title="${d.threadId?'AI-draft a check-in, threaded to the last conversation':'AI-draft a fresh check-in (no prior thread found)'}">Draft check-in</button>`
+    :'<span style="font-size:9px;color:var(--text-muted)" title="No contact email on file for this deal">No contact email</span>';
+  return `<div class="item" style="position:relative;padding-bottom:0;border-left:3px solid #8a6a24">
+    <div style="padding:8px 0 8px 6px">
+      <div class="item-row">
+        <div class="item-icon deal">&#128176;</div>
+        <div class="item-content">
+          <div class="item-title">${esc(truncate(d.name||'(untitled deal)',44))}${brandTag}</div>
+          <div class="item-sub">${sub} &middot; ${esc(stageLabel(d.stage))}</div>
+          <div style="margin-top:3px"><span class="stale-days" title="Days since the last email touch found with this contact">quiet ${d.daysQuiet}d</span>${closeBadge}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:14px;font-weight:800;color:#8a6a24">${fmtMoney(d.amount)}</div>
+          <div style="margin-top:4px">${draftBtn}</div>
+        </div>
+      </div>
+    </div>
+    <div id="${ctxId}" class="thread-context" style="display:none"></div>
+  </div>`;
+}
+// Fixed staleness-based score for starred/draft items so they interleave
+// sensibly with revenue-scored going-quiet deals: same "grows with age"
+// shape (1 + ageDays/7) as the deal score, applied to a nominal $ amount
+// instead of a real deal Amount. Unknown/unparseable dates count as 30d old
+// so a missing date doesn't win or lose by default.
+function _fuStalenessScore(dateIso){
+  const ts=dateIso?new Date(dateIso).getTime():NaN;
+  const ageDays=isFinite(ts)&&ts>0?Math.max(0,(Date.now()-ts)/86400000):30;
+  return 4000*(1+ageDays/7);
+}
+// Merge F1 (starred) + F2 (drafts) + F3 (going-quiet deals) into one
+// revenue-ordered list. Exposed on window so the F3 micro-test can exercise
+// the exact function the UI uses.
+function _fuMergeAndSort(quiet,starred,drafts){
+  const items=[];
+  (quiet||[]).forEach(d=>items.push({kind:'quiet',score:d.score||0,data:d}));
+  (starred||[]).forEach(s=>items.push({kind:'starred',score:_fuStalenessScore(s.date),data:s}));
+  (drafts||[]).forEach(d=>items.push({kind:'draft',score:_fuStalenessScore(d.date),data:d}));
+  items.sort((a,b)=>b.score-a.score);
+  return items;
+}
+window._fuMergeAndSort=_fuMergeAndSort;
+window._fuStalenessScore=_fuStalenessScore;
+
 async function loadHomeFollowUps(){
   const el=document.getElementById('homeFollowUps');
   if(!el)return;
@@ -11359,72 +11484,96 @@ async function loadHomeFollowUps(){
     const res=await fetch('/api/home/followups',{credentials:'same-origin'});
     if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
     const data=await res.json();
-    const starred=data.starred||[];const drafts=data.drafts||[];
-    if(!starred.length&&!drafts.length){el.innerHTML='<div class="empty-state">No starred emails or unsent drafts.</div>';return;}
-    let html='';
-    if(starred.length){
-      html+='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Starred ('+starred.length+')</div>';
-      html+=starred.slice(0,10).map(s=>{
-        const ctxId='fuctx_'+s.threadId.replace(/[^a-zA-Z0-9]/g,'');
-        return `<div class="item" style="position:relative;padding-bottom:0">
-          <div style="cursor:pointer;padding-bottom:8px" onclick="toggleThreadContext('${ctxId}','${escAttr(s.threadId)}','${escAttr(s.from)}','${escAttr(s.subject)}','${escAttr(s.lastMsgId)}')">
-            <div class="item-row">
-              <div class="item-icon mail">&#9733;</div>
-              <div class="item-content"><div class="item-title">${esc(truncate(s.subject,50))}</div>
-              <div class="item-sub">${esc((s.fromEmail||'').split('@')[0])} &middot; ${s.msgCount||1} msgs</div>
-              <div class="item-snippet">${esc(truncate(s.snippet||'',80))}</div></div>
-              <div class="item-time">${fmtDate(s.date)}</div>
-            </div>
-          </div>
-          <div style="position:absolute;top:4px;right:4px;display:flex;gap:4px;z-index:5;align-items:center">
-            <button class="draft-btn" onclick="event.stopPropagation();toggleThreadContext('${ctxId}','${escAttr(s.threadId)}','${escAttr(s.from)}','${escAttr(s.subject)}','${escAttr(s.lastMsgId)}')" style="font-size:10px;padding:2px 8px" title="AI-draft a reply attached to this thread">Draft reply</button>
-            <a href="${gmailUrl(s.threadId)}" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail" style="font-size:11px;opacity:0.5;padding:2px 4px;text-decoration:none;color:var(--text-primary)">&#8599;</a>
-          </div>
-          <div id="${ctxId}" class="thread-context" style="display:none"></div>
-        </div>`;
-      }).join('');
+    const starred=data.starred||[];const drafts=data.drafts||[];const quiet=data.goingQuiet||[];
+    if(!starred.length&&!drafts.length&&!quiet.length){el.innerHTML='<div class="empty-state">No starred emails, unsent drafts, or open deals &ge; $10K going quiet.</div>';return;}
+    const merged=_fuMergeAndSort(quiet,starred.slice(0,10),drafts.slice(0,10));
+    let html='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Revenue-ordered ('+merged.length+')</div>';
+    let quietIdx=0;
+    html+=merged.map((item)=>{
+      if(item.kind==='quiet')return _fuRenderQuiet(item.data,quietIdx++);
+      if(item.kind==='starred')return _fuRenderStarred(item.data);
+      return _fuRenderDraft(item.data);
+    }).join('');
+    if(!quiet.length){
+      html+='<div style="font-size:10px;color:var(--text-muted);padding:6px 2px;border-top:1px solid var(--border);margin-top:8px">Going quiet &mdash; revenue at risk: no open deals &ge; $10K going quiet right now.</div>';
     }
-    if(drafts.length){
-      html+='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px">Unsent drafts ('+drafts.length+')</div>';
-      html+=drafts.slice(0,10).map(d=>`<div class="item"><div class="item-row">
-        <div class="item-icon mail">&#9998;</div>
-        <div class="item-content"><div class="item-title">${esc(truncate(d.subject,50))}</div>
-        <div class="item-sub">to ${esc(truncate(d.to||'(no recipient)',40))}</div>
-        <div class="item-snippet">${esc(truncate(d.snippet||'',80))}</div></div>
-        <div class="item-time"><a href="${draftUrl(d.draftId)}" target="_blank" style="color:#3b3735;text-decoration:none;font-size:11px">Open draft &#8599;</a></div>
-      </div></div>`).join('');
+    if(data.errors&&(data.errors.starred||data.errors.drafts||data.errors.goingQuiet)){
+      html+='<div style="font-size:10px;color:#8a6a24;padding:4px 0">Partial load: '+esc(data.errors.starred||data.errors.drafts||data.errors.goingQuiet)+'</div>';
     }
-    if(data.errors&&(data.errors.starred||data.errors.drafts)){html+='<div style="font-size:10px;color:#8a6a24;padding:4px 0">Partial load: '+esc(data.errors.starred||data.errors.drafts)+'</div>';}
     el.innerHTML=html;
-    dbg('Home follow-ups: '+starred.length+' starred, '+drafts.length+' drafts','ok');
+    dbg('Home follow-ups: '+starred.length+' starred, '+drafts.length+' drafts, '+quiet.length+' going-quiet deals','ok');
   }catch(e){
     el.innerHTML='<div class="empty-state" style="color:#8c3a2f">Follow-ups failed: '+esc(e.message)+'</div>';
     dbg('Home follow-ups failed: '+e.message,'err');
   }
 }
 
+// F3: "Draft check-in" for a going-quiet deal. When the server found a prior
+// thread with the contact, reuse the exact F2 one-click threaded draft lane
+// (toggleThreadContext) so the AI draft is grounded in the real conversation.
+// Otherwise build a lighter fresh-draft box (same markup/classes as the
+// threaded one) with an AI check-in message and no thread/reply-to attached.
+async function toggleQuietDealDraft(ctxId,contactEmail,contactName,dealName,account,stage,threadId,lastMsgId,subject){
+  if(threadId){
+    return toggleThreadContext(ctxId,threadId,contactEmail,subject||dealName,lastMsgId);
+  }
+  const el=document.getElementById(ctxId);if(!el)return;
+  if(el.dataset.loaded==='1'){el.style.display=el.style.display==='none'?'block':'none';return;}
+  el.style.display='block';
+  el.innerHTML='<div class="loading" style="padding:8px"><div class="spinner"></div> Drafting check-in...</div>';
+  try{
+    const prompt='You are drafting a brief, warm check-in email for Manish (CRO at Basis Vectors Capital) to '+(contactName||'a prospect')+' about the "'+dealName+'" deal'+(stage?' (currently '+stage+')':'')+(account?' at '+account:'')+', which has gone quiet. Write a short, low-pressure nudge (2-4 sentences) re-opening the conversation and asking for a quick status update. Do NOT include a subject line, greeting, or signature -- just the reply body.';
+    const draft=await ask(prompt,[]);
+    const draftId='qdraft_'+ctxId;
+    let html='<div class="section-header">Draft Check-in</div>';
+    html+='<div class="thread-draft-box" data-thread-id="" data-reply-msg-id="" data-subject="'+escAttr('Checking in — '+dealName)+'" data-to="'+escAttr(contactEmail)+'">';
+    html+='<div id="'+draftId+'" contenteditable="true" style="outline:none;min-height:40px">'+esc(draft||'')+'</div>';
+    html+='<div class="draft-actions">';
+    html+='<button class="draft-btn primary" onclick="createFreshDraftFromBox(this,event)">Create Gmail Draft</button>';
+    html+='<button class="draft-btn" onclick="copyDraftText(this,event)">Copy</button>';
+    html+='</div></div>';
+    el.innerHTML=html;
+    el.dataset.loaded='1';
+    dbg('Quiet-deal check-in drafted for '+contactEmail,'ok');
+  }catch(e){
+    el.innerHTML='<div style="padding:8px;font-size:11px;color:#8c3a2f">Failed to draft check-in: '+esc(e.message)+'</div>';
+    dbg('toggleQuietDealDraft error: '+e.message,'err');
+  }
+}
+// Same Gmail create_draft call as createDraftFromThread, but for a fresh
+// (non-reply) draft: no "Re:" subject prefix, no threadId/replyToMessageId.
+async function createFreshDraftFromBox(btnEl,evt){
+  evt.stopPropagation();
+  const box=btnEl.closest('.thread-draft-box');if(!box)return;
+  const draftDiv=box.querySelector('[contenteditable]');if(!draftDiv)return;
+  const body=draftDiv.innerText||draftDiv.textContent||'';
+  const subject=box.dataset.subject||'';
+  const toAddr=box.dataset.to||'';
+  btnEl.textContent='Creating...';btnEl.disabled=true;
+  try{
+    await call(`${GMAIL}__create_draft`,{subject:subject,body:body,to:[toAddr]});
+    btnEl.textContent='Draft Created!';btnEl.style.background='#5e8c45';btnEl.style.borderColor='#5e8c45';
+    dbg('Gmail draft created (fresh check-in) to '+toAddr,'ok');
+    setTimeout(()=>{btnEl.textContent='Create Gmail Draft';btnEl.style.background='';btnEl.style.borderColor='';btnEl.disabled=false;},3000);
+  }catch(e){
+    btnEl.textContent='Failed';btnEl.style.background='#8c3a2f';btnEl.style.borderColor='#8c3a2f';
+    dbg('Fresh draft creation failed: '+e.message,'err');
+    setTimeout(()=>{btnEl.textContent='Create Gmail Draft';btnEl.style.background='';btnEl.style.borderColor='';btnEl.disabled=false;},3000);
+  }
+}
+
 // == ICP PROSPECT SIGNAL CARDS (hybrid bridge, 2026-08-14) ==
 let _icpProspects=[];let _icpProspectsMeta=null;
+let _icpRenderPage=1;const _icpPageSize=100; // pagination (upgrade #2): render 100 at a time, "Load more" appends
+const ICP_BRAND_LABELS={cadient:'Cadient',vorro:'Vorro',revengineer:'RevEngineer',cv3:'CV3'};
 async function loadIcpProspects(){
   try{
     const res=await fetch('/api/icp/prospects',{credentials:'same-origin'});
     if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
     const data=await res.json();
     _icpProspects=data.prospects||[];
-    _icpProspectsMeta={updatedAt:data.updatedAt,counts:data.counts||{},total:data.total||0,source:data.source,stats:data.stats||null};
-    const st=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-    const stats=data.stats;
-    if(stats){
-      st('icpStatProspects',stats.universe!=null?Number(stats.universe).toLocaleString():'--');
-      st('icpStatATier',stats.aTier!=null?Number(stats.aTier).toLocaleString():'--');
-      st('icpStatBTier',stats.bTier!=null?Number(stats.bTier).toLocaleString():'--');
-      st('icpStatDiscard',stats.discarded!=null?Number(stats.discarded).toLocaleString():'--');
-    }else{
-      st('icpStatProspects',_icpProspectsMeta.total?String(_icpProspectsMeta.total):'--');
-      st('icpStatATier',String(_icpProspects.filter(p=>p.tier==='A').length||'--'));
-      st('icpStatBTier',String(_icpProspects.filter(p=>p.tier==='B').length||'--'));
-      st('icpStatDiscard','--');
-    }
+    _icpProspectsMeta={updatedAt:data.updatedAt,counts:data.counts||{},total:data.total||0,source:data.source,stats:data.stats||null,statsByBrand:data.statsByBrand||null};
+    _icpRenderPage=1;
     renderIcpProspects();
   }catch(e){
     const el=document.getElementById('icpProspectCards');
@@ -11433,11 +11582,41 @@ async function loadIcpProspects(){
   }
 }
 
+// Brand/tier filter changed -> reset paging so "Load more" starts from page 1 again.
+function icpFilterChanged(){
+  _icpRenderPage=1;
+  renderIcpProspects();
+}
+
+// Company selector (upgrade #1): the stats strip must reflect the selected brand,
+// not just the prospect list. Prefers a per-brand breakdown pushed by the pipeline
+// (statsByBrand[brand]); falls back to the flat universe-wide stats for "All brands"
+// or when no per-brand breakdown has been pushed yet.
+function icpApplyStats(brand){
+  const st=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  const meta=_icpProspectsMeta;
+  const byBrand=meta&&meta.statsByBrand&&brand!=='all'?meta.statsByBrand[brand]:null;
+  const stats=byBrand||(meta?meta.stats:null);
+  if(stats){
+    st('icpStatProspects',stats.universe!=null?Number(stats.universe).toLocaleString():'--');
+    st('icpStatATier',stats.aTier!=null?Number(stats.aTier).toLocaleString():'--');
+    st('icpStatBTier',stats.bTier!=null?Number(stats.bTier).toLocaleString():'--');
+    st('icpStatDiscard',stats.discarded!=null?Number(stats.discarded).toLocaleString():'--');
+  }else{
+    const inBrand=brand==='all'?_icpProspects:_icpProspects.filter(p=>(p.brand||'')===brand);
+    st('icpStatProspects',inBrand.length?String(inBrand.length):'--');
+    st('icpStatATier',String(inBrand.filter(p=>p.tier==='A').length||'--'));
+    st('icpStatBTier',String(inBrand.filter(p=>p.tier==='B').length||'--'));
+    st('icpStatDiscard','--');
+  }
+}
+
 function renderIcpProspects(){
   const el=document.getElementById('icpProspectCards');if(!el)return;
   const meta=document.getElementById('icpProspectMeta');
   const brand=(document.getElementById('icpProspectBrand')||{value:'all'}).value||'all';
   const tierSel=(document.getElementById('icpProspectTier')||{value:'AB'}).value||'AB';
+  icpApplyStats(brand);
   let list=_icpProspects.slice();
   if(brand!=='all')list=list.filter(p=>(p.brand||'')===brand);
   if(tierSel==='A')list=list.filter(p=>p.tier==='A');
@@ -11446,14 +11625,21 @@ function renderIcpProspects(){
     if(!_icpProspectsMeta||!_icpProspectsMeta.updatedAt){
       meta.textContent='No snapshot pushed yet. Run push_icp_prospects.py on the Windows pipeline (social-selling-deploy) to load scored prospects.';
     }else{
-      const cts=Object.entries(_icpProspectsMeta.counts||{}).map(([k,v])=>k+': '+v).join(' &middot; ');
+      const cts=Object.entries(_icpProspectsMeta.counts||{}).map(([k,v])=>esc(k)+': '+v).join(' &middot; ');
       meta.innerHTML='Snapshot: <strong>'+_icpProspectsMeta.total+'</strong> prospects ('+cts+') &middot; pushed '+fmtFull(_icpProspectsMeta.updatedAt)+' &middot; showing '+list.length;
     }
   }
-  if(!list.length){el.innerHTML='<div class="empty-state">No scored prospects for this filter yet. Use "Request refresh", then run the push script on the Windows machine.</div>';return;}
-  const brandColors={cadient:'#3b3735',vorro:'#5e8c45',revengineer:'#8a6a24'};
+  if(!list.length){
+    // CV3 hasn't started flowing from the pipeline yet -- distinguish that from a
+    // generic "nothing pushed" / "filtered to nothing" empty state.
+    if(brand==='cv3'){el.innerHTML='<div class="empty-state">No pipeline snapshot for CV3 yet.</div>';return;}
+    el.innerHTML='<div class="empty-state">No scored prospects for this filter yet. Use "Sync from pipeline", then run the push script on the Windows machine.</div>';
+    return;
+  }
+  const brandColors={cadient:'#3b3735',vorro:'#5e8c45',revengineer:'#8a6a24',cv3:'#5a6ac6'};
   const chipS='font-size:10px;padding:2px 7px;border-radius:5px;white-space:nowrap;';
-  el.innerHTML=list.slice(0,200).map(p=>{
+  const shown=list.slice(0,_icpRenderPage*_icpPageSize);
+  el.innerHTML=shown.map(p=>{
     const sig=p.signals||{};
     const tc=p.tier==='A'?'#5e8c45':'#3b3735';
     const bc=brandColors[p.brand]||'#6e6864';
@@ -11465,8 +11651,9 @@ function renderIcpProspects(){
     if(sig.is_hiring)chips.push('<span style="'+chipS+'background:rgba(52,211,153,0.12);color:#5e8c45">Hiring</span>');
     if(sig.has_new_position)chips.push('<span style="'+chipS+'background:rgba(251,146,60,0.12);color:#8a6a24">New role</span>');
     if(sig.open_to_work)chips.push('<span style="'+chipS+'background:rgba(248,113,113,0.12);color:#8c3a2f">Open to work</span>');
-    const liBtn=p.linkedin_url?'<a href="'+esc(p.linkedin_url)+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:#3b3735;text-decoration:none;white-space:nowrap;border:1px solid var(--border);border-radius:6px;padding:3px 8px">LinkedIn &#8599;</a>':'';
+    const liBtn=p.linkedin_url?'<a href="'+escAttr(p.linkedin_url)+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;color:#3b3735;text-decoration:none;white-space:nowrap;border:1px solid var(--border);border-radius:6px;padding:3px 8px">LinkedIn &#8599;</a>':'';
     const mailBtn=p.email?'<a href="mailto:'+escAttr(p.email)+'" onclick="event.stopPropagation()" style="font-size:10px;color:#3b3735;text-decoration:none;white-space:nowrap;border:1px solid var(--border);border-radius:6px;padding:3px 8px" title="Outreach stays in the existing CC lane - this just opens your mail composer">Email</a>':'';
+    const draftBtn='<button onclick="event.stopPropagation();openIcpOutreachDrawer(\''+escAttr(p.slug||'')+'\')" style="font-size:10px;color:#fff;background:#3b3735;border:1px solid #3b3735;border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap">Draft outreach</button>';
     return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,0.02);margin-bottom:8px;border-left:3px solid '+tc+'">'
       +'<div style="width:34px;height:34px;border-radius:8px;background:'+tc+'18;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:'+tc+';flex-shrink:0">'+esc(p.tier||'?')+'</div>'
       +'<div style="flex:1;min-width:0">'
@@ -11474,24 +11661,131 @@ function renderIcpProspects(){
         +'<div style="font-size:11px;color:var(--text-secondary);margin:2px 0 6px">'+esc(truncate(p.title||sig.headline||'',70))+(p.company?' &middot; '+esc(truncate(p.company,40)):'')+(p.location?' &middot; '+esc(truncate(p.location,24)):'')+'</div>'
         +(chips.length?'<div style="display:flex;flex-wrap:wrap;gap:4px">'+chips.join('')+'</div>':'<div style="font-size:10px;color:var(--text-muted)">No live intent signals in snapshot</div>')
       +'</div>'
-      +'<div style="text-align:right;flex-shrink:0"><div style="font-size:20px;font-weight:800;color:'+tc+'">'+(p.score!=null?p.score:'-')+'</div><div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">'+liBtn+mailBtn+'</div></div>'
+      +'<div style="text-align:right;flex-shrink:0"><div style="font-size:20px;font-weight:800;color:'+tc+'">'+(p.score!=null?p.score:'-')+'</div><div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end;flex-wrap:wrap">'+draftBtn+liBtn+mailBtn+'</div></div>'
       +'</div>';
-  }).join('')+(list.length>200?'<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:6px">Showing top 200 of '+list.length+'</div>':'');
+  }).join('')+(list.length>shown.length?'<div style="text-align:center;padding:10px"><button class="prod-btn" onclick="icpLoadMore()">Load more ('+(list.length-shown.length)+' remaining)</button></div>':'');
 }
 
-async function icpRequestRefresh(btn){
+// Pagination (upgrade #2): append the next page of the RENDER without re-fetching
+// or re-sorting -- the full filtered/sorted list is already in memory.
+function icpLoadMore(){
+  _icpRenderPage++;
+  renderIcpProspects();
+}
+
+async function icpRequestRefresh(btn,mode){
+  mode=mode==='deep'?'deep':'sync';
+  const label=mode==='deep'?'Deep refresh (paid)':'Sync from pipeline';
   if(btn){btn.disabled=true;btn.textContent='Requesting...';}
   try{
-    const res=await fetch('/api/icp/prospects/refresh',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({kind:'prospects'})});
+    const res=await fetch('/api/icp/prospects/refresh',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({kind:'prospects',mode:mode})});
     if(!res.ok){const t=await res.text();throw new Error('HTTP '+res.status+': '+t.slice(0,120));}
     const data=await res.json();
-    if(btn)btn.textContent='Refresh requested';
+    if(btn)btn.textContent='Requested';
     const meta=document.getElementById('icpProspectMeta');
-    if(meta)meta.innerHTML='Refresh requested at '+fmtFull(data.requestedAt)+'. The Windows pipeline will push on its next run (or run push_icp_prospects.py now).'+(_icpProspectsMeta&&_icpProspectsMeta.updatedAt?' Current snapshot from '+fmtFull(_icpProspectsMeta.updatedAt)+'.':'');
-    setTimeout(()=>{if(btn){btn.disabled=false;btn.textContent='Request refresh';}},4000);
+    const modeNote=mode==='deep'?'Deep (paid pipeline run) ':'Sync (free) ';
+    if(meta)meta.innerHTML=modeNote+'refresh requested at '+fmtFull(data.requestedAt)+'. The Windows pipeline will push on its next run (or run push_icp_prospects.py now).'+(_icpProspectsMeta&&_icpProspectsMeta.updatedAt?' Current snapshot from '+fmtFull(_icpProspectsMeta.updatedAt)+'.':'');
+    setTimeout(()=>{if(btn){btn.disabled=false;btn.textContent=label;}},4000);
   }catch(e){
-    if(btn){btn.disabled=false;btn.textContent='Request refresh';}
+    if(btn){btn.disabled=false;btn.textContent=label;}
     dbg('ICP refresh request failed: '+e.message,'err');
+  }
+}
+
+// Upgrade #3: the paid twin of "Sync from pipeline" -- same handshake, mode:'deep',
+// gated behind an explicit confirm() since it can trigger real Apify/Evaboot spend.
+function icpRequestDeepRefresh(btn){
+  const ok=confirm('Deep refresh triggers a paid pipeline run (Apify/Evaboot spend, >$20 requires approval on the Windows side). Continue?');
+  if(!ok)return;
+  icpRequestRefresh(btn,'deep');
+}
+
+// == ICP OUTREACH DRAWER (upgrade #4) ==
+let _icpDrawerProspect=null;
+function icpFindProspectBySlug(slug){
+  return _icpProspects.find(p=>p.slug&&p.slug===slug)||null;
+}
+async function openIcpOutreachDrawer(slug){
+  const p=icpFindProspectBySlug(slug);
+  const drawer=document.getElementById('icpOutreachDrawer');
+  if(!drawer)return;
+  _icpDrawerProspect=p;
+  drawer.style.display='flex';
+  const titleEl=document.getElementById('icpDrawerTitle');
+  const subEl=document.getElementById('icpDrawerSubtitle');
+  const srcEl=document.getElementById('icpDrawerSourceTag');
+  const msgEl=document.getElementById('icpDrawerMsg');
+  const gmailBtn=document.getElementById('icpDrawerGmailBtn');
+  if(!p){
+    if(titleEl)titleEl.textContent='Draft outreach';
+    if(subEl)subEl.textContent='';
+    if(srcEl)srcEl.textContent='';
+    if(msgEl)msgEl.textContent='Prospect not found in the current snapshot.';
+    if(gmailBtn)gmailBtn.disabled=true;
+    return;
+  }
+  if(titleEl)titleEl.textContent='Draft outreach — '+(p.name||'(no name)');
+  if(subEl)subEl.textContent=(p.title||'')+(p.company?' at '+p.company:'')+' • '+(ICP_BRAND_LABELS[p.brand]||p.brand||'');
+  if(gmailBtn)gmailBtn.disabled=!p.email;
+  if(gmailBtn)gmailBtn.title=p.email?'Saves a Gmail draft to '+p.email+' -- never sends.':'No email on file for this prospect.';
+  // Prefer the pipeline's pre-generated message (outreach.s1v1/s1v2/message) over an
+  // on-demand AI draft, per Manish's decision (upgrade #4, "Both modes").
+  const out=p.outreach||{};
+  const pregenerated=out.s1v1||out.message||out.s1v2||'';
+  if(pregenerated){
+    if(srcEl)srcEl.textContent='Pipeline-generated message';
+    if(msgEl)msgEl.textContent=pregenerated;
+    return;
+  }
+  if(srcEl)srcEl.textContent='AI-drafted (no pipeline message found)';
+  if(msgEl)msgEl.textContent='Drafting...';
+  try{
+    const brandLabel=ICP_BRAND_LABELS[p.brand]||p.brand||'';
+    const prompt='Write a short, personalized cold outreach email (under 120 words, no subject line, first person as Manish) to '+(p.name||'this prospect')+', '+(p.title||'a prospect')+(p.company?' at '+p.company:'')+'. Brand/context: '+brandLabel+'. '+
+      (p.signals&&p.signals.headline?('Their LinkedIn headline: "'+p.signals.headline+'". '):'')+
+      (p.signals&&p.signals.intent_post?('They recently posted/engaged with: "'+p.signals.intent_post+'". Reference this naturally if relevant. '):'')+
+      (p.signals&&p.signals.is_hiring?'They appear to be actively hiring. ':'')+
+      'Sound human, no hashtags, no emojis, do not be salesy, end with a soft one-line call to action.';
+    const draft=await ask(prompt,[]);
+    if(msgEl)msgEl.textContent=draft||'AI draft came back empty.';
+  }catch(e){
+    if(msgEl)msgEl.textContent='Failed to draft outreach: '+e.message;
+  }
+}
+function closeIcpOutreachDrawer(){
+  const drawer=document.getElementById('icpOutreachDrawer');
+  if(drawer)drawer.style.display='none';
+  _icpDrawerProspect=null;
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    const drawer=document.getElementById('icpOutreachDrawer');
+    if(drawer&&drawer.style.display!=='none')closeIcpOutreachDrawer();
+  }
+});
+function icpDrawerCopy(btn){
+  const msgEl=document.getElementById('icpDrawerMsg');
+  const text=msgEl?(msgEl.textContent||''):'';
+  navigator.clipboard.writeText(text).then(()=>{
+    if(btn){const orig=btn.textContent;btn.textContent='Copied!';setTimeout(()=>{btn.textContent=orig;},1500);}
+  }).catch(()=>{});
+}
+async function icpDrawerSaveGmailDraft(btn){
+  const p=_icpDrawerProspect;
+  if(!p||!p.email)return;
+  const msgEl=document.getElementById('icpDrawerMsg');
+  const body=msgEl?(msgEl.textContent||''):'';
+  const brandLabel=ICP_BRAND_LABELS[p.brand]||p.brand||'';
+  const subject='Quick note for '+(p.name||p.company||'you')+(brandLabel?' ('+brandLabel+')':'');
+  if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  try{
+    await call(`${GMAIL}__create_draft`,{to:[p.email],subject:subject,body:body});
+    if(btn){btn.textContent='Draft saved!';}
+    setTimeout(()=>{if(btn){btn.disabled=!p.email;btn.textContent='Save as Gmail draft';}},2500);
+  }catch(e){
+    if(btn){btn.textContent='Failed';}
+    dbg('ICP Gmail draft failed: '+e.message,'err');
+    setTimeout(()=>{if(btn){btn.disabled=!p.email;btn.textContent='Save as Gmail draft';}},2500);
   }
 }
 

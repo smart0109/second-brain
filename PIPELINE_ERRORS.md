@@ -728,3 +728,36 @@ confirmed intact; mnQuery call-site count 13 -> 12; index.html 870,813 ->
 870,544 bytes. Backup: public/index.html.bak-20260814c. Deployed via
 deploy_to_github.py in the same commit as this entry; verify Render serves an
 index.html whose _meetTranscriptFallback contains no mnQuery call.
+
+### icp-round2-and-f3 (feature, 2026-08-14): ICP Finder round-2 upgrades + F3 going-quiet follow-ups
+
+**Per Manish's decisions (round-2 Q&A):**
+- ICP Finder: CV3 added to brand selector; per-brand stats via optional statsByBrand;
+  render pagination 100/page with "Load more"; two refresh buttons — "Sync from
+  pipeline" (free) and "Deep refresh (paid)" with confirm() + mode:'sync'|'deep'
+  carried through POST/GET /api/icp/prospects/refresh; outreach drawer per prospect
+  (prefers pipeline s1v1/message, falls back to AI draft; Copy + "Save as Gmail
+  draft" — drafts only, disabled without email); POST /api/icp/prospects accepts
+  icpConfig → kvStore 'icp-config', preferred by /api/icp/score and /api/icp/find
+  via getIcpConfig() (hardcoded ICP_CONFIGS is fallback); Apollo section reduced to
+  one-line note until APOLLO_API_KEY is set in Render env (key exists in SECRETS.txt).
+- push_icp_prospects.py: cv3 in DEFAULT_BRANDS; carries outreach {s1v1,s2} (2000-char
+  truncate); builds icpConfig from icp_settings.json (graceful fallback if missing);
+  deep-refresh handshake NEVER auto-spends — prints manual-run warning and completes
+  refresh/done without pushing.
+- F3 (home Band 03): server-side going-quiet deal detection in /api/home/followups —
+  open deals (Cadient COQL incl. Probability + Contact_Name.Email w/ bare-query
+  fallback; Vorro cache), Amount≥$10K or late-stage, last Gmail touch per contact
+  (15-lookup budget, 6h kvStore caches f3-contact-email-cache / f3-quiet-touch-cache),
+  score = Amount × prob × (1 + daysQuiet/7); merged with starred/drafts into one
+  revenue-ordered list; "Draft check-in" reuses the threaded-draft lane (fresh draft
+  when no prior thread). Independent try/catch — F3 failure cannot break starred/drafts.
+
+**QA (third pass, focused on new code): 75/75 assertions** — full in-process server
+boot (pagination, icpConfig preference, deep/sync refresh handshake, outreach
+normalization flat+nested, F3 scoring 200000×0.5×(1+14/7)=300000, exclusion gates,
+Zoho-throw isolation), frontend extraction tests (merge/sort, paging, drawer
+preference, escaping), push-script fixture SQLite + local HTTP stub (truncation,
+icpConfig, deep no-push). **2 XSS bugs found and FIXED** in the new ICP cards:
+(1) linkedin_url attribute breakout — esc() → escAttr() on href; (2) unescaped
+brand keys from snapshot counts in icpProspectMeta innerHTML — wrapped in esc().

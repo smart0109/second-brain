@@ -1224,6 +1224,24 @@ app.get('/api/icp', requireAuth, async (_req, res) => {
   res.json(ICP_CONFIGS);
 });
 
+// ICP config sync (2026-08-14, ICP Finder upgrade #5): the Windows pipeline can push
+// a per-brand scoring config (title scores, keyword boosts, disqualify titles, tier
+// thresholds, min_employees, source boosts) alongside its prospect snapshot via
+// POST /api/icp/prospects `icpConfig`. That becomes the one source of truth for
+// scoring once pushed; ICP_CONFIGS above stays as the hardcoded fallback for any
+// brand that hasn't pushed a config yet (or before the first push ever lands).
+const ICP_CONFIG_KEY = 'icp-config';
+function getIcpConfig(brand) {
+  const b = String(brand || '').toLowerCase();
+  const hardcoded = ICP_CONFIGS[b] || null;
+  const pushed = kvStore.get(ICP_CONFIG_KEY, null);
+  const overrides = pushed && typeof pushed === 'object' ? pushed[b] : null;
+  if (!overrides) return hardcoded;
+  // Shallow-merge: pushed fields win; hardcoded fields (e.g. display-only `brand`/
+  // `product`/`focus`) fill any gaps the pipeline payload doesn't set.
+  return Object.assign({}, hardcoded || {}, overrides);
+}
+
 app.get('/api/icp/crm-analysis', requireAuth, async (_req, res) => {
   try {
     const token = await getZohoAccessToken();
@@ -1443,7 +1461,7 @@ app.post('/api/icp/score', requireAuth, (req, res) => {
   }
   if (!title || !brand) return res.status(400).json({ error: 'title and brand required' });
 
-  const config = ICP_CONFIGS[brand.toLowerCase()];
+  const config = getIcpConfig(brand); // prefers a pushed icpConfig override, falls back to ICP_CONFIGS
   if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}` });
 
   const result = scoreAgainstConfig(config, { title, company, location, employees, industry });
@@ -1472,8 +1490,8 @@ async function fetchZohoModuleForICP(module, token, domain) {
 app.get('/api/icp/find', requireAuth, async (req, res) => {
   const brand = (req.query.brand || '').toLowerCase();
   const tierFilter = (req.query.tier || 'all').toUpperCase();
-  const config = ICP_CONFIGS[brand];
-  if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}. Use cadient or vorro.` });
+  const config = getIcpConfig(brand); // prefers a pushed icpConfig override, falls back to ICP_CONFIGS
+  if (!config) return res.status(400).json({ error: `Unknown brand: ${brand}. No hardcoded or pushed ICP config found for it.` });
 
   const result = {
     brand,
@@ -1567,7 +1585,7 @@ app.get('/api/icp/find', requireAuth, async (req, res) => {
       result.external.message = `External search error: ${err.message}`;
     }
   } else {
-    result.external.message = 'External prospecting is not configured. Add APOLLO_API_KEY to Render environment variables to enable discovery of new potential clients outside the CRM.';
+    result.external.message = 'Live external search available once APOLLO_API_KEY is set in Render env.';
   }
   result.totals.external_matches = result.external.results.length;
 
@@ -3539,12 +3557,30 @@ app.get('/api/icp/prospects', requireAuth, (req, res) => {
   let prospects = Array.isArray(snap.prospects) ? snap.prospects : [];
   if (brand && brand !== 'all') prospects = prospects.filter((p) => String(p.brand || '').toLowerCase() === brand);
   prospects = [...prospects].sort((a, b) => (b.score || 0) - (a.score || 0));
+  const total = prospects.length;
+  // Pagination (2026-08-14, ICP Finder upgrade #2). Optional so the existing
+  // frontend -- which fetches the whole (brand-filtered) snapshot once and pages
+  // the RENDER client-side -- keeps working unchanged when it omits both params.
+  // Any caller that passes offset/limit gets a real server-side page: default
+  // limit 100, hard cap 500, offset clamped to >= 0. Sort (score desc) is applied
+  // above, before slicing, so pages stay stable/consistent.
+  const hasPaging = req.query.offset != null || req.query.limit != null;
+  let offset = 0;
+  let limit = total;
+  if (hasPaging) {
+    offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+    limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+    prospects = prospects.slice(offset, offset + limit);
+  }
   res.json({
     updatedAt: snap.updatedAt || null,
     source: snap.source || null,
     counts: snap.counts || {},
     stats: snap.stats || null,
-    total: Array.isArray(snap.prospects) ? snap.prospects.length : 0,
+    statsByBrand: snap.statsByBrand || null,
+    total,
+    offset,
+    limit,
     prospects,
   });
 });
@@ -3555,6 +3591,7 @@ app.post('/api/icp/prospects', bridgeGuard, (req, res) => {
   if (!raw.length) return res.status(400).json({ error: 'prospects array required' });
   const norm = raw.slice(0, 2000).map((p) => {
     const sig = p.signals || {};
+    const out = p.outreach || {};
     return {
       slug: String(p.slug || ''),
       name: String(p.name || '').slice(0, 80),
@@ -3579,15 +3616,34 @@ app.post('/api/icp/prospects', bridgeGuard, (req, res) => {
         is_hiring: !!(sig.is_hiring != null ? sig.is_hiring : p.is_hiring),
         headline: String(sig.headline || p.headline || '').slice(0, 200),
       },
+      // Outreach drafts (2026-08-14, ICP Finder upgrade #4): the pipeline may already
+      // have generated message variant(s) -- "s1v1"/"s1v2" = sequence 1, variant 1/2.
+      // The ICP Finder drawer prefers these over an on-demand AI draft when present.
+      // Accepts both nested `outreach.s1v1` and a flat `s1v1` for pipeline flexibility.
+      outreach: {
+        s1v1: String(out.s1v1 || p.s1v1 || '').slice(0, 2000),
+        s1v2: String(out.s1v2 || p.s1v2 || '').slice(0, 2000),
+        message: String(out.message || p.message || '').slice(0, 2000),
+      },
     };
   });
   const counts = {};
   norm.forEach((p) => { const k = p.brand || 'unknown'; counts[k] = (counts[k] || 0) + 1; });
+  // ICP config sync (upgrade #5): optional per-brand scoring config pushed alongside
+  // the snapshot. Stored separately (not part of the prospects snapshot object) so a
+  // push without `icpConfig` doesn't clobber a config pushed by an earlier run.
+  if (b.icpConfig && typeof b.icpConfig === 'object' && !Array.isArray(b.icpConfig)) {
+    kvStore.set(ICP_CONFIG_KEY, b.icpConfig);
+  }
   kvStore.set(ICP_PROSPECTS_KEY, {
     updatedAt: new Date().toISOString(),
     source: String(b.source || 'windows-pipeline'),
     counts,
     stats: (b.stats && typeof b.stats === 'object') ? b.stats : null,
+    // Per-brand universe stats (upgrade #1: brand selector must filter the stats
+    // strip too). Optional -- falls back to the flat `stats` above when a brand-
+    // specific breakdown hasn't been pushed yet.
+    statsByBrand: (b.statsByBrand && typeof b.statsByBrand === 'object') ? b.statsByBrand : null,
     prospects: norm,
   });
   // A successful push also completes any pending refresh handshake.
@@ -3605,12 +3661,17 @@ app.post('/api/icp/prospects/refresh', requireAuth, (req, res) => {
   const store = kvStore.get(ICP_REFRESH_KEY, {});
   store.requestedAt = new Date().toISOString();
   store.kind = (req.body && req.body.kind) || 'prospects';
+  // Upgrade #3: 'sync' (free, re-push current local DB state) vs 'deep' (paid,
+  // runs the Apify/Evaboot pipeline first). Default to 'sync' for any caller that
+  // doesn't specify -- this keeps the pre-existing free-refresh button's behavior
+  // unchanged. The Windows poller reads `mode` off the GET below.
+  store.mode = (req.body && req.body.mode === 'deep') ? 'deep' : 'sync';
   kvStore.set(ICP_REFRESH_KEY, store);
-  res.json({ ok: true, requestedAt: store.requestedAt });
+  res.json({ ok: true, requestedAt: store.requestedAt, mode: store.mode });
 });
 app.get('/api/icp/prospects/refresh', bridgeGuard, (_req, res) => {
   const s = kvStore.get(ICP_REFRESH_KEY, {});
-  res.json({ pending: !!(s.requestedAt && s.requestedAt !== s.doneAt), requestedAt: s.requestedAt || null, kind: s.kind || 'prospects' });
+  res.json({ pending: !!(s.requestedAt && s.requestedAt !== s.doneAt), requestedAt: s.requestedAt || null, kind: s.kind || 'prospects', mode: s.mode || 'sync' });
 });
 app.post('/api/icp/prospects/refresh/done', bridgeGuard, (req, res) => {
   const s = kvStore.get(ICP_REFRESH_KEY, {});
@@ -3637,35 +3698,67 @@ function _sbDomainRoot(email) {
 }
 function _sbNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 
+// Best-effort contact email extraction from a Zoho Deal row. COQL dot-notation
+// lookup fields (Contact_Name.Email) can come back nested under the lookup
+// object OR flattened under the dotted key depending on API version -- check
+// both shapes defensively (F3: needed to skip the Contacts-search fallback).
+function _sbDealContactEmail(d) {
+  const cn = d && d.Contact_Name;
+  if (cn && typeof cn === 'object' && cn.Email) return String(cn.Email).toLowerCase();
+  if (d && d['Contact_Name.Email']) return String(d['Contact_Name.Email']).toLowerCase();
+  return '';
+}
+
 async function _sbFetchOpenDealsForJoin() {
   const deals = [];
-  // Cadient (US DC) via the shared Zoho handler
+  const WITH_EMAIL = "select Deal_Name,Stage,Amount,Closing_Date,Probability,Contact_Name,Contact_Name.Email,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200";
+  const BARE = "select Deal_Name,Stage,Amount,Closing_Date,Probability,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200";
+  // Cadient (US DC) via the shared Zoho handler. Try the Contact_Name.Email
+  // dot-notation select first (F3: avoids a per-deal Contacts lookup); if the
+  // org's Zoho edition rejects that field, fall back to the original bare
+  // query so B1/B2 keep working even when the extra field isn't supported.
   try {
-    const r = await handleZoho('executeCOQLQuery', { body: { select_query:
-      "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200" } });
+    let r;
+    try {
+      r = await handleZoho('executeCOQLQuery', { body: { select_query: WITH_EMAIL } });
+    } catch (e) {
+      console.warn('[home] Cadient COQL with Contact_Name.Email failed, retrying without it:', e.message);
+      r = await handleZoho('executeCOQLQuery', { body: { select_query: BARE } });
+    }
     (r.data || []).forEach((d) => deals.push({
       key: 'cad_' + (d.id || d.Deal_Name), name: d.Deal_Name || '', amount: Number(d.Amount) || 0,
       stage: d.Stage || '', account: (d.Account_Name && d.Account_Name.name) || '',
-      contact: (d.Contact_Name && d.Contact_Name.name) || '', brand: 'cadient',
+      contact: (d.Contact_Name && d.Contact_Name.name) || '', contactEmail: _sbDealContactEmail(d),
+      closingDate: d.Closing_Date || '', probability: d.Probability != null ? Number(d.Probability) : null,
+      brand: 'cadient',
     }));
   } catch (e) { console.warn('[home] Cadient deal fetch failed:', e.message); }
   // Vorro (India DC) - same COQL the /api/crm/vorro/deals endpoint runs
   try {
     if (process.env.VORRO_ZOHO_REFRESH_TOKEN) {
       const token = await getVorroZohoAccessToken();
-      const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v5/coql`, {
-        method: 'POST',
-        headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ select_query: "select Deal_Name,Stage,Amount,Closing_Date,Contact_Name,Account_Name from Deals where Stage != 'Closed Won' and Stage != 'Closed Lost' limit 200" }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        (data.data || []).forEach((d) => deals.push({
-          key: 'vor_' + (d.id || d.Deal_Name), name: d.Deal_Name || '', amount: Number(d.Amount) || 0,
-          stage: d.Stage || '', account: (d.Account_Name && d.Account_Name.name) || '',
-          contact: (d.Contact_Name && d.Contact_Name.name) || '', brand: 'vorro',
-        }));
+      const runVorroCoql = async (query) => {
+        const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v5/coql`, {
+          method: 'POST',
+          headers: { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ select_query: query }),
+        });
+        if (!resp.ok) throw new Error('Vorro COQL ' + resp.status);
+        return await resp.json();
+      };
+      let data;
+      try { data = await runVorroCoql(WITH_EMAIL); }
+      catch (e) {
+        console.warn('[home] Vorro COQL with Contact_Name.Email failed, retrying without it:', e.message);
+        data = await runVorroCoql(BARE);
       }
+      (data.data || []).forEach((d) => deals.push({
+        key: 'vor_' + (d.id || d.Deal_Name), name: d.Deal_Name || '', amount: Number(d.Amount) || 0,
+        stage: d.Stage || '', account: (d.Account_Name && d.Account_Name.name) || '',
+        contact: (d.Contact_Name && d.Contact_Name.name) || '', contactEmail: _sbDealContactEmail(d),
+        closingDate: d.Closing_Date || '', probability: d.Probability != null ? Number(d.Probability) : null,
+        brand: 'vorro',
+      }));
     }
   } catch (e) { console.warn('[home] Vorro deal fetch failed:', e.message); }
   return deals;
@@ -3688,6 +3781,158 @@ function _sbMatchThreadToDeal(fromEmail, fromDisplay, subject, deals) {
     if (score > bestScore) { bestScore = score; best = d; }
   }
   return bestScore >= 2 ? best : null;
+}
+
+// ============================================================================
+// F3: deal-aware "going quiet" follow-ups. For each qualifying open deal, find
+// the last email touch with the deal's contact and rank by
+// Amount x (Probability or a stage-based default) x f(daysQuiet), f growing
+// with quiet days. Gmail last-touch lookups are the expensive part, so this
+// is gated hard: only deals >= F3_MIN_AMOUNT or already late-stage are
+// considered, and at most F3_MAX_GMAIL_LOOKUPS fresh Gmail searches run per
+// load. Both contact-email resolution and last-touch results are cached in
+// kvStore with a 6h TTL, matching the durable-cache style used elsewhere
+// (MEETINGS_CACHE_KEY, ICP_PROSPECTS_KEY, etc.).
+// ============================================================================
+const F3_MIN_AMOUNT = 10000;
+const F3_MIN_QUIET_DAYS = 7;
+const F3_MAX_GMAIL_LOOKUPS = 15;
+const F3_CANDIDATE_POOL = 25; // upper bound on deals we'll even try to resolve a contact email for
+const F3_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h, per spec
+const F3_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // prune cache entries older than 30d so the blob doesn't grow forever
+const F3_CONTACT_CACHE_KEY = 'f3-contact-email-cache';
+const F3_TOUCH_CACHE_KEY = 'f3-quiet-touch-cache';
+const F3_LATE_STAGE_RE = /Proposal|Negotiat|Contract|In Progress|Delivered|^S[4-6]/i;
+// Stage-based default probability, used only when the deal has no Probability
+// field set. Mirrors the weights already used for the pipeline funnel view
+// (see CADIENT_STAGES/VORRO_STAGES + the client-side `weights` map).
+const F3_STAGE_PROB_DEFAULT = {
+  'Qualification': 10, 'Needs Analysis': 20, 'Proposal/Price Quote': 55, 'Negotiation/Review': 75,
+  'In Progress': 55, 'Delivered': 80, 'Delivered without Meeting': 65,
+  'S1: Qualification': 10, 'S2: Discovery': 25, 'S3: Solution Development/SOW': 40, 'S3: Evaluation/Scoping': 45,
+  'S4: Proposal': 60, 'S5: Verbal/Negotiation': 78, 'S6: Contracting': 88,
+};
+const F3_STAGE_PROB_FALLBACK = 30;
+
+function _sbStageProbability(deal) {
+  if (deal.probability != null && deal.probability > 0) return deal.probability;
+  const def = F3_STAGE_PROB_DEFAULT[deal.stage];
+  return def != null ? def : F3_STAGE_PROB_FALLBACK;
+}
+
+// score = Amount x (probability/100) x (1 + daysQuiet/7) -- exported in spirit
+// (not via module.exports, to avoid changing this file's surface) but kept as
+// a small, pure, independently-testable function per the F3 validation ask.
+function _sbGoingQuietScore(amount, probabilityPct, daysQuiet) {
+  return (amount || 0) * ((probabilityPct || 0) / 100) * (1 + Math.max(0, daysQuiet || 0) / 7);
+}
+
+function _sbPruneCache(cache) {
+  const cutoff = Date.now() - F3_CACHE_MAX_AGE_MS;
+  for (const k of Object.keys(cache)) {
+    if (!cache[k] || !cache[k].fetchedAt || cache[k].fetchedAt < cutoff) delete cache[k];
+  }
+  return cache;
+}
+
+// Contact-email resolution: prefer the email already on the fetched deal row
+// (Contact_Name.Email via COQL); only fall back to a Zoho searchRecords
+// Contacts lookup for cache misses, and cache that lookup too so a deal
+// without an emailed lookup field doesn't re-hit Zoho on every home load.
+async function _sbResolveContactEmail(deal) {
+  if (deal.contactEmail) return deal.contactEmail;
+  if (!deal.contact) return '';
+  const cache = _sbPruneCache(kvStore.get(F3_CONTACT_CACHE_KEY, {}));
+  const cacheKey = deal.brand + ':' + _sbNorm(deal.contact);
+  const hit = cache[cacheKey];
+  if (hit && hit.fetchedAt && (Date.now() - hit.fetchedAt) < F3_CACHE_TTL_MS) return hit.email || '';
+  let email = '';
+  try {
+    if (deal.brand === 'vorro') {
+      if (process.env.VORRO_ZOHO_REFRESH_TOKEN) {
+        const token = await getVorroZohoAccessToken();
+        const resp = await fetch(`${VORRO_ZOHO_API_DOMAIN}/crm/v2/Contacts/search?word=${encodeURIComponent(deal.contact)}`, {
+          headers: { Authorization: `Zoho-oauthtoken ${token}` },
+        });
+        if (resp.status !== 204 && resp.ok) {
+          const text = await resp.text();
+          if (text) { const data = JSON.parse(text); email = (data.data && data.data[0] && data.data[0].Email) || ''; }
+        }
+      }
+    } else {
+      const r = await handleZoho('searchRecords', { path_variables: { module: 'Contacts' }, query_params: { word: deal.contact, per_page: 1 } });
+      email = (r.data && r.data[0] && r.data[0].Email) || '';
+    }
+  } catch (e) { console.warn('[home] F3 contact email lookup failed for', deal.contact, ':', e.message); }
+  cache[cacheKey] = { email, fetchedAt: Date.now() };
+  kvStore.set(F3_CONTACT_CACHE_KEY, cache);
+  return email;
+}
+
+// Last email touch (either direction) with a contact, cached 6h. `budget` is
+// a small mutable counter shared across the whole /api/home/followups request
+// so we never fire more than F3_MAX_GMAIL_LOOKUPS fresh Gmail searches in one
+// load; once the budget is spent, cache misses are simply skipped (that deal
+// is left out of this round's results, not force-fetched).
+async function _sbLastTouch(contactEmail, budget) {
+  const key = contactEmail.toLowerCase();
+  const cache = _sbPruneCache(kvStore.get(F3_TOUCH_CACHE_KEY, {}));
+  const hit = cache[key];
+  if (hit && hit.fetchedAt && (Date.now() - hit.fetchedAt) < F3_CACHE_TTL_MS) return hit;
+  if (budget.used >= budget.cap) return hit || null;
+  budget.used++;
+  try {
+    const q = `(from:${key} OR to:${key}) -in:chats newer_than:365d`;
+    const r = await handleGmail('search_threads', { query: q, pageSize: 5 });
+    let bestDate = 0, threadId = '', lastMsgId = '', subject = '';
+    for (const t of (r.threads || [])) {
+      const msgs = t.messages || [];
+      const last = msgs[msgs.length - 1];
+      if (!last) continue;
+      const ts = new Date(last.date).getTime();
+      if (isFinite(ts) && ts > bestDate) { bestDate = ts; threadId = t.id; lastMsgId = last.id || ''; subject = last.subject || ''; }
+    }
+    const result = { fetchedAt: Date.now(), lastTouchAt: bestDate || null, threadId, lastMsgId, subject };
+    cache[key] = result;
+    kvStore.set(F3_TOUCH_CACHE_KEY, cache);
+    return result;
+  } catch (e) {
+    console.warn('[home] F3 last-touch lookup failed for', contactEmail, ':', e.message);
+    return hit || null;
+  }
+}
+
+async function _sbComputeGoingQuietDeals() {
+  const deals = await _sbFetchOpenDealsForJoin();
+  const now = Date.now();
+  // Cost control: only open deals worth caring about (big $ or already
+  // late-stage), highest amount first so the limited Gmail-lookup budget goes
+  // to the deals most worth flagging if they ARE going quiet.
+  const candidates = deals
+    .filter((d) => d.amount >= F3_MIN_AMOUNT || F3_LATE_STAGE_RE.test(d.stage || ''))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, F3_CANDIDATE_POOL);
+  const budget = { used: 0, cap: F3_MAX_GMAIL_LOOKUPS };
+  const out = [];
+  for (const d of candidates) {
+    const email = await _sbResolveContactEmail(d);
+    if (!email) continue; // no contact email on the deal or resolvable via Contacts search
+    const touch = await _sbLastTouch(email, budget);
+    if (!touch || !touch.lastTouchAt) continue; // no email history found, or lookup budget exhausted this round
+    const daysQuiet = Math.max(0, Math.floor((now - touch.lastTouchAt) / 86400000));
+    if (daysQuiet < F3_MIN_QUIET_DAYS) continue;
+    const probability = _sbStageProbability(d);
+    const score = _sbGoingQuietScore(d.amount, probability, daysQuiet);
+    const daysToClose = d.closingDate ? Math.ceil((new Date(d.closingDate).getTime() - now) / 86400000) : null;
+    out.push({
+      dealId: d.key, name: d.name, account: d.account, contact: d.contact, contactEmail: email,
+      amount: d.amount, stage: d.stage, brand: d.brand, closingDate: d.closingDate || null,
+      daysToClose, daysQuiet, probability, score,
+      threadId: touch.threadId || '', lastMsgId: touch.lastMsgId || '', subject: touch.subject || d.name,
+    });
+  }
+  out.sort((a, b) => b.score - a.score);
+  return out.slice(0, 20);
 }
 
 app.get('/api/home/awaiting-reply', requireAuth, async (req, res) => {
@@ -3739,7 +3984,8 @@ app.get('/api/home/awaiting-reply', requireAuth, async (req, res) => {
   }
 });
 
-// F1: follow-up feed = starred threads + unsent drafts (existing Gmail ops)
+// F1+F3: follow-up feed = starred threads + unsent drafts + deal-aware
+// "going quiet" deals (revenue-weighted, see _sbComputeGoingQuietDeals above).
 app.get('/api/home/followups', requireAuth, async (_req, res) => {
   try {
     const [starredR, draftsR] = await Promise.allSettled([
@@ -3763,11 +4009,22 @@ app.get('/api/home/followups', requireAuth, async (_req, res) => {
       date: (d.message && d.message.date) || '',
       snippet: String((d.message && d.message.snippet) || '').slice(0, 140),
     }));
+    // F3: deal-aware going-quiet follow-ups. Independent try/catch so a Zoho
+    // or Gmail hiccup here never takes down the starred/drafts feed above.
+    let goingQuiet = [];
+    let goingQuietError = null;
+    try {
+      goingQuiet = await _sbComputeGoingQuietDeals();
+    } catch (e) {
+      goingQuietError = e.message;
+      console.warn('[home] F3 going-quiet computation failed:', e.message);
+    }
     res.json({
-      updatedAt: new Date().toISOString(), starred, drafts,
+      updatedAt: new Date().toISOString(), starred, drafts, goingQuiet,
       errors: {
         starred: starredR.status === 'rejected' ? String(starredR.reason && starredR.reason.message) : null,
         drafts: draftsR.status === 'rejected' ? String(draftsR.reason && draftsR.reason.message) : null,
+        goingQuiet: goingQuietError,
       },
     });
   } catch (err) {
