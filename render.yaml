@@ -28,3 +28,15 @@ services:
         sync: false
       - key: ALLOWED_EMAIL
         sync: false
+      # G-10 (2026-08-17): these four were live in the Render dashboard but absent
+      # from this blueprint, so any "apply blueprint" redeploy silently wiped the AI
+      # chain and the service-to-service auth token. sync:false = Render keeps the
+      # dashboard value and never overwrites it from this file.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SERVICE_API_TOKEN
+        sync: false

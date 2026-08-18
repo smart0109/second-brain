@@ -9171,13 +9171,41 @@ async function ask(p,d,opts){
   }catch(e){
     dbg('askClaude failed: '+e.message,'err');
     // Do NOT dump the raw prompt/CRM data into the UI (privacy + noise).
-    // Distinguish an expired session (401) from a genuine no-provider case (503).
+    // G-09 (2026-08-17): this used to return the same "add a free GEMINI_API_KEY"
+    // sentinel for EVERY non-401 failure, including 503s where the server had a key,
+    // tried every provider and failed for some completely unrelated reason. That sent
+    // the reader off to the Render Environment tab to fix a problem that was not
+    // there. Branch on the real HTTP status and surface the server's own error text.
+    // NOTE: every non-401 return below must still START with 'AI unavailable' -- the
+    // copilot renderer checks response.indexOf('AI unavailable')===0.
     const m=e.message||'';
-    if(m.indexOf('HTTP 401')>=0||/not authenticated/i.test(m)){
+    const _sm=m.match(/^HTTP (\d{3})/);
+    const _st=_sm?parseInt(_sm[1],10):0;
+    let _detail='';
+    if(_sm){
+      const _body=m.slice(_sm[0].length).trim();
+      if(_body){
+        try{const _j=JSON.parse(_body);_detail=_j.error||_j.message||_body;}catch(_){_detail=_body;}
+      }
+    }
+    if(typeof _detail!=='string')_detail=JSON.stringify(_detail);
+    _detail=(_detail||'').replace(/\s+/g,' ').trim().slice(0,300);
+    if(_st===401||/not authenticated/i.test(m)){
       return 'Session expired \u2014 your session expired - reload the page and sign in again.';
     }
-    // Return a clean sentinel; callers detect 'AI unavailable' and show guidance.
-    return 'AI unavailable \u2014 add a free GEMINI_API_KEY on Render (Environment tab) to turn on live answers. Gemini and Groq both have free tiers; Anthropic is the paid fallback.';
+    if(_st===503){
+      return 'AI unavailable \u2014 the server reached every AI provider and all of them failed (HTTP 503). Server said: '+(_detail||'no detail returned.');
+    }
+    if(_st===429){
+      return 'AI unavailable \u2014 rate limited (HTTP 429). Server said: '+(_detail||'provider quota exhausted; retry shortly.');
+    }
+    if(_st>=500){
+      return 'AI unavailable \u2014 server error HTTP '+_st+'. Server said: '+(_detail||'no detail returned. Check the Render logs.');
+    }
+    if(_st>=400){
+      return 'AI unavailable \u2014 the server rejected the request (HTTP '+_st+'). Server said: '+(_detail||'no detail returned.');
+    }
+    return 'AI unavailable \u2014 could not reach the server: '+(m||'network error')+'.';
   }
 }
 

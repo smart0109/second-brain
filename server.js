@@ -1997,19 +1997,40 @@ async function askGemini(systemPrompt, userContent, maxTokens) {
 async function askGroq(systemPrompt, userContent, maxTokens) {
   const key = process.env.GROQ_API_KEY;
   if (!key) return null;
-  // Try models in order: 70b first (best), then 8b (fastest), then qwen3
-  const models = ['llama-3.3-70b-versatile','llama-3.1-8b-instant','qwen/qwen3-32b'];
+  // G-08 (2026-08-17): the previous list ['llama-3.3-70b-versatile',
+  // 'llama-3.1-8b-instant','qwen/qwen3-32b'] was decommissioned by Groq -- every
+  // chat/completions call returned HTTP 404 model_not_found, so Groq contributed
+  // nothing to the fallback chain and every request fell through to Gemini.
+  // The three below were verified live against GET /openai/v1/models and each
+  // returned HTTP 200 with non-empty content on a real completion.
+  //
+  // reasoningHidden: Groq's gpt-oss models are REASONING models. Left alone they
+  // emit their chain-of-thought into message.content, and at small max_tokens the
+  // reasoning consumes the whole budget so content comes back EMPTY (measured:
+  // gpt-oss-120b at max_tokens=32 returns '' with finish_reason=length, which made
+  // this loop silently fall through to the next model). Sending
+  // reasoning_format:'hidden' fixes both. Non-reasoning models REJECT that
+  // parameter with HTTP 400 '`reasoning_format` is not supported with this model',
+  // so it must be sent per-model and never globally.
+  const models = [
+    { id: 'openai/gpt-oss-120b', reasoningHidden: true },  // best quality
+    { id: 'openai/gpt-oss-20b',  reasoningHidden: true },  // faster
+    { id: 'groq/compound-mini',  reasoningHidden: false }, // non-reasoning backstop
+  ];
   let lastErr = null;
-  for (const model of models) {
+  for (const m of models) {
+    const model = m.id;
     try {
+      const payload = {
+        model,
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
+        max_tokens: maxTokens, temperature: 0.3
+      };
+      if (m.reasoningHidden) payload.reasoning_format = 'hidden';
       const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
-          max_tokens: maxTokens, temperature: 0.3
-        }),
+        body: JSON.stringify(payload),
       });
       if (!resp.ok) { const t = await resp.text(); lastErr = new Error(`Groq/${model} ${resp.status}: ${t.slice(0,160)}`); continue; }
       const r = await resp.json();
@@ -2021,6 +2042,13 @@ async function askGroq(systemPrompt, userContent, maxTokens) {
   return '';
 }
 
+// G-08 (2026-08-17): askAnthropic is intentionally NOT in the fallback chains below.
+// The Anthropic account's credit balance is zero -- /v1/messages returns HTTP 400
+// "Your credit balance is too low to access the Anthropic API" on every call, so it
+// only added a failed round-trip to every request. The function is kept (not deleted)
+// so that re-enabling it after a top-up is a one-line change: add
+//   { name: 'Anthropic', fn: () => askAnthropic(systemPrompt, userContent, maxTokens) }
+// back into the provider arrays. Search this file for "G-08" to find all of them.
 async function askAnthropic(systemPrompt, userContent, maxTokens) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
@@ -2064,10 +2092,10 @@ app.post('/api/ask', requireAuth, async (req, res) => {
   const companyFocus = companyContext[company] || 'Manish manages 5 companies: Cadient (HR/ATS), Vorro (healthcare integration), CV3 (ecommerce), RevEngineer (GTM intelligence), Arista (networking).';
   const systemPrompt = `You are Manish's real-time meeting intelligence assistant. Manish is CRO at Basis Vectors Capital. ${companyFocus} Be direct, data-driven, cite specific metrics. Never generic. Immediately usable in a live meeting. If the user prompt specifies an answer FORMAT, follow it exactly (including any required "Terms & acronyms" section); otherwise default to 3-5 concise bullets.`;
 
-  // Provider order: Groq (free, fast, confirmed working) → Anthropic (paid, reliable) → Gemini (free but credits may be depleted)
+  // Provider order: Groq (free) -> Gemini (free). G-08: Anthropic removed from the
+  // chain -- zero credit balance, every call HTTP 400. Re-add it here after a top-up.
   const providers = [
     { name: 'Groq', fn: () => askGroq(systemPrompt, userContent, maxTokens) },
-    { name: 'Anthropic', fn: () => askAnthropic(systemPrompt, userContent, maxTokens) },
     { name: 'Gemini', fn: () => askGemini(systemPrompt, userContent, maxTokens) },
   ];
 
@@ -2083,7 +2111,7 @@ app.post('/api/ask', requireAuth, async (req, res) => {
     }
   }
 
-  return res.status(503).json({ error: 'All AI providers failed. Check GEMINI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY in environment.' });
+  return res.status(503).json({ error: 'All AI providers failed. Groq returned an error for every model and no Gemini key succeeded - check GROQ_API_KEY and GEMINI_API_KEY (or GEMINI_API_KEY_2..._5) in the Render environment.' });
 });
 
 
@@ -2182,9 +2210,9 @@ Under 200 words total. Manish reads this in under 60 seconds.`
   // the rest of the app's AI calls kept working fine via Groq the whole time.
   // See PIPELINE_ERRORS.md "meeting-brief-no-fallback-RESOLVED".
   const briefSystemPrompt = "You are Manish's executive assistant. Manish is CRO at Basis Vectors Capital managing Cadient (AI hiring platform) and Vorro (healthcare integration). Be direct, specific, no fluff.";
+  // G-08: Anthropic dropped (zero credit balance -> HTTP 400 on every call).
   const briefProviders = [
     { name: 'Groq', fn: () => askGroq(briefSystemPrompt, prompt, 800) },
-    { name: 'Anthropic', fn: () => askAnthropic(briefSystemPrompt, prompt, 800) },
     { name: 'Gemini', fn: () => askGemini(briefSystemPrompt, prompt, 800) },
   ];
   let brief = '';
@@ -3189,9 +3217,9 @@ const MEETING_NOTES_KEY = 'meeting-notes';
 const _capSessions = new Map(); // cap code -> { meetingId, title, company, brand, attendees, startTs }
 
 async function _aiSummarize(systemPrompt, userContent, maxTokens) {
+  // G-08: Anthropic dropped (zero credit balance -> HTTP 400 on every call).
   const providers = [
     () => askGroq(systemPrompt, userContent, maxTokens),
-    () => askAnthropic(systemPrompt, userContent, maxTokens),
     () => askGemini(systemPrompt, userContent, maxTokens),
   ];
   for (const fn of providers) {
@@ -3366,15 +3394,15 @@ async function _genSocialDraft(style, post) {
     : 'Write a CHALLENGING, PUNCHY LinkedIn comment (2 to 4 sentences, under 60 words). Take a bold, slightly contrarian stance that sparks debate and makes people stop scrolling. Conversational and confident.';
   const systemPrompt = 'You are drafting LinkedIn engagement comments for Manish, a CRO who runs Cadient (AI-powered high-volume hiring / talent platform) and Vorro (healthcare data integration, BridgeGate EiPaaS). Write in first person as Manish. Rules: sound like a real human, use contractions, no hashtags, no emojis, no asterisks or hyphens or arrows as formatting, do NOT pitch or name products, do not be salesy. Return ONLY the comment text, nothing else.';
   const userContent = `${styleSpec}\n\n--- POST TO ENGAGE WITH ---\nAuthor: ${post.author || 'Unknown'}${post.authorTitle ? ' (' + post.authorTitle + ')' : ''}\nPost:\n${post.text || '(no text captured)'}\n`;
+  // G-08: Anthropic dropped (zero credit balance -> HTTP 400 on every call).
   const providers = [
     () => askGemini(systemPrompt, userContent, 320),
     () => askGroq(systemPrompt, userContent, 320),
-    () => askAnthropic(systemPrompt, userContent, 320),
   ];
   for (const fn of providers) {
     try { const out = await fn(); if (out && out.trim()) return out.trim(); } catch (e) { console.warn('social draft provider failed:', e.message); }
   }
-  throw new Error('All AI providers failed (check GEMINI_API_KEY / GROQ_API_KEY / ANTHROPIC_API_KEY)');
+  throw new Error('All AI providers failed (check GEMINI_API_KEY / GEMINI_API_KEY_2..._5 / GROQ_API_KEY)');
 }
 
 // --- Page-facing endpoints (requireAuth) -----------------------------------
