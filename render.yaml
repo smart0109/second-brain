@@ -40,3 +40,18 @@ services:
         sync: false
       - key: SERVICE_API_TOKEN
         sync: false
+      # G-12 (2026-08-18): server.js:1973 rotates through
+      # [GEMINI_API_KEY, _2, _3, _4, _5].filter(Boolean) and uses the first key
+      # that answers; the same chain is named in the 503 messages at
+      # server.js:2114 and :3405. Slots 1-3 are 429 prepay-depleted, so slot 4/5
+      # is the only working Gemini key. These four were dashboard-only and
+      # undeclared here, so a blueprint apply would have wiped the one key still
+      # serving traffic. sync:false = Render keeps the dashboard value.
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
+        sync: false
+      - key: GEMINI_API_KEY_5
+        sync: false
