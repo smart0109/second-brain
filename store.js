@@ -23,7 +23,17 @@ let _pool = null; // pg Pool when Postgres is active
 const _cache = Object.create(null);
 
 function _connString() {
-  return process.env.MEMORY_DATABASE_URL || process.env.DATABASE_URL || '';
+  // G-14 (2026-08-25): SECRETS.txt has always named this
+  // SECOND_BRAIN_MEMORY_DATABASE_URL, which this function never checked --
+  // only MEMORY_DATABASE_URL / DATABASE_URL. If the Render dashboard var was
+  // ever set under that name (matching SECRETS.txt) rather than one of the
+  // two this code looked for, every boot silently fell back to file storage
+  // on Render's ephemeral disk, which is wiped on every dyno restart/redeploy
+  // (free tier restarts on ~15min idle) -- meeting-notes entries recorded
+  // between restarts would be lost with no error surfaced anywhere. Adding
+  // the SECRETS.txt name as an accepted alias costs nothing when the other
+  // two are already set correctly, and fixes it silently if they aren't.
+  return process.env.MEMORY_DATABASE_URL || process.env.DATABASE_URL || process.env.SECOND_BRAIN_MEMORY_DATABASE_URL || '';
 }
 
 // Keys map 1:1 to the legacy data/<key>.json files.

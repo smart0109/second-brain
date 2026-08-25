@@ -6859,6 +6859,11 @@ function _isUnnamedSpeaker(s){return !s || /^(me|you|them|speaker\s*\d+)$/i.test
 // arrived within DEDUP_WINDOW_MS, and lets a NAMED caption supersede a recent unnamed (Me/Speaker N)
 // line carrying the same utterance. Returns true if a NEW line was appended, false otherwise.
 const DEDUP_WINDOW_MS=6000;
+// Last time ANY caption activity (new line or an in-place revision) was seen.
+// Used by _refreshCopilotCurrentMeetingImpl's silence check to tell "meeting
+// actually ended" from "calendar end time hasn't passed yet" -- see
+// PIPELINE_ERRORS.md "copilot-meeting-close-via-transcript-silence".
+let _lastTranscriptActivityTs=0;
 function _pushTranscriptLine(line){
   const norm=_normUtterance(line.text);
   if(!norm)return false;
@@ -6868,7 +6873,7 @@ function _pushTranscriptLine(line){
   if(line.cid){
     for(let i=copilotTranscriptLines.length-1;i>=0&&i>=copilotTranscriptLines.length-30;i--){
       const ex=copilotTranscriptLines[i];
-      if(ex.cid===line.cid){ex.text=line.text;if(line.speaker)ex.speaker=line.speaker;ex.time=line.time||ex.time;return false;}
+      if(ex.cid===line.cid){ex.text=line.text;if(line.speaker)ex.speaker=line.speaker;ex.time=line.time||ex.time;_lastTranscriptActivityTs=Date.now();return false;}
     }
   }
   const now=(line.time&&line.time.getTime)?line.time.getTime():Date.now();
@@ -6888,6 +6893,7 @@ function _pushTranscriptLine(line){
     return false; // duplicate -> drop
   }
   copilotTranscriptLines.push(line);
+  _lastTranscriptActivityTs=Date.now();
   return true;
 }
 let copilotTranscriptLines=[];
@@ -7527,6 +7533,7 @@ async function _startMeetCaptions(freshMeeting){
     // Heartbeat: re-register the pairing code every 10 min so a server restart
     // (which wipes the in-memory code registry) re-pairs without any clicks.
     if(!window._meetCapHb)window._meetCapHb=setInterval(()=>{fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'}).catch(()=>{});},600000);
+    _lastTranscriptActivityTs=Date.now(); // fresh silence window; captions just (re)started
     pollMeetCaptions();
     if(_isToneAutoEnabled())_startLiveTone();
   }catch(e){ const st=document.getElementById('meetCapStatus'); if(st)st.textContent=e.message; }
@@ -8440,8 +8447,26 @@ async function refreshCopilotCurrentMeeting(){
     _copilotRefreshInFlight=false;
   }
 }
+// A meeting whose CALENDAR end time hasn't passed yet can still be over in
+// reality (ran short, Manish left early, etc). While captions are actively
+// running for the current meeting, no new caption activity for this long is
+// treated as "it closed" -- advances to whatever's actually next instead of
+// waiting on the stale scheduled end time. See PIPELINE_ERRORS.md
+// "copilot-meeting-close-via-transcript-silence".
+const SILENCE_CLOSE_MS=8*60000;
+let _silenceClosedKey=null;
 async function _refreshCopilotCurrentMeetingImpl(){
   const now=new Date();
+  if(_meetCapTimer&&copilotCurrentMeeting&&_lastTranscriptActivityTs){
+    const curKey=_meetingKey(copilotCurrentMeeting);
+    const silentMs=Date.now()-_lastTranscriptActivityTs;
+    if(silentMs>SILENCE_CLOSE_MS&&curKey&&curKey!==_silenceClosedKey){
+      _silenceClosedKey=curKey;
+      try{await _finalizeMeetingNotes();}catch(e){}
+      _lastCopilotMeetingId=null; // force re-pick even if calendar "next" looks unchanged
+      dbg('Meeting appears closed (no captions for '+Math.round(silentMs/60000)+'m) -- moving to the next slot: '+(copilotCurrentMeeting.summary||''),'ok');
+    }
+  }
   const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
   const todayEnd=new Date(now);todayEnd.setHours(23,59,59,999);
   const futureEnd=new Date(now.getTime()+7*86400000);
@@ -8452,7 +8477,11 @@ async function _refreshCopilotCurrentMeetingImpl(){
   const todayEvents=todayR.status==='fulfilled'?(todayR.value?.events||[]):[];
   const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,10);
   const allToday=[...todayEvents,...futureEvents];
-  const events=_preferRealMeetings(allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;}));
+  const events=_preferRealMeetings(allToday.filter(e=>{
+    const et=e.end?.dateTime||e.end?.date;
+    const notEnded=et?new Date(et)>now:true;
+    return notEnded&&_meetingKey(e)!==_silenceClosedKey;
+  }));
   const next=events.length?events[0]:null;
   const nextKey=_meetingKey(next);
   if(nextKey===_lastCopilotMeetingId)return; // nothing changed since last check
@@ -8460,6 +8489,7 @@ async function _refreshCopilotCurrentMeetingImpl(){
   const isInProgress=!!(nextStart&&new Date(nextStart)<=now);
   _lastCopilotMeetingId=nextKey;
   copilotCurrentMeeting=next;
+  _lastTranscriptActivityTs=isInProgress?Date.now():0; // fresh silence window for the new meeting
   if(!next){
     const _cmt2=document.getElementById('copilotMeetingTitle');if(_cmt2)_cmt2.textContent='No Upcoming Meeting';
     const _cmm2=document.getElementById('copilotMeetingMeta');if(_cmm2)_cmm2.textContent='Your next meeting will auto-load when it starts. You can still use the copilot with manual input.';
@@ -8505,6 +8535,7 @@ async function loadCopilotStripMeeting(idx){
   // reset+replay path on the next matched tick.
   copilotTranscriptLines=[];
   _surfacedTopicAt={};_topicFeedCount=0;
+  _lastTranscriptActivityTs=0;_silenceClosedKey=null; // manual switch: give the new selection a fresh silence window
   try{renderCopilotTranscript();}catch(e){}
   _capGatedMismatch=true;
   // The CRM/deal context cards and the pre-meeting brief had the exact same
