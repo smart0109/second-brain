@@ -1285,6 +1285,9 @@ button { text-align: left; }
               <div class="cab-icon">&#127912;</div>
               <div class="cab-label">Tone</div>
               <div class="cab-hint">Emotional analysis</div>
+              <label onclick="event.stopPropagation()" title="Auto-refresh Tone every 60s while captions run -- uncheck to stop the background analysis (manual Tone clicks still work)" style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text-muted);margin-top:3px;cursor:pointer">
+                <input type="checkbox" id="toneAutoToggle" onchange="toggleToneAuto()" style="width:11px;height:11px;cursor:pointer;margin:0">Auto
+              </label>
             </div>
             <div class="copilot-action-btn advise" onclick="copilotAction('advise')">
               <div class="cab-icon">&#128172;</div>
@@ -7525,7 +7528,7 @@ async function _startMeetCaptions(freshMeeting){
     // (which wipes the in-memory code registry) re-pairs without any clicks.
     if(!window._meetCapHb)window._meetCapHb=setInterval(()=>{fetch('/api/live-captions/code',{method:'POST',credentials:'same-origin'}).catch(()=>{});},600000);
     pollMeetCaptions();
-    _startLiveTone();
+    if(_isToneAutoEnabled())_startLiveTone();
   }catch(e){ const st=document.getElementById('meetCapStatus'); if(st)st.textContent=e.message; }
 }
 function stopMeetCaptions(){
@@ -7563,6 +7566,26 @@ function _stopLiveTone(){
   const st=document.getElementById('liveToneStamp');
   if(st)st.textContent='';
 }
+// Disable-Tone toggle (2026-08-25): the 60s auto-poll above was the largest
+// single source of background /api/ask calls during a live meeting, and
+// contributed to hitting the free-tier Groq/Gemini rate limits at once (see
+// PIPELINE_ERRORS.md "second-brain-ai-outage-transient-during-live-call").
+// This only gates the AUTO refresh -- the manual Tone button still works
+// either way. Persisted in localStorage so it survives a page reload.
+function _isToneAutoEnabled(){
+  try{return localStorage.getItem('sb_autoToneEnabled')!=='0';}catch(e){return true;}
+}
+function toggleToneAuto(){
+  const cb=document.getElementById('toneAutoToggle');
+  const on=cb?cb.checked:true;
+  try{localStorage.setItem('sb_autoToneEnabled',on?'1':'0');}catch(e){}
+  if(on){ if(_meetCapTimer)_startLiveTone(); }
+  else { _stopLiveTone(); }
+}
+try{
+  const _tat=document.getElementById('toneAutoToggle');
+  if(_tat)_tat.checked=_isToneAutoEnabled();
+}catch(e){}
 function _resetLiveToneTimer(){
   if(!_liveToneTimer)return;
   clearInterval(_liveToneTimer);
@@ -8257,6 +8280,30 @@ function renderCopilotResponse(type,text){
   }
 }
 
+// A long-duration or link-less calendar block (an OOTO hold, PTO, an all-day
+// reminder) should never win "current meeting" over a real video call just
+// because it happens to overlap "now" -- its end time can be days away, so
+// it would otherwise permanently occupy the slot for its whole span. Real
+// meetings get a join link (Meet/Zoom/Teams) and a normal duration; prefer
+// those when both are on the calendar right now, but fall back to the old
+// any-unended-event behavior when nothing qualifies (so "no real meeting
+// scheduled, use manual input" still works). See PIPELINE_ERRORS.md
+// "copilot-ooto-block-hijacks-current-meeting".
+function _looksLikeRealMeeting(e){
+  const conf=(e.conferenceUrl||'')+' '+(e.location||'');
+  const hasLink=/meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com/i.test(conf);
+  const st=e.start&&e.start.dateTime;
+  if(!st)return false; // all-day (date-only) events are never a real meeting
+  const et=e.end&&e.end.dateTime;
+  const durMs=et?(new Date(et)-new Date(st)):0;
+  const reasonableDuration=durMs>0&&durMs<=6*3600000; // <=6h; multi-day blocks fail this
+  return hasLink&&reasonableDuration;
+}
+function _preferRealMeetings(events){
+  const real=events.filter(_looksLikeRealMeeting);
+  return real.length?real:events;
+}
+
 // ── Meeting Context Loading ──
 async function loadCopilot(){
   window._copilotLoaded=true;
@@ -8325,7 +8372,7 @@ async function loadCopilot(){
 
     // Pick the current/next meeting for the main bar
     const allToday=[...todayEvents,...futureEvents];
-    const events=allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;});
+    const events=_preferRealMeetings(allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;}));
     if(events.length){
       copilotCurrentMeeting=events[0];
       _lastCopilotMeetingId=_meetingKey(copilotCurrentMeeting);
@@ -8405,7 +8452,7 @@ async function _refreshCopilotCurrentMeetingImpl(){
   const todayEvents=todayR.status==='fulfilled'?(todayR.value?.events||[]):[];
   const futureEvents=(futR.status==='fulfilled'?(futR.value?.events||[]):[]).slice(0,10);
   const allToday=[...todayEvents,...futureEvents];
-  const events=allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;});
+  const events=_preferRealMeetings(allToday.filter(e=>{const et=e.end?.dateTime||e.end?.date;return et?new Date(et)>now:true;}));
   const next=events.length?events[0]:null;
   const nextKey=_meetingKey(next);
   if(nextKey===_lastCopilotMeetingId)return; // nothing changed since last check

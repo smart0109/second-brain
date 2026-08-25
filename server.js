@@ -498,14 +498,28 @@ async function handleCalendar(toolName, args) {
       calendarId: 'primary',
       singleEvents: true,
       orderBy: orderBy || 'startTime',
-      maxResults: 50,
+      maxResults: 250,
     };
     if (startTime) params.timeMin = startTime;
     if (endTime) params.timeMax = endTime;
     if (timeZone) params.timeZone = timeZone;
 
-    const resp = await calendar.events.list(params);
-    const events = (resp.data.items || []).map((e) => {
+    // G-13 (2026-08-25): maxResults was hardcoded at 50 with NO pagination --
+    // any query window with more than 50 events (esp. the AI Transcription
+    // meeting strip's 30-day past-window query) silently dropped everything
+    // past the cap with no error surfaced. On a calendar this dense that
+    // produced an unexplained date gap in the strip and missing same-day
+    // meetings. Now pages through nextPageToken until exhausted or a 1000-
+    // event safety cap (guards against a runaway loop, not a real limit).
+    let items = [];
+    let pageToken;
+    do {
+      const resp = await calendar.events.list(pageToken ? { ...params, pageToken } : params);
+      items = items.concat(resp.data.items || []);
+      pageToken = resp.data.nextPageToken;
+    } while (pageToken && items.length < 1000);
+
+    const events = items.map((e) => {
       let conferenceUrl = e.hangoutLink || null;
       if (!conferenceUrl && e.conferenceData && e.conferenceData.entryPoints) {
         const video = e.conferenceData.entryPoints.find((ep) => ep.entryPointType === 'video');
